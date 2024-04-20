@@ -1,5 +1,6 @@
-# Provides a C++ format based on the Google style guide and the Black formatter used for the Python version of the
-# library. This results in a visual style that is largely similar between C++ and Python.
+# Provides a C++ format based on the Google style guide and the Black formatter. This results in a visual style that is
+# largely similar between C++ and Python code, improving cross-language developer experience. Note, all contributors
+# should combine this static linter with Google C++ / C style guide to be fully compatible with project's style format.
 ---
 BasedOnStyle: Google
 AccessModifierOffset: -2

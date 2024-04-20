@@ -11,6 +11,10 @@
  * This file contains:
  * - kCOBSProcessorCodes structure that stores status bytecodes used by the COBSProcessor to report it's runtime status.
  * - kCRCProcessorCodes structure that stores status bytecodes used by the CRCProcessor to report it's runtime status.
+ * - kSerializedTransferProtocolStatusCodes structure that stores status bytecodes used by the
+ * SerializedTransferProtocol to report it's runtime status.
+ * - A custom implementation of the is_same_v() standard method used to verify that two input objects have the same
+ * type.
  *
  * @subsection developer_notes Developer Notes:
  *
@@ -27,9 +31,8 @@
  * @brief Provides all assets (structures, enumerations, functions) that are intended to be shared between the classes
  * of the SerializedTransferProtocol library.
  *
- * The shared assets are primarily used to simplify library development by storing co-dependent assets in the
- * same place. Additionally, it simplifies using these assets with template classes (currently only CRCProcessor) from
- * the library.
+ * The shared assets are primarily used to simplify library development by storing co-dependent assets in the same
+ * place. Additionally, it simplifies using these assets with template classes from the library.
  */
 namespace stp_shared_assets
 {
@@ -37,9 +40,9 @@ namespace stp_shared_assets
      * @enum kCOBSProcessorCodes
      * @brief Assigns meaningful names to all status codes used by the COBSProcessor class.
      *
-     * @note Due to a unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 51 through 100. This is to simplify chained error handling in the
-     * SerializedTransferProtocol class of the library.
+     * @note Due to a unified approach to status-coding in this library, this enumeration should only use code values in
+     * the range of 11 through 50. This is to simplify chained error handling in the SerializedTransferProtocol class
+     * of the library.
      */
     enum class kCOBSProcessorCodes : uint8_t
     {
@@ -47,15 +50,15 @@ namespace stp_shared_assets
         kEncoderTooSmallPayloadSize    = 12,  ///< Encoder failed to encode payload because payload size is too small
         kEncoderTooLargePayloadSize    = 13,  ///< Encoder failed to encode payload because payload size is too large
         kEncoderPacketLargerThanBuffer = 14,  ///< Encoded payload buffer is too small to accommodate the packet
-        kPayloadAlreadyEncoded         = 15,  ///< Cannot encode payload as it is already encoded (overhead != 0)
-        kPayloadEncoded                = 16,  ///< Payload was successfully encoded into a transmission packet
+        kPayloadAlreadyEncoded         = 15,  ///< Cannot encode payload as it is already encoded (overhead value != 0)
+        kPayloadEncoded                = 16,  ///< Payload was successfully encoded into a transmittable packet
         kDecoderTooSmallPacketSize     = 17,  ///< Decoder failed to decode packet because packet size is too small
         kDecoderTooLargePacketSize     = 18,  ///< Decoder failed to decode packet because packet size is too large
-        kDecoderPacketLargerThanBuffer = 19,  ///< Decoded packet size is larger than the buffer size (would not fit)
+        kDecoderPacketLargerThanBuffer = 19,  ///< Packet size to be decoded is larger than the storage buffer size
         kDecoderUnableToFindDelimiter  = 20,  ///< Decoder failed to find the delimiter at the end of the packet
         kDecoderDelimiterFoundTooEarly = 21,  ///< Decoder found a delimiter before reaching the end of the packet
-        kPacketAlreadyDecoded          = 22,  ///< Cannot decode packet as it is already decoded (overhead == 0)
-        kPayloadDecoded                = 23,  ///< Payload was successfully decoded from he transmission packet
+        kPacketAlreadyDecoded          = 22,  ///< Cannot decode packet as it is already decoded (overhead value == 0)
+        kPayloadDecoded                = 23,  ///< Payload was successfully decoded from the received packet
     };
 
     /**
@@ -71,7 +74,7 @@ namespace stp_shared_assets
         kStandby                            = 51,  ///< The value used to initialize the crc_status variable
         kCalculateCRCChecksumBufferTooSmall = 52,  ///< Checksum calculator failed due to packet exceeding buffer space
         kCRCChecksumCalculated              = 53,  ///< Checksum was successfully calculated
-        kAddCRCChecksumBufferTooSmall       = 54,  ///< Not enough remaining space inside buffer to add checksum to it
+        kAddCRCChecksumBufferTooSmall       = 54,  ///< Not enough remaining buffer space to add checksum to buffer
         kCRCChecksumAddedToBuffer           = 55,  ///< Checksum was successfully added to the buffer
         kReadCRCChecksumBufferTooSmall      = 56,  ///< Not enough remaining space inside buffer to get checksum from it
         kCRCChecksumReadFromBuffer          = 57,  ///< Checksum was successfully read from the buffer
@@ -92,22 +95,24 @@ namespace stp_shared_assets
         kPacketSent                   = 103,  ///< Packet transmission succeeded
         kPacketStartByteFound         = 104,  ///< Packet start byte was found
         kPacketStartByteNotFoundError = 105,  ///< Packet start byte was not found in the incoming stream
-        kPacketDelimiterByteFound     = 106,  ///< Packet delimiter byte was found
-        kPacketOutOfBufferSpaceError  = 107,  ///< Packet delimiter byte was not found before using up all buffer space
-        kPacketTimeoutError           = 108,  ///< Packet parsing failed due to stalling (reception timeout)
-        kPostambleTimeoutError        = 109,  ///< Postamble parsing failed due to staling (reception timeout)
-        kPacketParsed                 = 110,  ///< Packet parsing succeeded
-        kCRCCheckFailed               = 111,  ///< CRC check failed, incoming packet corrupted
-        kPacketValidated              = 112,  ///< Packet validation succeeded
-        kPacketReceived               = 113,  ///< Packet reception succeeded
-        kWritePayloadTooSmallError    = 114,  ///< Writing to buffer failed due to not enough payload space
-        kBytesWrittenToBuffer         = 115,  ///< Writing to buffer succeeded
-        kReadPayloadTooSmallError     = 116,  ///< Reading from buffer failed due to not enough payload size
-        kBytesReadFromBuffer          = 117,  ///< Reading from buffer succeeded
-        kNoBytesToParseFromBuffer     = 118   ///< Stream class reception buffer had no packet bytes to parse
+        kPayloadSizeByteFound         = 106,  ///< Payload size byte was found
+        kPayloadSizeByteNotFound      = 107,  ///< Payload size byte was not found in the incoming stream
+        kPacketDelimiterByteFound     = 108,  ///< Packet delimiter byte was found
+        kPacketOutOfBufferSpaceError  = 109,  ///< Packet delimiter byte was not found before using up all buffer space
+        kPacketTimeoutError           = 110,  ///< Packet parsing failed due to stalling (reception timeout)
+        kPostambleTimeoutError        = 111,  ///< Postamble parsing failed due to staling (reception timeout)
+        kPacketParsed                 = 112,  ///< Packet parsing succeeded
+        kCRCCheckFailed               = 113,  ///< CRC check failed, incoming packet corrupted
+        kPacketValidated              = 114,  ///< Packet validation succeeded
+        kPacketReceived               = 115,  ///< Packet reception succeeded
+        kWritePayloadTooSmallError    = 116,  ///< Writing to buffer failed due to not enough payload space
+        kBytesWrittenToBuffer         = 117,  ///< Writing to buffer succeeded
+        kReadPayloadTooSmallError     = 118,  ///< Reading from buffer failed due to not enough payload size
+        kBytesReadFromBuffer          = 119,  ///< Reading from buffer succeeded
+        kNoBytesToParseFromBuffer     = 120   ///< Stream class reception buffer had no packet bytes to parse
     };
 
-    // Since Arduino Uno (the lower-end board this code was tested with) boards do not get access to 'cstring' header
+    // Since Arduino Uno (the lower-end board this code was tested with) boards do not have access to 'cstring' header
     // that is available to Teensy, some useful assets have to be reimplemented manually. They are implemented in as
     // similar of a way as possible to be drop-in replaceable with std:: namespace.
 
@@ -121,7 +126,8 @@ namespace stp_shared_assets
      * set to `false` by default, indicating that the two types are not the same.
      */
     template <typename T, typename U>
-    struct is_same {
+    struct is_same
+    {
         static const bool value = false;
     };
 
@@ -134,7 +140,8 @@ namespace stp_shared_assets
       * `value` is set to `true`, indicating that the types are indeed the same.
       */
     template <typename T>
-    struct is_same<T, T> {
+    struct is_same<T, T>
+    {
         static const bool value = true;
     };
 
@@ -155,7 +162,7 @@ namespace stp_shared_assets
      * @endcode
      */
     template <typename T, typename U>
-    constexpr bool is_same_v = is_same<T, U>::value;
+    constexpr bool is_same_v = is_same<T, U>::value;  // NOLINT(*-dynamic-static-initializers)
 
 }  // namespace stp_shared_assets
 

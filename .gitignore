@@ -1,3 +1,6 @@
+# This version of gitignore is designed to work for pure C and C++ projects. Additionally, it filters certain jetbrains
+# files. Additional configuration may be needed for contributors seeking to use VSCode orother IDE / code editor.
+
 # Prerequisites
 *.d
 
@@ -38,9 +41,6 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
-*.so
 
 # Distribution / packaging
 .Python

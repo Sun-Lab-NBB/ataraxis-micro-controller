@@ -1,14 +1,18 @@
 /**
  * @file
- * @brief A header-only file for the helper StreamMock class that simulates the base Stream class used by the
+ * @brief A header-only file that provides the StreamMock class, which simulates a Serial Stream interface to test
  * SerializedTransferProtocol class.
  *
  * @subsection description Description:
- * This class allows on-controller testing of the SerializedTransferProtocol class without establishing a fully functional
- * bidirectional USB/UART connection with the PC. To do so, it implements two large (600 bytes each) public buffers to
- * mimic the tx and rx buffers used by the real Stream class.
  *
- * Additionally, it includes the following methods:
+ * @attention This file is part of the microcontroller-targeted SerializedTransferProtocol library. For PC-targeted
+ * implementation see the SerializedTransferProtocol-Python or SerializedTransferProtocol-Unity libraries.
+ *
+ * This class allows testing the SerializedTransferProtocol class without establishing a fully functional bidirectional
+ * connection with any recipient. To do so, it implements two large (~600 bytes each) public buffers to mimic the
+ * transmission and reception buffers used by the actual Serial connection interface.
+ *
+ * This class exposes the following public methods:
  * - read().
  * - write() [Overloaded to work for single byte-inputs and array inputs].
  * - reset().
@@ -16,34 +20,29 @@
  * - available().
  * - peek().
  *
- * @note The methods in this class use the same arguments and naming convention as the original class and are derived
- * by overloading the virtual methods of the base class where necessary.
+ * @note This class overloads the virtual methods of the Stream base-class and, therefore, uses the same names,
+ * arguments and behavior as the base class.
  *
  * @subsection developer_notes Developer Notes:
- * This class is used solely to enable on-controller testing of the SerializedTransferProtocol class. Since on-controller
- * testing is currently realized only through the broader AMC, this class is for all intends and purposes useless
- * for the Arduino-targeted version of this library. For the AMC codebase, see appropriate test suite functions for the
- * examples of how to use this class in custom testing.
+ * This class is used solely to enable testing the SerializedTransferProtocol class and, in the future, it may be
+ * excluded from non-developer builds of the library.
  *
- * The class reserves a lot of memory (1200 bytes total) to support it's buffers, which is far from the most elegant
- * solution. It is designed to be used with teensy boards where memory is not an issue and it is likely that the class
- * has to be manually adjusted for boards such as Uno. To simplify this process, the class comes with in-code parameters
- * that can be used to control buffer sizes.
+ * The class reserves a lot of memory (~1200 bytes total) to support it's buffers, which may be an issue for lower-end
+ * microcontroller boards (for the microcontroller version of the library). The official test suite for Microcontrollers
+ * accounts for this requirement and is designed in a way that has been successfully tested to work on Arduino Uno.
+ * Boards with < 2000 bytes of RAM may not be compatible with the test suite. However,  Python- and Unity- versions of
+ * the library do not have this issue as they are designed for major computer systems which rarely have memory issues.
+ * The size of the buffers for this class can be adjusted via the class 'kBuffersSize' template parameter during
+ * instantiation.
  *
  * @attention The class uses int16_t buffers, so all functions had to be modified to work with elements rather than
  * bytes, as each 'byte' is actually represented by a signed short datatype in this class. This information is
  * particularly relevant for writing test functions using the class that directly check buffer states against byte
  * inputs.
  *
- * @note The methods of this class are documented using Google, rather than Doxygen style used by the rest of the
- * library. This is intentional, as it is deemed that the end-user of the API does not generally need to know how this
- * class works and developers altering test suites would have access to the API documentation parsed by the Intellisense
- * of the IDE / code editor used.
- *
  * @subsection dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - Stream.h for the base Stream class that is overloaded to form this Mock class.
- * - stdint.h for fixed-width integer types.
  */
 
 #ifndef AMC_STREAM_MOCK_H
@@ -52,32 +51,59 @@
 // Dependencies:
 #include "Arduino.h"
 #include "Stream.h"
-#include "stdint.h"
 
-// An implementation of the Stream class that publicly exposes its rx and tx buffers. Note, the class buffers use
-// int16_t datatype with any value outside 0 through 255 range considered and treated as invalid. All class methods will
-// still work as if they are operating byte-buffers, like the original Stream class, but the implementation of integer
-// buffers allows manually setting portions of the buffer to invalid values as necessary for certain test scenarios.
+/**
+ * @class StreamMock
+ * @brief An implementation of the Stream class that publicly exposes its reception and transmission buffers.
+ *
+ * @note The class buffers use int16_t datatype with any value outside 0 through 255 range considered and treated as
+ * invalid. All class methods will still work as if they are operating byte-buffers, like the original Stream class, but
+ * the implementation of integer buffers allows manually setting portions of the buffer to invalid values as necessary
+ * for certain test scenarios.
+ *
+ * @tparam kBuffersSize The size (in elements) to use for the transmission and reception buffers. Note, the buffers use
+ * use signed 16-bit integer types and reserve size * 2 bytes for each buffer.
+ */
+template <uint16_t kBufferSize = 300>
 class StreamMock : public Stream
 {
   public:
-    // Fixed size for buffers to avoid 'magic numbers'. Use this parameter to adjust the buffers to the length
-    // appropriate for your testing uses
-    static constexpr uint16_t buffer_size = 300;
-    int16_t rx_buffer[buffer_size];  // Reception buffer. Only values from 0 through 255 are treated as valid.
-    int16_t tx_buffer[buffer_size];  // Transmission buffer. Only values from 0 through 255 are treated as valid.
-    size_t rx_buffer_index = 0;      // Tracks the last evaluated index in rx_buffer. Incremented by read operations.
-    size_t tx_buffer_index = 0;      // Tracks the last evaluated index in tx_buffer. Incremented by write operations.
+    /// Stores the buffer size value derived from the template parameter during class instantiation. This size is used
+    /// to instantiate both the transmission and reception buffers.
+    static constexpr uint16_t buffer_size = kBufferSize;
 
-    // Initializes class object instance. Sets rx and tx buffers to 0.
+    /// Reception buffer. Note, only values from 0 to 255 are treated as valid, although the buffer supports the whole
+    /// uint16 range.
+    int16_t rx_buffer[buffer_size];
+
+    /// Transmission buffer. Note, only values from 0 to 255 are treated as valid, although the buffer supports the
+    /// whole uint16 range.
+    int16_t tx_buffer[buffer_size];
+
+    /// Tracks the last evaluated index in reception buffer. Incremented by read operations.
+    size_t rx_buffer_index = 0;
+
+    /// Tracks the last evaluated index in transmission buffer. Incremented by write operations.
+    size_t tx_buffer_index = 0;
+
+    /**
+     * @brief Initializes class object instance. Sets all values inside the reception and transmission buffers to 0.
+     */
     StreamMock()
     {
         memset(rx_buffer, 0, sizeof(rx_buffer));
         memset(tx_buffer, 0, sizeof(tx_buffer));
     }
 
-    // Reads one byte from the rx_buffer and returns it to caller. Returns -1 if no valid bytes are available. Note,
-    // the buffer uses int16_t type, but only values inside the uint8_t (0 through 255) range are considered valid.
+    /**
+     * @brief Reads one value ('byte') from the reception buffer and returns it to caller. Returns -1 if no valid
+     * values are available.
+     *
+     * Note, the buffer uses int16_t type, but only values inside the uint8_t (0 through 255) range are considered
+     * valid. As such, this method fully emulates how a byte-stream would behave.
+     *
+     * @returns The read value as a byte-range integer, or -1 if no valid values are available.
+     */
     virtual int read() override
     {
         // If read index is within the confines of the rx_buffer, reads the byte currently pointed to by the index.
@@ -97,15 +123,24 @@ class StreamMock : public Stream
         return -1;
     }
 
-    // Writes the requested number of bytes from the input buffer array to the tx_buffer. Each writing cycle starts at
-    // index 0 of the tx_buffer, overwriting as many indices as necessary to fully consume the input buffer. Note, the
-    // input buffer has to be uint8_t, but the values will be converted to int16_t to be saved to the class buffer.
-    // Returns the number of bytes written to the tx_buffer.
+    /**
+     * @brief Writes the requested number of bytes from the input buffer array to the transmission buffer.
+     *
+     * Each writing cycle starts at index 0 of the transmission buffer, overwriting as many indices as necessary to
+     * fully consume the input buffer.
+     *
+     * @note The input buffer has to be uint8_t, but the values will be converted to int16_t to be saved to the
+     * transmission buffer.
+     *
+     * @param buffer The input buffer containing the bytes to write.
+     * @param bytes_to_write The number of bytes to write from the input buffer.
+     * @returns The number of bytes written to the transmission buffer.
+     */
     virtual size_t write(const uint8_t *buffer, size_t bytes_to_write) override
     {
-        // Writes requested number of bytes from the input buffer to the tx_buffer of the class. Note, the operation
-        // will be terminated prematurely if the writing process reaches the end of the tx_buffer without consuming all
-        // requested bytes.
+        // Writes requested number of bytes from the input buffer to the tx_buffer of the class. Note, the method will
+        // be terminated prematurely if the writing process reaches the end of the tx_buffer without consuming all
+        // bytes available from the input buffer.
         size_t i;
         for (i = 0; i < bytes_to_write && tx_buffer_index < sizeof(tx_buffer) / sizeof(tx_buffer[0]); i++)
         {
@@ -114,10 +149,17 @@ class StreamMock : public Stream
         return i;  // Returns the number of bytes written to the tx_buffer.
     }
 
-    // Writes the input byte value to the tx_buffer. Converts the value to the uint16_t type to be stored inside the
-    // tx_buffer. Returns 1 when the method succeeds and 0 otherwise.
+    /**
+     * @brief Writes the input byte value to the transmission buffer.
+     *
+     * @Note Converts the value to the uint16_t type to be stored inside the transmission buffer.
+     *
+     * @param byte_value The byte value to write.
+     * @returns 1 when the method succeeds and 0 otherwise.
+     */
     virtual size_t write(uint8_t byte_value) override
     {
+        // Checks if the buffer has space based on the last evaluated element index.
         if (tx_buffer_index < (sizeof(tx_buffer) / sizeof(tx_buffer[0])))
         {
             tx_buffer[tx_buffer_index++] = static_cast<int16_t>(byte_value);
@@ -129,9 +171,15 @@ class StreamMock : public Stream
         }
     }
 
-    // Returns the number of elements in the rx_buffer available for reading. To do so, scans the buffer contents from
-    // the rx_buffer_index either to the end of the buffer or the first invalid value and returns the length of the
-    // scanned data stretch. Uses elements rather than bytes due to the uint16_t type of the buffer.
+    /**
+     * @brief Returns the number of elements in the reception buffer available for reading.
+     *
+     * To do so, scans the buffer contents from the rx_buffer_index either to the end of the buffer or the first
+     * invalid value and returns the length of the scanned data stretch. Uses elements rather than bytes due to the
+     * uint16_t type of the buffer.
+     *
+     * @return The number of available 'bytes' (valid values) in the rx_buffer.
+     */
     virtual int available() override
     {
         size_t count = 0;
@@ -157,8 +205,13 @@ class StreamMock : public Stream
         return static_cast<int>(count);  // Cast count to int to match the return type
     }
 
-    // Returns the value currently pointed by the rx_buffer_index without incrementing the index (without consuming the
-    // data). Returns -1 if there is no valid byte-value to read (if there is no more data available).
+    /**
+     * @brief Reads a value from the reception buffer without advancing to the next value (without consuming the data).
+     *
+     * Returns -1 if there is no valid byte-values to read (if there is no more data available).
+     *
+     * @return The peeked 'byte' value as an integer (signed integer), or -1 if no valid byte is available.
+     */
     virtual int peek() override
     {
         // Checks whether the value pointed by rx_buffer_index is within the boundaries of the rx_buffer and is a valid
@@ -175,8 +228,10 @@ class StreamMock : public Stream
         }
     }
 
-    // Simulates the data being sent to the PC (flushed) by resetting the tx_buffer to the default -1 (no data) value
-    // and resetting the tx_buffer_index to 0.
+    /**
+     * @brief Simulates the data being sent to the PC (flushed) by resetting all transmission buffer values to -1 (no
+     * data) value and resetting the tx_buffer_index to 0 (to point to the first element of the buffer).
+     */
     virtual void flush() override
     {
         // Resets the tx_buffer_index and the buffer itself to simulate the data being sent ('flushed') to the PC.
@@ -188,9 +243,14 @@ class StreamMock : public Stream
         tx_buffer_index = 0;  // Sets the index to 0
     }
 
-    // Resets the rx and tx buffers and their index tracker variables. This is typically used during testing to reset
-    // the buffers between tests. Sets each variable inside each buffer to -1 (no data). This ensures that the buffers
-    // default to an empty state, mimicking the standard behavior for the Stream class.
+    /**
+     * @brief Resets the reception and transmission buffers and their index tracker variables.
+     *
+     * This method is typically used during testing to reset the buffers between tests. Sets each variable inside each
+     * buffers to -1 (no data) and sets the tracker indices to point to the beginning of each buffer (to 0). This
+     * ensures that the buffers default to an empty state, mimicking the standard behavior for the empty Serial Stream
+     * interface.
+     */
     void reset()
     {
         // Initializes buffers to a "no data" value. Here -1 is chosen for simplicity, but any value outside the

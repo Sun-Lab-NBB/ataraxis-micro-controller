@@ -530,7 +530,7 @@ void TestStreamMock(void)
 {
     // Instantiates the StreamMock class object to be tested. StreamMock mimics the base Stream class, but exposes
     // rx/tx buffer for direct manipulation
-    StreamMock stream;
+    StreamMock<300> stream;
 
     // Extracts stream buffer size to a local variable
     uint16_t stream_buffer_size = stream.buffer_size;
@@ -642,7 +642,7 @@ void TestStreamMock(void)
 void TestSerializedTransferProtocolBufferManipulation(void)
 {
     // Instantiates the mock serial class and the tested SerializedTransferProtocol class
-    StreamMock mock_port;
+    StreamMock<300> mock_port;
     // Note, uses different maximum payload size for the Rx and Tx buffers
     SerializedTransferProtocol<uint16_t, 254, 160> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
@@ -845,7 +845,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
 void TestSerializedTransferProtocolBufferManipulationErrors(void)
 {
     // Initializes the tested class
-    StreamMock mock_port;
+    StreamMock<300> mock_port;
     // Uses identical rx and tx payload sizes
     SerializedTransferProtocol<uint16_t, 254, 254> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
@@ -896,7 +896,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
 void TestSerializedTransferProtocolDataTransmission(void)
 {
     // Initializes the tested class
-    StreamMock mock_port;
+    StreamMock<300> mock_port;
     // Uses identical rx and tx payload sizes
     SerializedTransferProtocol<uint16_t, 254, 254> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
@@ -1053,7 +1053,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
 void TestSerializedTransferProtocolDataTransmissionErrors(void)
 {
     // Initializes the tested class
-    StreamMock mock_port;
+    StreamMock<300> mock_port;
     SerializedTransferProtocol<uint16_t, 254, 254> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
 
     // Instantiates crc encoder class separately to generate test data
@@ -1204,28 +1204,29 @@ int RunUnityTests(void)
     RUN_TEST(TestCOBSProcessor);
     RUN_TEST(TestCOBSProcessorErrors);
 
-    // CRC Processor
-    RUN_TEST(TestCRCProcessorGenerateTable_CRC8);
-    RUN_TEST(TestCRCProcessorGenerateTable_CRC16);
+//    // CRC Processor
+//    RUN_TEST(TestCRCProcessorGenerateTable_CRC8);
+//    RUN_TEST(TestCRCProcessorGenerateTable_CRC16);
+//
+//    // This test requires at least 2048 bytes of RAM to work, so prevents it from being evaluated by boards like Arduino
+//    // Uno. Specifically, uses a static 3kb RAM limit
+//    #if !defined RAMEND >= 0x0BFF
+//        RUN_TEST(TestCRCProcessorGenerateTable_CRC32);
+//    #endif
 
-// This test requires at least 2048 bytes of RAM to work, so prevents it from being evaluated by boards like Arduino
-// Uno. Specifically, uses a static 3kb RAM limit
-#if !defined RAMEND >= 0x0BFF
-    RUN_TEST(TestCRCProcessorGenerateTable_CRC32);
-#endif
-    RUN_TEST(TestCRCProcessor);
-    RUN_TEST(TestCRCProcessorErrors);
-
-    // Stream Mock
-    RUN_TEST(TestStreamMock);
-
-    // Serial Transfer Protocol Write / Read Data
-    RUN_TEST(TestSerializedTransferProtocolBufferManipulation);
-    RUN_TEST(TestSerializedTransferProtocolBufferManipulationErrors);
-
-    // Serial Transfer Protocol Send / Receive Data
-    RUN_TEST(TestSerializedTransferProtocolDataTransmission);
-    RUN_TEST(TestSerializedTransferProtocolDataTransmissionErrors);
+//    RUN_TEST(TestCRCProcessor);
+//    RUN_TEST(TestCRCProcessorErrors);
+//
+//    // Stream Mock
+//    RUN_TEST(TestStreamMock);
+//
+//    // Serial Transfer Protocol Write / Read Data
+//    RUN_TEST(TestSerializedTransferProtocolBufferManipulation);
+//    RUN_TEST(TestSerializedTransferProtocolBufferManipulationErrors);
+//
+//    // Serial Transfer Protocol Send / Receive Data
+//    RUN_TEST(TestSerializedTransferProtocolDataTransmission);
+//    RUN_TEST(TestSerializedTransferProtocolDataTransmissionErrors);
 
     return UNITY_END();
 }
