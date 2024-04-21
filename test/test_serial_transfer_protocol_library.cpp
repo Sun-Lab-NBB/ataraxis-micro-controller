@@ -23,27 +23,28 @@ void tearDown(void)
 void TestCOBSProcessor(void)
 {
     // Prepares test assets
-    uint8_t payload_buffer[256];                         // Initializes test buffer
+    uint8_t payload_buffer[258];                         // Initializes test buffer
     memset(payload_buffer, 22, sizeof(payload_buffer));  // Sets all values to 22
     COBSProcessor cobs_processor;                        // Instantiates class object to be tested
 
-    // Creates a test payload using the format: overhead [0], payload [1 to 10], delimiter [11]
-    uint8_t initial_packet[12] = {0, 10, 0, 0, 20, 0, 0, 0, 143, 12, 54, 22};
+    // Creates a test payload using the format: start [0], payload_size [1], overhead [2], payload [3 to 12] (10 total),
+    // delimiter [13]
+    uint8_t initial_packet[14] = {129, 10, 0, 1, 0, 3, 0, 0, 0, 7, 0, 9, 10, 22};
     memcpy(payload_buffer, initial_packet, sizeof(initial_packet));  // Copies the payload into the buffer
 
-    // Expected packet (overhead + payload + delimiter) after encoding. Used to test encoding result
-    uint8_t encoded_packet[12] = {2, 10, 1, 2, 20, 1, 1, 4, 143, 12, 54, 0};
+    // Expected packet after encoding, used to test encoding result
+    uint8_t encoded_packet[14] = {129, 10, 2, 1, 2, 3, 1, 1, 2, 7, 3, 9, 10, 0};
 
     // Expected state of the packet after decoding. They payload is reverted to original
-    // state, the overflow is reset to 0, but delimiter byte is not changed. Used to test the decoding result.
-    uint8_t decoded_packet[12] = {0, 10, 0, 0, 20, 0, 0, 0, 143, 12, 54, 0};
+    // state, the overhead is reset to 0, but delimiter byte is not changed. Used to test the decoding result.
+    uint8_t decoded_packet[14] = {129, 10, 0, 1, 0, 3, 0, 0, 0, 7, 0, 9, 10, 0};
 
     uint8_t payload_size         = 10;    // Tested payload size, for payload generated above
     uint8_t packet_size          = 12;    // Tested packet size, for the decoder test
     uint8_t delimiter_byte_value = 0x00;  // Tested delimiter byte value, uses the preferred default of 0
 
     // Verifies the unencoded packet matches pre-test expectations
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(initial_packet, payload_buffer, 11);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(initial_packet, payload_buffer, sizeof(initial_packet));
 
     // Verifies that the cobs_status is initialized to the expected standby value
     TEST_ASSERT_EQUAL_UINT8(
@@ -52,7 +53,7 @@ void TestCOBSProcessor(void)
     );
 
     // Encodes test payload
-    uint16_t encoded_size = cobs_processor.EncodePayload(payload_buffer, payload_size, delimiter_byte_value);
+    uint16_t encoded_size = cobs_processor.EncodePayload(payload_buffer, delimiter_byte_value);
 
     // Verifies the encoding runtime status
     TEST_ASSERT_EQUAL_UINT8(
@@ -64,10 +65,10 @@ void TestCOBSProcessor(void)
     TEST_ASSERT_EQUAL_UINT16(packet_size, encoded_size);
 
     // Verifies that the encoded payload matches the expected encoding outcome
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(encoded_packet, payload_buffer, 11);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(encoded_packet, payload_buffer, sizeof(encoded_packet));
 
     // Decodes test payload
-    uint16_t decoded_size = cobs_processor.DecodePayload(payload_buffer, packet_size, delimiter_byte_value);
+    uint16_t decoded_size = cobs_processor.DecodePayload(payload_buffer, delimiter_byte_value);
 
     // Verifies the decoding runtime status
     TEST_ASSERT_EQUAL_UINT8(
@@ -80,10 +81,10 @@ void TestCOBSProcessor(void)
 
     // Verifies that decoding reverses the payload back to the original state. Note, this excludes the overhead and
     // the delimiter, as the decoding operation does not alter these values (hence the use of a separate tester array)
-    TEST_ASSERT_EQUAL_UINT8_ARRAY(decoded_packet, payload_buffer, 11);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(decoded_packet, payload_buffer, sizeof(decoded_packet));
 
-    // Verifies that the non-payload portion of the buffer was not affected by the encoding/decoding cycles
-    for (uint16_t i = 12; i < sizeof(payload_buffer); i++)
+    // Verifies that the non-packet-related portion of the buffer was not affected by the encoding/decoding cycles
+    for (uint16_t i = sizeof(encoded_packet); i < sizeof(payload_buffer); i++)
     {
         // Uses a custom message system similar to Unity Array check to provide the filed index number
         char message[50];  // Buffer for the failure message
@@ -95,13 +96,13 @@ void TestCOBSProcessor(void)
 // Tests error handling for EncodePayload() and DecodePayload() COBSProcessor methods.
 void TestCOBSProcessorErrors(void)
 {
-    // Generates test buffer and sets every value inside to 22
-    uint8_t payload_buffer[256];
-    memset(payload_buffer, 22, sizeof(payload_buffer));
-    payload_buffer[0] = 0;  // Resets the overhead placeholder to 0, otherwise the encoding attempt below will fail
-
     // Instantiates class object to be tested
     COBSProcessor cobs_processor;
+
+    // Generates test buffer and sets every value inside to 22
+    uint8_t payload_buffer[258];
+    memset(payload_buffer, 22, sizeof(payload_buffer));
+    payload_buffer[2] = 0;  // Resets the overhead placeholder to 0, otherwise the encoding attempt below will fail
 
     // Verifies minimum encoding and decoding payload / packet size ranges. Uses standard global buffer of size 256
     // with all values set to 22. Takes ranges from the kCOBSProcessorCodes enumerator class to benefit from the fact
@@ -109,23 +110,16 @@ void TestCOBSProcessorErrors(void)
     // test code.
 
     // Verifies that payloads with minimal size are encoded correctly
-    uint16_t result = cobs_processor.EncodePayload(
-        payload_buffer,
-        static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMinPayloadSize),
-        0
-    );
+    payload_buffer[1] = static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMinPayloadSize);
+    uint16_t result   = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMinPacketSize), result);
 
-    // Verifies packets with minimal size are decoded correctly
-    result = cobs_processor.DecodePayload(
-        payload_buffer,
-        static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMinPacketSize),
-        0
-    );
+    // Verifies packets with minimal size are decoded correctly. Uses the packet encoded above.
+    result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
         cobs_processor.cobs_status
@@ -133,23 +127,16 @@ void TestCOBSProcessorErrors(void)
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMinPayloadSize), result);
 
     // Verifies that payloads with maximal size are encoded correctly
-    result = cobs_processor.EncodePayload(
-        payload_buffer,
-        static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPayloadSize),
-        0
-    );
+    payload_buffer[1] = static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPayloadSize);
+    result            = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPacketSize), result);
 
-    // Verifies that packets with maximal size are decoded correctly
-    result = cobs_processor.DecodePayload(
-        payload_buffer,
-        static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPacketSize),
-        0
-    );
+    // Verifies that packets with maximal size are decoded correctly. Uses the packet encoded above.
+    result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
         cobs_processor.cobs_status
@@ -161,47 +148,34 @@ void TestCOBSProcessorErrors(void)
     // correct returned error code.
 
     // Tests too small payload size encoder error
-    result = cobs_processor.EncodePayload(
-        payload_buffer,
-        static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMinPayloadSize) - 1,
-        0
-    );
+    payload_buffer[1] = static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMinPayloadSize) - 1;
+    result            = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
 
-    // Tests too large payload size encoder error
-    result = cobs_processor.EncodePayload(
-        payload_buffer,
-        static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPayloadSize) + 1,
-        0
-    );
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize),
-        cobs_processor.cobs_status
-    );
-    TEST_ASSERT_EQUAL_UINT16(0, result);
-
-    // Tests too small packet size decoder error
-    result = cobs_processor.DecodePayload(
-        payload_buffer,
-        static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMinPacketSize) - 1,
-        0
-    );
+    // Tests too small packet size decoder error. Uses the same payload size as above (packet size is derived from
+    // payload size).
+    result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
 
-    // Tests too large packet size decoder error
-    result = cobs_processor.DecodePayload(
-        payload_buffer,
-        static_cast<uint16_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPacketSize) + 1,
-        0
+    // Tests too large payload size encoder error
+    payload_buffer[1] = static_cast<uint8_t>(COBSProcessor::kCOBSProcessorParameters::kMaxPayloadSize) + 1;
+    result            = cobs_processor.EncodePayload(payload_buffer, 0);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize),
+        cobs_processor.cobs_status
     );
+    TEST_ASSERT_EQUAL_UINT16(0, result);
+
+    // Tests too large packet size decoder error. Uses the same payload size as above.
+    result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize),
         cobs_processor.cobs_status
@@ -209,25 +183,28 @@ void TestCOBSProcessorErrors(void)
     TEST_ASSERT_EQUAL_UINT16(0, result);
 
     // Tests decoder payload (in)validation error codes, issued whenever the payload does not conform to the format
-    // expected from COBS encoding. During runtime, the code assumes that the packages were properly encoded using the
-    // COBSProcessor class and, therefore, any deviation from the expected format is due to the payload or packet being
-    // corrupted during transmission or CRC checking.
+    // expected from COBS encoding. During runtime, the decoder assumes that the packages were properly encoded using
+    // the COBSProcessor class and, therefore, any deviation from the expected format is likely due to the payload or
+    // packet being corrupted during transmission.
 
     // Resets the shared buffer to default state before running the test to exclude any confounds from the tests above
     memset(payload_buffer, 22, sizeof(payload_buffer));
-    payload_buffer[0] = 0;  // Sets the overhead placeholder to 0 which is required for encoding to work
+    payload_buffer[2] = 0;  // Sets the overhead placeholder to 0 which is required for encoding to work
 
     // Introduces 'jump' variables to be encoded by the call below (since 0 is the delimiter value to be encoded)
     payload_buffer[5]  = 0;
     payload_buffer[10] = 0;
 
     // Encodes the payload of size 15, inserting a delimiter (0) byte at index 16, generating a packet of size 17
-    uint16_t encoded_size = cobs_processor.EncodePayload(payload_buffer, 15, 0);
+    payload_buffer[1]     = 15;
+    uint16_t encoded_size = cobs_processor.EncodePayload(payload_buffer, 0);
+    TEST_ASSERT_EQUAL_UINT16(17, encoded_size);
 
     // Decodes the packet of size 13 (17-4), which is a valid size. The process should abort before the delimiter at
     // index 16 is reached with the appropriate error code. Tests both the error code and that the decoder that uses a
     // while loop exits the loop as expected instead of overwriting the 'out-of-limits' buffer memory.
-    result = cobs_processor.DecodePayload(payload_buffer, 13, 0);
+    payload_buffer[1] = 13;
+    result            = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter),
         cobs_processor.cobs_status
@@ -241,10 +218,12 @@ void TestCOBSProcessorErrors(void)
 
     // Resets the overhead back to the correct value, since the decoder overwrites it to 0 on each call, even if the
     // call produces one of the 'malformed packet' errors
-    payload_buffer[0] = 5;
+    payload_buffer[2] = 3;
+
+    payload_buffer[1] = 15;  // Also restores the payload_size to the proper size
 
     // Tests delimiter found too early error code
-    result = cobs_processor.DecodePayload(payload_buffer, encoded_size, 0);
+    result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly),
         cobs_processor.cobs_status
@@ -254,7 +233,7 @@ void TestCOBSProcessorErrors(void)
     // Tests that calling a decoder on a packet with overhead byte set to 0 produces the expected error code
     // In this particular case, the error would correctly prevent calling decoder on the same data twice.
     // Also ensure the error takes precedence over the kDecoderDelimiterFoundTooEarly error.
-    result = cobs_processor.DecodePayload(payload_buffer, encoded_size, 0);
+    result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded),
         cobs_processor.cobs_status
@@ -262,10 +241,10 @@ void TestCOBSProcessorErrors(void)
     TEST_ASSERT_EQUAL_UINT16(0, result);
 
     // Tests that calling an encoder on a buffer with overhead placeholder not set to 0 produces an error
-    payload_buffer[0] = 5;  // Resets the overhead byte to a non-0 value
+    payload_buffer[2] = 3;  // Resets the overhead byte to a non-0 value
 
     // Tests correct kPayloadAlreadyEncoded error
-    result = cobs_processor.EncodePayload(payload_buffer, 15, 0);
+    result = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded),
         cobs_processor.cobs_status
@@ -273,11 +252,11 @@ void TestCOBSProcessorErrors(void)
     TEST_ASSERT_EQUAL_UINT16(0, result);
 
     // Initializes a small test buffer to test buffer-size related errors
-    uint8_t test_buffer[5] = {0, 0, 0, 0, 0};
+    uint8_t test_buffer[5] = {129, 20, 0, 1, 0};
 
     // Attempts to encode a payload with size 20 using a buffer with size 5. This is not allowed and should trigger an
     // error
-    result = cobs_processor.EncodePayload(test_buffer, 20, 11);
+    result = cobs_processor.EncodePayload(test_buffer, 11);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer),
         cobs_processor.cobs_status
@@ -285,7 +264,7 @@ void TestCOBSProcessorErrors(void)
     TEST_ASSERT_EQUAL_UINT16(0, result);
 
     // Same as above, but tests the error for the decoder function
-    result = cobs_processor.DecodePayload(test_buffer, 20, 11);
+    result = cobs_processor.DecodePayload(test_buffer, 11);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer),
         cobs_processor.cobs_status
@@ -929,12 +908,12 @@ void TestSerializedTransferProtocolDataTransmission(void)
     // processed correctly:
 
     // Instantiates an array to simulate the _transmission_buffer after the data has been added to it
-    uint8_t buffer_array[14] = {0, 1, 2, 3, 0, 0, 6, 0, 8, 0, 0, 0, 0, 0};
+    uint8_t buffer_array[16] = {129, 10, 0, 1, 2, 3, 0, 0, 6, 0, 8, 0, 0, 0, 0, 0};
 
     // Simulates COBS encoding the buffer. Note, assumes COBSProcessor methods have been tested prior to running this
     // test. Specifically, targets the 10-value payload starting from index 1. Uses the same delimiter byte value as
     // does the serial protocol class
-    uint16_t packet_size = cobs_class.EncodePayload(buffer_array, 10, 0);
+    uint16_t packet_size = cobs_class.EncodePayload(buffer_array, 0);
 
     // Calculates the CRC for the COBS-encoded buffer. Also assumes that the CRCProcessor methods have been tested prior
     // to running this test. The CRC calculation includes the overhead byte, the encoded payload and the inserted
@@ -1204,29 +1183,29 @@ int RunUnityTests(void)
     RUN_TEST(TestCOBSProcessor);
     RUN_TEST(TestCOBSProcessorErrors);
 
-//    // CRC Processor
-//    RUN_TEST(TestCRCProcessorGenerateTable_CRC8);
-//    RUN_TEST(TestCRCProcessorGenerateTable_CRC16);
-//
-//    // This test requires at least 2048 bytes of RAM to work, so prevents it from being evaluated by boards like Arduino
-//    // Uno. Specifically, uses a static 3kb RAM limit
-//    #if !defined RAMEND >= 0x0BFF
-//        RUN_TEST(TestCRCProcessorGenerateTable_CRC32);
-//    #endif
+    // CRC Processor
+    RUN_TEST(TestCRCProcessorGenerateTable_CRC8);
+    RUN_TEST(TestCRCProcessorGenerateTable_CRC16);
 
-//    RUN_TEST(TestCRCProcessor);
-//    RUN_TEST(TestCRCProcessorErrors);
-//
-//    // Stream Mock
-//    RUN_TEST(TestStreamMock);
-//
-//    // Serial Transfer Protocol Write / Read Data
-//    RUN_TEST(TestSerializedTransferProtocolBufferManipulation);
-//    RUN_TEST(TestSerializedTransferProtocolBufferManipulationErrors);
-//
-//    // Serial Transfer Protocol Send / Receive Data
-//    RUN_TEST(TestSerializedTransferProtocolDataTransmission);
-//    RUN_TEST(TestSerializedTransferProtocolDataTransmissionErrors);
+// This test requires at least 2048 bytes of RAM to work, so prevents it from being evaluated by boards like Arduino
+// Uno. Specifically, uses a static 3kb RAM limit
+#if !defined RAMEND >= 0x0BFF
+    RUN_TEST(TestCRCProcessorGenerateTable_CRC32);
+#endif
+
+    RUN_TEST(TestCRCProcessor);
+    RUN_TEST(TestCRCProcessorErrors);
+
+    // Stream Mock
+    RUN_TEST(TestStreamMock);
+
+    //    // Serial Transfer Protocol Write / Read Data
+    //    RUN_TEST(TestSerializedTransferProtocolBufferManipulation);
+    //    RUN_TEST(TestSerializedTransferProtocolBufferManipulationErrors);
+    //
+    //    // Serial Transfer Protocol Send / Receive Data
+    //    RUN_TEST(TestSerializedTransferProtocolDataTransmission);
+    //    RUN_TEST(TestSerializedTransferProtocolDataTransmissionErrors);
 
     return UNITY_END();
 }

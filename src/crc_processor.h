@@ -28,15 +28,14 @@
  * class instantiation. See developer notes below for more information.
  *
  * @subsection developer_notes Developer Notes:
- * This class is implemented as a template and all of it's methods scale with the CRC polynomial type used during class
+ * This class is implemented as a template and all of its methods scale with the CRC polynomial type used during class
  * instantiation. This allows using the same class for all common polynomials used for CRC checksum calculations of
  * types uint8_t, uint16_t and uint32_t. This is part of a boarder effort to make the library sufficiently flexible to
  * be used on a wide variety of platforms, from the generally constrained Arduino Uno to the relatively forgiving
- * Teensy 4.1 (the library has been tested on this specific board).
+ * Teensy 4.1 (the library has been tested on this specific board) and PCs.
  *
- * The class currently does not support 64-bit polynomials, as uint64_t is not supported by the lower-end Arduino boards
- * and also relatively infrequently used in embedded systems development. It may be implemented in the future if enough
- * interest is expressed or a community contributor adds support for this functionality.
+ * @note Platforms that support 64-bit can also use 64-bit polynomials. Since 128+ bit polynomials are largely phased
+ * out in favor of hash-functions, currently there are no plans to support bit-lengths greater than 64 bits.
  *
  * Due to the complex nature of class definition, the class can only be instantiated by an instantiation-time
  * assignment:
@@ -49,8 +48,6 @@
  *
  * @subsection dependencies Dependencies:
  * - Arduino.h for Arduino platform methods and macros and cross-compatibility with Arduino IDE (to an extent).
- * - cstring for std namespace.
- * - stdint.h for fixed-width integer types. Using stdint.h instead of cstdint for compatibility (with Arduino) reasons.
  * - stp_shared_assets.h for shared library assets (mostly status byte-codes for library classes).
  *
  * @attention Due to the use of templates to improve class safety and versatility, this class only exists as an .h file
@@ -98,14 +95,28 @@
 template <typename PolynomialType>
 class CRCProcessor
 {
-    // Ensures that the class only accepts uint8, 16 or 32 as valid CRC types, as no other type can be used to store a
-    // CRC polynomial at the time of writing.
+// Ensures that the class only accepts uint8, 16, 32 or 64 as valid CRC types, as no other type can be used to store
+// a CRC polynomial at the time of writing. The 64-bit polynomial support is only enabled for platforms that have
+// 64-bit integer type support (Notably, this includes most lower-end Arduino boards). There are no plans to support
+// polynomials above 64 bits at the time of writing.
+#if defined(__UINT64_MAX__) || (defined(__SIZEOF_INT128__) && __SIZEOF_INT128__ >= 8)
+    // If uint64_t is supported, allows PolynomialType to be uint64_t
+    static_assert(
+        stp_shared_assets::is_same_v<PolynomialType, uint8_t> ||
+            stp_shared_assets::is_same_v<PolynomialType, uint16_t> ||
+            stp_shared_assets::is_same_v<PolynomialType, uint32_t> ||
+            stp_shared_assets::is_same_v<PolynomialType, uint64_t>,
+        "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, uint32_t, or uint64_t."
+    );
+#else
+    // If uint64_t is not supported, only allows uint8_t, uint16_t, and uint32_t
     static_assert(
         stp_shared_assets::is_same_v<PolynomialType, uint8_t> ||
             stp_shared_assets::is_same_v<PolynomialType, uint16_t> ||
             stp_shared_assets::is_same_v<PolynomialType, uint32_t>,
         "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, or uint32_t."
     );
+#endif
 
   public:
     /// Stores the latest runtime status of the CRCProcessor. This variable is primarily designed to communicate the

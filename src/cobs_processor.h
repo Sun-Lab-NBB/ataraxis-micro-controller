@@ -62,7 +62,7 @@
  *
  * @attention This class assumes that the input buffer that holds the data to be processed reserves space for the
  * packet start byte at index 0, payload size byte at index 1, overhead byte at index 2 and the delimiter byte value at
- * index payload_size + 3. Given the overall constraint of using COBS to encode 8-bit data, that only allows payload
+ * index payload_size + 1. Given the overall constraint of using COBS to encode 8-bit data, that only allows payload
  * sizes of 254 bytes at maximum. This means that the input buffer at a maximum needs to be of size 254+4 == 258 bytes.
  *
  * @note Do not use this class outside of the SerializedTransferProtocol class unless you know what you are doing, as it
@@ -148,8 +148,8 @@ class COBSProcessor
      * (delimiter byte) and the overhead byte position. This library as a whole is designed to work around this
      * potential discrepancy, but this may be problematic if COBSProcessor class is used outside of this library.
      *
-     * @returns uint16_t The size of the encoded packet in bytes, which includes the start, payload_size, overhead and
-     * the delimiter bytes values. Successful method runtimes return payload_size + 4, while failed runtimes return 0.
+     * @returns uint16_t The size of the encoded packet in bytes, which includes the overhead and the delimiter bytes
+     * values. Successful method runtimes return payload_size + 2, while failed runtimes return 0.
      * Use cobs_status class variable to obtain specific runtime error code if the method fails (can be interpreted by
      * using kCOBSProcessorCodes enumeration available through stp_shared_assets namespace).
      *
@@ -261,11 +261,11 @@ class COBSProcessor
         if (last_delimiter_index != 0)
             // -2 to account for overhead index being 2. Converts the absolute index of the last delimiter to the
             // distance ot that value from the overhead byte located at index 2
-            payload_buffer[0] = last_delimiter_index - 2;
+            payload_buffer[2] = last_delimiter_index - 2;
 
         // The delimiter byte is found under payload_end_index+1, so the distance to the appended delimiter_byte_value
         // from the overhead byte located at index 2 is payload_end_index+1-2 == payload_end_index-1
-        else payload_buffer[0] = payload_end_index - 1;
+        else payload_buffer[2] = payload_end_index - 1;
 
         // Sets the status to indicate that encoding was successful.
         cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadEncoded);
@@ -275,7 +275,7 @@ class COBSProcessor
         // [start byte] [payload_size byte] [overhead byte] ... [payload] ... [delimiter byte] ... [Any remaining data].
         // The maximum total size of the packet is 256 bytes, which becomes 258 if the start and payload size preamble
         // is added to the total size.
-        return minimum_required_buffer_size;  // Reuses already calculated value
+        return minimum_required_buffer_size-2;  // Reuses already calculated value, but subtracts the preamble size
     }
 
     /**

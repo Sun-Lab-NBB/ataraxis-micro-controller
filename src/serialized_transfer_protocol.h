@@ -975,8 +975,7 @@ class SerializedTransferProtocol
         // tracker to communicate the payload size. Implicitly uses overhead byte placeholder at index 0, this class is
         // constructed in a way that the user does not need to care about where the placeholder as all class methods
         // handle this heuristic requirement implicitly.
-        uint16_t packet_size =
-            _cobs_processor.EncodePayload(_transmission_buffer, _bytes_in_transmission_buffer, kDelimiterByte);
+        uint16_t packet_size = _cobs_processor.EncodePayload(_transmission_buffer, kDelimiterByte);
 
         // If the encoder runs into an error, it returns 0 to indicate that the payload was not encoded. In this
         // case, transfers the error status code from the COBS processor status tracker to transfer_status and returns
@@ -1279,7 +1278,7 @@ class SerializedTransferProtocol
         // any encoded variable that was previously an instance of kDelimiterByte back to the original value. Second,
         // it acts as a secondary verification step, since COBS encoding ensures the data is organized in a particular
         // fashion and if that is not true, the data is likely corrupted and the CRC failed to recognize that.
-        uint16_t payload_size = _cobs_processor.DecodePayload(_reception_buffer, packet_size, kDelimiterByte);
+        uint16_t payload_size = _cobs_processor.DecodePayload(_reception_buffer, kDelimiterByte);
 
         // Verifies that the COBS decoder runtime was successful. Uses the heuristic that the successful COBS
         // decoder runtime always returns a non-zero payload_size, and an erroneous one always returns 0 to simplify the
