@@ -1188,8 +1188,11 @@ int RunUnityTests(void)
     RUN_TEST(TestCRCProcessorGenerateTable_CRC16);
 
 // This test requires at least 2048 bytes of RAM to work, so prevents it from being evaluated by boards like Arduino
-// Uno. Specifically, uses a static 3kb RAM limit
-#if !defined RAMEND >= 0x0BFF
+// Uno. Specifically, disables the test for selected architectures known to not have sufficient memory
+#if !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega32U4__) && !defined(__AVR_ATmega2560__) && \
+    !defined(__AVR_ATtiny85__) && !defined(__AVR_ATmega168__) && !defined(__AVR_ATmega1280__) &&    \
+    !defined(__AVR_ATmega8__) && !defined(__AVR_ATmega16U4__) && !defined(__AVR_ATmega32U4__) &&    \
+    !defined(__SAMD21G18A__)
     RUN_TEST(TestCRCProcessorGenerateTable_CRC32);
 #endif
 

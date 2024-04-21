@@ -31,11 +31,12 @@
  * This class is implemented as a template and all of its methods scale with the CRC polynomial type used during class
  * instantiation. This allows using the same class for all common polynomials used for CRC checksum calculations of
  * types uint8_t, uint16_t and uint32_t. This is part of a boarder effort to make the library sufficiently flexible to
- * be used on a wide variety of platforms, from the generally constrained Arduino Uno to the relatively forgiving
- * Teensy 4.1 (the library has been tested on this specific board) and PCs.
+ * be used on a wide variety of platforms, which includes microcontrollers and major PCs.
  *
- * @note Platforms that support 64-bit can also use 64-bit polynomials. Since 128+ bit polynomials are largely phased
- * out in favor of hash-functions, currently there are no plans to support bit-lengths greater than 64 bits.
+ * @note 64-bit+ polynomials are currently not supported, largely due to their fairly niche use case and issues
+ * with using the existing testing environment with 64-bit variables. That said, the code is designed in a way that
+ * would naturally scale to work with 64-bit+ polynomials if the static instantiation guard is modified to allow this.
+ * No official support wil be offered, but feel free to modify the class to enable this functionality yourself.
  *
  * Due to the complex nature of class definition, the class can only be instantiated by an instantiation-time
  * assignment:
@@ -71,9 +72,9 @@
  * argument matches the used polynomial type during class instantiation to avoid unexpected behavior.
  *
  * @note Each instance of this class computes a constant CRC table during initialization and subsequently uses it to
- * generate CRC checksum values for input data byte-streams. The table reserves either 256, 512 or 1024 bytes of memory
- * depending on the PolynomialType template parameter. As such, it is costly (and uncommon) to instantiate more
- * than a single instance of the class, as each instance will create its' own table.
+ * generate CRC checksum values for input data byte-streams. The table reserves either 256, 512, or 1024 bytes of
+ * memory depending on the PolynomialType template parameter. It is fairly uncommon to use more than a single
+ * instance of this clas for memory-constrained platforms, such as microcontrollers.
  *
  * @attention This class makes certain assumptions about the layout of the input buffers and, additionally, is very
  * sensitive to the correct constructor configuration (due to the high versatility of CRC-table generation method). Due
@@ -81,8 +82,8 @@
  * appropriately handles all assumptions and configuration requirements.
  *
  * @tparam PolynomialType The datatype of the CRC polynomial to be used by the class. Valid types are uint8_t, uint16_t
- * and uint32_t. The class contains a compile-time guard against any other input datatype. Overall, this allows to use
- * this class with the vast majority of available CRC checksum polynomials, significantly increasing use versatility.
+ * and uint32_t. The class contains a compile-time guard against any other input datatype. Overall, this allows using
+ * this class with the vast majority of available CRC checksum polynomials, significantly increasing class versatility.
  *
  * Example instantiation:
  * @code
@@ -95,28 +96,16 @@
 template <typename PolynomialType>
 class CRCProcessor
 {
-// Ensures that the class only accepts uint8, 16, 32 or 64 as valid CRC types, as no other type can be used to store
-// a CRC polynomial at the time of writing. The 64-bit polynomial support is only enabled for platforms that have
-// 64-bit integer type support (Notably, this includes most lower-end Arduino boards). There are no plans to support
-// polynomials above 64 bits at the time of writing.
-#if defined(__UINT64_MAX__) || (defined(__SIZEOF_INT128__) && __SIZEOF_INT128__ >= 8)
-    // If uint64_t is supported, allows PolynomialType to be uint64_t
-    static_assert(
-        stp_shared_assets::is_same_v<PolynomialType, uint8_t> ||
-            stp_shared_assets::is_same_v<PolynomialType, uint16_t> ||
-            stp_shared_assets::is_same_v<PolynomialType, uint32_t> ||
-            stp_shared_assets::is_same_v<PolynomialType, uint64_t>,
-        "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, uint32_t, or uint64_t."
-    );
-#else
-    // If uint64_t is not supported, only allows uint8_t, uint16_t, and uint32_t
+    // Ensures that the class only accepts uint8, 16, or 32 as valid CRC types, as no other type can be used to store
+    // a CRC polynomial at the time of writing. While 64-bit polynomials are also available, they are fairly uncommon
+    // and most likely not necessary for most use cases of this library. As such, at the time, there are no plans to
+    // offer 64-bit polynomial support.
     static_assert(
         stp_shared_assets::is_same_v<PolynomialType, uint8_t> ||
             stp_shared_assets::is_same_v<PolynomialType, uint16_t> ||
             stp_shared_assets::is_same_v<PolynomialType, uint32_t>,
         "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, or uint32_t."
     );
-#endif
 
   public:
     /// Stores the latest runtime status of the CRCProcessor. This variable is primarily designed to communicate the
@@ -127,8 +116,8 @@ class CRCProcessor
 
     /// The array that stores the CRC lookup table. The lookup table is used to speed-up CRC checksum calculation by
     /// pre-computing the checksum value for each possible byte-value (from 0 through 255: 256 values total). The table
-    /// is filled automatically during class instantiation and reserves 256, 512 or 1024 bytes of RAM for the entire
-    /// lifetime of the class, depending on the PolynomialType template parameter.
+    /// is filled automatically during class instantiation and reserves 256, 512, or 1024 bytes of RAM for the
+    /// entire lifetime of the class, depending on the PolynomialType template parameter.
     PolynomialType crc_table[256];
 
     /**
@@ -168,7 +157,7 @@ class CRCProcessor
      *
      * @note Currently, only supports polynomials that do not require bit-reversal for inputs and outputs.
      *
-     * @attention The method packages the generated CRC checksum to the type specified by the PolynomialType template
+     * @attention The method returns the generated CRC checksum as the type specified by the PolynomialType template
      * argument of the class. As such, it automatically scales with each supported polynomial type. Make sure that the
      * caller uses the appropriate type (or auto) to handle the returned checksum value.
      *
@@ -176,12 +165,12 @@ class CRCProcessor
      * successful or failed, use crc_status variable of the class instance. Unlike for many other methods of this
      * library, the returned value is not meaningful until it is verified using the status code.
      *
-     * @tparam buffer_size The size of the input buffer. This value is used to verify that the requested packet_size
+     * @tparam buffer_size The size of the input buffer. This value is used to verify that the specified packet_size
      * fits inside the buffer and will not lead to an out-of-bounds access. This guards against undefined behavior and
      * potential data corruption.
      * @param buffer The buffer that stores the data to be checksummed. This is intended to be a well-formed and
-     * COBS-encoded packet to be sent to the PC using SerializedTransferProtocol class. That said, the method will checksum
-     * any valid byte-array.
+     * COBS-encoded packet to be sent to the PC using SerializedTransferProtocol class. That said, the method will
+     * checksum any valid byte-array.
      * @param start_index The index that points to the first byte-value of the portion of the data inside the input
      * buffer to be checksummed (where to start check-summing from). This is helpful to limit the checksum calculation
      * if the buffer contains additional data prior to the portion to be checksummed.
@@ -190,9 +179,9 @@ class CRCProcessor
      * buffer contains additional data after the data portion to be checksummed.
      *
      * @returns PolynomialType The CRC checksum of the requested data cast to appropriate type based on the polynomial
-     * type (uint8_t, uint16_t or uint32_t). Make sure to use the crc_status class variable to determine the success or
-     * failure status of the method based on the byte-code it is set to after the method's runtime. The crc_status can
-     * be interpreted using kCRCProcessorCodes enumeration available through stp_shared_assets namespace.
+     * type (uint8_t, uint16_t, uint32_t). Make sure to use the crc_status class variable to determine the
+     * success or failure status of the method based on the byte-code it is set to after the method's runtime. The
+     * crc_status can be interpreted using kCRCProcessorCodes enumeration available through stp_shared_assets namespace.
      *
      * Example usage:
      * @code
@@ -257,17 +246,16 @@ class CRCProcessor
     /**
      * @brief Adds the input crc_checksum to the input buffer, at a position specified by the start_index.
      *
-     * This method converts a multi-byte CRC checksums into multiple bytes, starting with the highest byte and
+     * This method converts a multi-byte CRC checksums into multiple bytes, starting with the most significant byte and
      * iteratively overwrites the buffer bytes with CRC bytes starting with the start_index.
      *
      * @note The method automatically scales with the byte-size of the PolynomialType that was used as the template
      * argument during class instantiation. As such, make sure that the input checksum uses the same polynomial (and,
      * by extension, the crc checksum) datatype, otherwise unexpected behavior and / or data corruption may occur.
      *
-     * @attention This method feeds the data starting with the highest byte of the multi-byte CRC checksum first.
-     * When reading the data from buffer, make sure to use the companion ReadCRCChecksumFromBuffer() or it's
-     * PC-equivalent method to retrieve the data in the appropriate order, otherwise the read CRC checksum will be
-     * incorrect.
+     * @attention This method feeds the data starting with the most significant byte of the multi-byte CRC checksum
+     * first. When reading the data from buffer, make sure to use the companion ReadCRCChecksumFromBuffer() to retrieve
+     * the data in the appropriate order, otherwise the read CRC checksum will be incorrect.
      *
      * @tparam buffer_size The size of the input buffer. This value is used to verify that the CRC checksum will fit
      * inside the buffer if it is written starting at the start_index. This guards against undefined behavior and
@@ -276,13 +264,13 @@ class CRCProcessor
      * payload buffer or a postamble buffer to be sent right after the packet buffer, depending on the particular
      * packet anatomy used in your transmission protocol.
      * @param start_index The index inside the buffer with which to start writing the CRC checksum. Specifically, the
-     * highest checksum byte will be written to that index and all lower bytes will be trailed behind, until the entire
-     * checksum is written.
+     * most significant checksum byte will be written to that index and all lower bytes will be trailed behind, until
+     * the entire checksum is written.
      * @param crc_checksum The CRC checksum value to be appended to the buffer. The method automatically sets the
      * input type according to class instance PolynomialType template argument (so if the class was initialized with
-     * uint7_t PolynomialType, the input crc_checksum will also be cast to uint8_t).
+     * uint8_t PolynomialType, the input crc_checksum will also be cast to uint8_t).
      *
-     * @returns uint16_t The size of the buffer occupied by the preceding data and the appended CRC checksum. Discards
+     * @returns uint16_t The size of the buffer occupied by the preceding data and the appended CRC checksum. Ignores
      * any data that may be found after the appended CRC checksum, the returned size will always be equal to the
      * start_index + crc_checksum byte-size. Returns 0 if method runtime fails to indicate no data has been added to
      * the buffer. Use crc_status to determine the particular error that led to runtime failure (or success code if the
@@ -341,24 +329,23 @@ class CRCProcessor
      * argument during class instantiation. As such, make sure that the caller uses appropriately-datatyped variable
      * to save the returned crc checksum, otherwise unexpected behavior and / or data corruption may occur.
      *
-     * @attention This method expects the CRC checksum data stretch to start with the highest byte of the multi-byte
-     * CRC checksum first. When writing the data to buffer, make sure to use the AddCRCChecksumToBuffer() or an
-     * analogous PC method to write the data in the appropriate order, otherwise the read CRC checksum will be
-     * incorrect.
+     * @attention This method expects the CRC checksum data stretch to start with the most significant byte of the
+     * multi-byte CRC checksum first. When writing the data to buffer, make sure to use the AddCRCChecksumToBuffer()
+     * method to write the data in the appropriate order, otherwise the read CRC checksum will be incorrect.
      *
      * @tparam buffer_size The size of the input buffer. This value is used to verify that the there are enough bytes
      * available from the start_index to the end of the buffer to accommodate the expected CRC checksum size to be read.
      * This guards against undefined behavior and potential data corruption that would result from attempting to
      * retrieve data outside the buffer boundaries.
      * @param buffer The buffer from which the CRC checksum needs to be extracted. Generally, this should either be the
-     * packet-filled payload buffer or a postamble buffer that was sent right after the packet buffer, depending on the
-     * particular packet anatomy used in your transmission protocol.
+     * packet buffer or a postamble buffer that was sent right after the packet buffer, depending on the particular
+     * packet anatomy used in your transmission protocol.
      * @param start_index The position inside the buffer to start reading CRC bytes from. The first CRC checksum byte is
      * read from the start_index and the remaining bytes are extracted iteratively moving toward the end of the buffer.
      *
      * @returns PolynomialType The CRC checksum value cast to the type specified by the class instance PolynomialType
      * template argument (so if the class was initialized with uint8_t PolynomialType, the returned CRC checksum will
-     * also use uint8_t, etc.). Note, the returned value itself is not meaningful until it is verified using the status
+     * also use uint8_t, etc.). The returned value itself is not meaningful until it is verified using the status
      * code available through the crc_status variable of the class. The returned status byte-code can be interpreted
      * using the kCRCProcessorCodes enumeration available through stp_shared_assets namespace.
      *
@@ -422,10 +409,9 @@ class CRCProcessor
      * crc_table has to be initialized correctly for this method to work properly.
      *
      * @note The generation of the CRC table vastly increases the speed of CRC checksum computation at the cost of
-     * reserving a significant chunk of memory to store the table. For boards like teensy this is not as much of an
-     * issue as it has kilobytes of memory and the function in CRC-16 form only reserves 512 bytes. Board like Arduino
-     * Uno (2kB of memory) will struggle however and may need to use a CRC-8 (256 bytes) or other error-checking
-     * methods.
+     * reserving a portion of RAM to store the table. This may be an issue when the library runs on memory-constrained
+     * platforms, such as Arduino Uno microcontrollers. In that case, it is advised to use the smallest appropriate
+     * polynomial.
      *
      * Example usage:
      * @code
