@@ -1,75 +1,64 @@
 /**
  * @file
- * @brief The header file for the SerializedTransferProtocol class, which aggregates all methods for sending and receiving
- * data over Serial Stream interface (USB / UART).
+ * @brief The header file for the SerializedTransferProtocol class, which aggregates all methods for sending and
+ * receiving serialized data over a USB / UART connection.
  *
  * @subsection description Description:
  * This class provides an intermediate-level API that enables receiving and sending data over the USB or UART serial
  * ports. It conducts all necessary steps to properly encode and decode payloads, verifies their integrity and moves
- * them to and from the bundled Stream class buffers. This class instantiates private _transmission_buffer and
+ * them to and from the transmission interface buffers. This class instantiates private _transmission_buffer and
  * _reception_buffer arrays, which are used as the intermediate storage / staging areas for the processed payloads. Both
- * buffers have to be treated as temporary work areas as they are frequently reset during data transmission and
- * reception and they can only be accessed using class methods.
+ * buffers are cleared during data transmission (for _transmission_buffer) and reception (for _reception_buffer).
  *
  * This class contains the following methods:
- * - Available(): To check whether the bundled Stream class has received data that can be moved to the reception_buffer.
- * - ResetTransmissionBuffer(): To reset the overhead byte and the size tracker fro the transmission_buffer.
- * - ResetReceptionBuffer(): To reset the overhead byte and the size tracker from the reception_buffer.
- * - SendData(): To package and send the contents of the transmission_buffer via the bundled Serial class.
- * - ReceiveData(): To unpack the data received by the bundled Serial class into the reception_buffer.
+ * - Available(): To check whether the serial interface has received data that can be moved to the reception_buffer.
+ * - ResetTransmissionBuffer(): To reset the tracker variables of the transmission_buffer.
+ * - ResetReceptionBuffer(): To reset the tracker variables of the reception_buffer.
+ * - SendData(): To package and send the contents of the transmission_buffer via the transmission interface.
+ * - ReceiveData(): To unpack the data received by the transmission interface into the reception_buffer.
  * - WriteData(): To write an arbitrary object to the transmission_buffer as bytes.
  * - ReadData(): To read an arbitrary object from the reception_buffer as bytes.
  * - CopyTxDataToBuffer() and CopyRXDataToBuffer: To assist testing by copying the contents of the _transmission_buffer
  * or the _reception_buffer, into the input buffer. Indirectly exposes the buffers for testing purposes.
  * - CopyTxBufferPayloadToRxBuffer: To assist testing by copying the payload bytes inside the _transmission_buffer to
- * the _reception_buffer. This method is safe and allows to maintain the general guard of only writing to
- * _transmission_buffer (and only via WriteData() method) while also giving the ability to safely transfer the data to
- * the _reception_buffer.
- * - Multiple minor methods that are used to by the listed major methods as well as accessor methods that communicate
- * the values of certain private tracker variables (such as the payload byte trackers for the internal buffers).
+ * the _reception_buffer. This method is a safe way of simulating data reception from data written to
+ * _transmission_buffer (via WriteData() method).
+ * - Multiple minor methods that are used to by the listed major methods and some accessor methods that communicate
+ * the values of certain private tracker variables (such as the payload-size trackers for the class buffers).
  *
  * @attention This class is implemented as a template and many methods adapt to the template arguments used during
  * class instantiation. See developer notes below for more information.
  *
  * @subsection developer_notes Developer Notes:
- * This class functions as the root hub of the library, relying on CRCProcessor and COBSProcessor helper-classes to
- * cary out the specific packet processing and integrity verification steps. The SerializedTransferProtocol class abstracts
- * these two classes and a bundled Stream class instance by providing an API that can be used to realize serial
- * communication functionality through 4 major methods (SendData(), ReceiveData(), WriteData() and
- * ReadData()).
+ * This class exposes the main library API, relying on CRCProcessor and COBSProcessor helper-classes to cary out the
+ * specific packet processing and integrity verification steps. The SerializedTransferProtocol class abstracts these two
+ * classes and a transmission interface instance by providing an API that can be used to carry out serial communication
+ * through 4 major methods (SendData(), ReceiveData(), WriteData() and ReadData()).
  *
- * The class uses a number of template parameters to allows users to pseudo-dynamically configure various class runtime
- * aspects, especially when template parameters are combined with Constructor arguments. That does minorly complicate
- * class instantiation and forces all methods of the class to be implemented inside the .h file, which is somewhat
- * against convention. That said, since this optimization simplifies code maintainability, it is considered an
- * acceptable tradeoff.
+ * The class uses template parameters to allow users to pseudo-dynamically configure various class runtime aspects,
+ * usually in combination with Constructor arguments. This approach complicates class instantiation and forces all
+ * methods of the class to be implemented inside the .h file, which is somewhat against convention. That said, since
+ * this optimization simplifies code maintainability, it is considered an acceptable tradeoff.
  *
- * @note This whole library is written specifically for the AMC codebase and, as such, was optimized for the specific
- * role it has in that codebase (as the main provider of serial communication services over the USB port). The library
- * should be compatible with most Arduino boards and UART protocol (which is much slower compared to USB). It is offered
- * as a standalone tool for other developers that may benefit from having a backend specifically dedicated to USB / UART
- * serial communication between Arduino and Python.
- *
- * @attention This class permanently reserves up to 256 x 2 + 3 = 515 bytes of memory for its buffers. This value can
- * be reduced by changing the maximum transmission / reception buffer sizes (by altering kMaximumTransmittedPayloadSize
- * and kMaximumReceivedPayloadSize template parameters). As such, while the class may not support boards like Uno
- * out of the box, it can easily be configured in a way where it can on almost any board.
+ * @attention This class permanently reserves ~550 bytes (depending on the postamble size and support variables) for the
+ * internal buffers. This value can be reduced by changing the maximum transmission / reception buffer sizes (by
+ * altering kMaximumTransmittedPayloadSize and kMaximumReceivedPayloadSize template parameters). It is generally
+ * encouraged to adjust the size to ensure the buffer at full capacity with the added preamble / postamble bytes fits
+ * into the transmission interface buffers, as this often allows for more efficient data transmission.
  *
  * @subsection packet_anatomy Packet Anatomy:
  * This class sends and receives data in the form of packets. Each packet is expected to adhere to the following general
  * layout:
- * [START BYTE] [COBS OVERHEAD BYTE] [PAYLOAD (1 to 254 bytes)] [DELIMITER BYTE] [CRC CHECKSUM POSTAMBLE (1 to 4 bytes)]
+ * [START] [PAYLOAD SIZE] [COBS OVERHEAD] [PAYLOAD (1 to 254 bytes)] [DELIMITER] [CRC CHECKSUM (1 to 4 bytes)]
  *
- * When using WriteData() and ReadData() methods, the users are only accessing the payload section of the overall
+ * When using WriteData() and ReadData() methods, the users are only working with the payload section of the overall
  * packet. The rest of the packet anatomy is controlled internally by this class and is not exposed to the users.
  *
  * @subsection dependencies Dependencies:
  * - Arduino.h for Arduino platform methods and macros and cross-compatibility with Arduino IDE (to an extent).
  * - cobs_processor.h for COBS encoding and decoding methods.
  * - crc_processor.h for CRC-16 encoding and decoding methods, as well as crc-specific buffer manipulation methods.
- * - cstring for std namespace.
  * - elapsedMillis.h for managing packet reception timers.
- * - stdint.h for fixed-width integer types. Using stdint.h instead of cstdint for compatibility (with Arduino) reasons.
  */
 
 #ifndef AMC_SERIAL_TRANSFER_PROTOCOL_H
@@ -83,14 +72,13 @@
 
 /**
  * @class SerializedTransferProtocol
- * @brief Provides a collection of methods that can be used to send and receive packetised data over the serial Stream
- * interface (USB or UART).
+ * @brief Exposes methods that can be used to send and receive serialized data over the USB or UART transmission
+ * interface.
  *
  * This class wraps other low-level helper classes of the library that are used to encode, validate and bidirectionally
- * transmit arbitrary data over the USB or UART serial port. To facilitate this process, the class provides two internal
- * buffers: _transmission_buffer (stages the data to be transmitted) and _reception_buffer (stores the data received
- * from the PC). Note, both buffers are treated as temporary storage areas and are reset by each SendData() and
- * ReceiveData() calls.
+ * transmit arbitrary data over the USB or UART interface. To facilitate this process, the class provides two internal
+ * buffers: _transmission_buffer (stages the data to be transmitted) and _reception_buffer (stores the received data).
+ * Note, both buffers are treated as temporary storage areas and are reset by each SendData() and ReceiveData() call.
  *
  * @warning Since the buffers follow a very specific layout pattern that is required for this class to work properly,
  * they are stored as private members of this class. The buffers can be manipulated using ReadData() and WriteData()
@@ -100,30 +88,32 @@
  *
  * @attention The class tracks how many bytes are stored in each of the buffers. Specifically for the
  * _transmission_buffer, this is critical, as the tracker determines how many bytes are packed and sent to the PC. The
- * tracker is reset by calling ResetTransmissionBuffer() or SendData() methods and does not care if already tracked
- * bytes are overwritten. As such, if you add 50 bytes to the buffer and then overwrite the first 20, the class will
- * remember and send all 50 bytes unless you reset the tracker before overwriting the bytes. Additionally, the tracker
- * always assumes that the bytes to send stretch from the beginning of the buffer. So, if you write 10 bytes to the
- * middle of the buffer (say, at index 100+), the tracker will assume that 100 bytes were somehow added before the 10
- * bytes you provided and send 110 bytes, including potentially meaningless 100 bytes. See the documentation for the
- * WriteData() and ReadData() methods for more information on byte trackers.
+ * tracker is reset by calling ResetTransmissionBuffer() or SendData() methods and is only incremented when the payload
+ * size is increased (ignores when already counted bytes are overwritten). For example, if you add 50 bytes to the
+ * buffer and then overwrite the first 20, the class will remember and send all 50 bytes unless you reset the tracker
+ * before overwriting the bytes. Additionally, the tracker always assumes that the bytes to send stretch from the
+ * beginning of the buffer. So, if you write 10 bytes to the middle of the buffer (say, at index 100+), the tracker will
+ * assume that 100 bytes were added before the 10 bytes you provided and send 110 bytes, including potentially
+ * meaningless 100 bytes. See the documentation for the WriteData() and ReadData() methods for more information on byte
+ * trackers.
  *
  * @note The class is broadly configured through the combination of class template parameters and constructor arguments.
  * The template parameters (see below) need to be defined at compilation time and are needed to support proper static
  * initialization of local arrays and subclasses. All currently used template parameters indirectly control how much RAM
- * is reserved by teh class for it's buffers and the CRC lookup table (via the bundled CRCProcessor class instance). The
- * constructor arguments allow to further configure class runtime behavior in a way that is not compile-time dependent.
+ * is reserved by the class for it's buffers and the CRC lookup table (via the local CRCProcessor class instance). The
+ * constructor arguments allow to further configure class runtime behavior in a way that does not mandate compile-time
+ * definition.
  *
- * @tparam PolynomialType The datatype of the CRC polynomial to be used by the bundled (internal) CRCProcessor class.
+ * @tparam PolynomialType The datatype of the CRC polynomial to be used by the local CRCProcessor class instance.
  * Valid types are uint8_t, uint16_t and uint32_t. The class contains a compile-time guard against any other input
  * datatype. See CRCProcessor documentation for more details.
  * @tparam kMaximumTransmittedPayloadSize The maximum size of the payload that is expected to be transmitted during
  * class runtime. Note, the number is capped to 254 bytes due to COBS protocol and it is used to determine the size of
- * the transmission_buffer array. Use this number to indirectly control the memory reserved by the transmission_buffer
- * (at a maximum of 254 + 2 = 256 bytes).
+ * the _transmission_buffer array. Use this number to indirectly control the memory reserved by the _transmission_buffer
+ * (at a maximum of 254 + 4 = 258 bytes).
  * @tparam kMaximumReceivedPayloadSize The maximum size of the payload that is expected to be received during class
  * runtime. Works the same way as kMaximumTransmittedPayloadSize, but allows to independently control the size of the
- * reception_buffer.
+ * _reception_buffer.
  *
  * Example instantiation:
  * @code
@@ -178,24 +168,24 @@ class SerializedTransferProtocol
 
   public:
     /// Stores the runtime status of the most recently called method. Note, this variable can either store the status
-    /// derived from the kSerializedTransferProtocolStatusCodes enumeration if it originates from this class or use the
-    /// enumerations for the COBSProcessor and CRCProcessor helper classes, if the status (error) originates from one
-    /// of these classes. As such, you may need to use all of the enumerations available through stp_shared_assets
-    /// namespace to determine the status of the most recently called method. All status codes used by this library are
-    /// unique across the library, so any returned byte-code always has a single meaning.
+    /// derived from the kSerializedTransferProtocolStatusCodes enumeration if it originates from a native method of
+    /// this class or use the enumerations for the COBSProcessor and CRCProcessor helper classes, if the status (error)
+    /// originates from one of these classes. As such, you may need to use all of the enumerations available through
+    /// stp_shared_assets namespace to determine the status of the most recently called method. All status codes used by
+    /// this library are unique across the library, so any returned byte-code always has a single meaning.
     uint8_t transfer_status = static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kStandby);
 
     /**
-     * @brief Instantiates a new SerializedTransferProtocol object.
+     * @brief Instantiates a new SerializedTransferProtocol class object.
      *
      * The constructor resets the _transmission_buffer and _reception_buffer of the instantiated class to 0 following
      * initialization. Also initializes the CRCProcessor class using the provided CRC parameters. Note, the CRCProcessor
      * class is defined using the PolynomialType template parameter and, as such, expects and casts all input CRC
      * arguments to the same type.
      *
-     * @param communication_port A reference to the fully configured instance of base Stream class, such as Serial or
-     * USB Serial. This class is used as a low-level access point that physically manages the hardware used to
-     * communicate with the PC.
+     * @param communication_port A reference to the fully configured instance of stream interface class, such as
+     * Serial or USB Serial. This class is used as a low-level access point that physically manages the hardware used to
+     * transmit and receive the serialized data.
      * @param crc_polynomial The polynomial to use for the generation of the CRC lookup table used by the internal
      * CRCProcessor class. Can be provided as an appropriately-sized HEX number (e.g. 0x1021). Note, currently only
      * non-reversed polynomials are supported. Defaults to 0x1021 (CRC-16 CCITT-FAlSE).
@@ -206,15 +196,21 @@ class SerializedTransferProtocol
      * based on the polynomial parameter. Can be provided as an appropriately-sized HEX number (e.g. 0x0000). Defaults
      * to 0x0000 (CRC-16 CCITT-FAlSE).
      * @param start_byte The byte-range value (from 0 through 255) to be used as the start byte of each transmitted and
-     * received byte-stream. The presence of this value inside the incoming byte-stream instructs the receiver to enter
-     * packet parsing mode both on the Controller and PC. This value ideally should be different from the delimiter_byte
-     * to maintain higher packet reliability, but it does not have to be. Also, it is advised to use a value that is
-     * unlikely to be encountered due to random noise). Defaults to 129.
+     * received packets. The presence of this value inside the incoming byte-stream instructs the receiver to enter
+     * packet parsing mode. This value ideally should be different from the delimiter_byte to maintain higher packet
+     * reliability, but it does not have to be. Also, it is advised to use a value that is unlikely to be encountered
+     * due to random communication line noise. Defaults to 129.
      * @param delimiter_byte The byte-range value (from 0 through 255) to be used as the delimiter (stop) byte of each
      * packet. Encountering a delimiter_byte value is the only non-error way of ending the packet reception loop. During
      * packet construction, this value is eliminated from the payload using COBS encoding. It is advised to use the
      * value of 0x00 (0) as this is the only value that is guaranteed to not occur anywhere in the packet. All other
      * values may also show up as the overhead byte (see COBSProcessor documentation for more details). Defaults to 0.
+     * @param minimum_payload_size The minimum expected payload size (in bytes) for each incoming packet. This variable
+     * is used to calculate the minimum number of bytes that has to be stored inside the transmission interface
+     * reception buffer to trigger a reception procedure (and for the available() method to return 'true'). This
+     * maximizes the chances of each ReceiveData() method call to return a valid packet. This optimization is intended
+     * for some platforms to save CPU time by not wasting it on running reception attempts that are unlikely to succeed.
+     * Note, this value has to be between 1 and 254. Defaults to 1.
      * @param timeout The number of microseconds to wait between receiving any two consecutive bytes of the packet. The
      * algorithm uses this value to detect stale packets, as it expects all bytes of the same packet to arrive close in
      * time to each other. Primarily, this is a safe-guard to break out of stale packet reception cycles and avoid
@@ -235,6 +231,7 @@ class SerializedTransferProtocol
      * uint16_t final_xor_value = 0x0000;
      * uint8_t start_byte = 129;
      * uint8_t delimiter_byte = 0;
+     * uint8_t minimum_payload_size = 1;
      * uint32_t timeout = 20000; // In microseconds
      * bool allow_start_byte_errors = false;
      *
@@ -246,6 +243,7 @@ class SerializedTransferProtocol
      * final_xor_value,
      * start_byte,
      * delimiter_byte,
+     * minimum_payload_size,
      * timeout,
      * allow_start_byte_errors
      * );
@@ -258,6 +256,7 @@ class SerializedTransferProtocol
         const PolynomialType crc_final_xor_value = 0x0000,
         const uint8_t start_byte                 = 129,
         const uint8_t delimiter_byte             = 0,
+        const uint8_t minimum_payload_size       = 1,
         const uint32_t timeout                   = 20000,
         const bool allow_start_byte_errors       = false
     ) :
@@ -269,20 +268,41 @@ class SerializedTransferProtocol
         kAllowStartByteErrors(allow_start_byte_errors),
         _transmission_buffer {},  // Initialization doubles up as resetting buffers to 0
         _reception_buffer {}
-    {}
+    {
+        // If the minimum_payload_size is below the valid range, caps it at 1. The lower limit of the range is enforced
+        // as empty payloads are assumed to be an error for most use cases.
+        if (minimum_payload_size == 0)
+        {
+            _minimum_packet_size = 1 + 4 + kPostambleSize;
+        }
+
+        // If the minimum_payload_size is above the valid range, caps it at 254. The maximum range is determined based
+        // on COBS limitations. See COBSProcessor documentation for more details.
+        else if (minimum_payload_size > 254)
+        {
+            _minimum_packet_size = 254 + 4 + kPostambleSize;
+        }
+
+        // If the value is in the accepted range, it is used as-is to determine the minimum packet size.
+        else
+        {
+            _minimum_packet_size = minimum_payload_size + 4 + kPostambleSize;
+        }
+    }
 
     /**
-     * @brief Evaluates whether the reception buffer of the bundled Stream class has bytes to read (checks whether
-     * bytes have been received from the PC).
+     * @brief Evaluates whether the reception buffer of the transmission interface has bytes to read (checks whether
+     * bytes have been received).
      *
-     * This is a simple wrapper around available() method of the bundled Stream class (such as Serial) that can be used
-     * to quickly evaluate whether ReceiveData() method needs to be called to parse the incoming data. This allows to
-     * save computation time by avoiding unnecessary ReceiveData() calls.
+     * This is a simple wrapper around an accessor method of the transmission interface class that can be used
+     * to quickly evaluate whether ReceiveData() method needs to be called to parse the incoming data. This allows
+     * saving computation time by avoiding unnecessary ReceiveData() calls.
      *
      * @note This is a public utility method and, as such, it does not modify internal class instance transfer_status
      * variable.
      *
-     * @returns bool True if there are bytes to be read from the reception buffer, false otherwise.
+     * @returns bool True if there are bytes to be read from the transmission interface reception buffer, false
+     * otherwise.
      *
      * Example usage:
      * @code
@@ -908,8 +928,9 @@ class SerializedTransferProtocol
     /// the time of writing, only includes the CRC checksum for the packet. To optimize data transfer, the postamble
     /// is appended to the specifically reserved portion of the _transmission_buffer and received into the specific
     /// portion of the _reception_buffer, rather than being stored in a separate buffer.
-
     static constexpr uint8_t kPostambleSize = sizeof(PolynomialType);  // NOLINT(*-dynamic-static-initializers)
+
+    static constexpr uint8_t kMetadataSize = 4;
 
     /// Stores the size of the _transmission_buffer array, which is statically set to the maximum transmitted payload
     /// size (kMaximumTransmittedPayloadSize template parameter) + 2 + size of the postamble. The +2 accounts for the
@@ -924,6 +945,9 @@ class SerializedTransferProtocol
     /// the buffer (used to do zero-return CRC checks on the packet).
     static constexpr uint16_t kMaximumRxBufferSize =  // NOLINT(*-dynamic-static-initializers)
         kMaximumReceivedPayloadSize + 2 + kPostambleSize;
+
+    /// Tracks the minimum expected payload size
+    uint8_t _minimum_packet_size = 0;
 
     /// The buffer that stages the payload data before it is transmitted to the PC. The buffer is constructed with the
     /// assumption that the first index is always reserved for the overhead byte of each transmitted packet (after the
