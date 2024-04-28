@@ -645,7 +645,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
     StreamMock<300> mock_port;
 
     // Note, uses different maximum payload size for the Rx and Tx buffers
-    SerializedTransferProtocol<uint16_t, 254, 80> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 1, 20000, false);
+    SerializedTransferProtocol<uint16_t, 254, 80, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Statically extracts the buffer sizes using accessor methods.
     static constexpr uint16_t tx_buffer_size = protocol.get_tx_buffer_size();
@@ -864,7 +864,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // Initializes the tested class
     StreamMock<300> mock_port;
     // Uses identical rx and tx payload sizes
-    SerializedTransferProtocol<uint16_t, 60, 60> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 1, 20000, false);
+    SerializedTransferProtocol<uint16_t, 60, 60, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Initializes a test variable
     uint8_t test_value = 223;
@@ -917,7 +917,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
 
     // Uses identical rx and tx payload sizes and tests maximal supported sizes for both buffers. Also uses a CRC-16
     // to test multibyte CRC handling.
-    SerializedTransferProtocol<uint16_t, 254, 254> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 1, 20000, false);
+    SerializedTransferProtocol<uint16_t, 254, 254, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Instantiates separate instances of encoder classes used to verify processing results
     COBSProcessor<1, 2> cobs_class;
@@ -1037,7 +1037,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
 {
     // Initializes the tested class
     StreamMock<60> mock_port;  // Initializes to the minimal required size
-    SerializedTransferProtocol<uint16_t, 60, 60> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 5, 20000, false);
+    SerializedTransferProtocol<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
 
     // Instantiates crc encoder class separately to generate test data
     CRCProcessor<uint16_t> crc_class = CRCProcessor<uint16_t>(0x07, 0x00, 0x00);
@@ -1148,7 +1148,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;   // Resets readout index back to
-    mock_port.rx_buffer[11]    = 10;  // Restores the payload_size byte value
+    mock_port.rx_buffer[11]   = 10;  // Restores the payload_size byte value
 
     // Sets the entire rx_buffer to valid non-delimiter byte-values for the test below to work, as it has to consume
     // most of the rx_buffer to run out of the _reception_buffer space of the SerializedTransferProtocol class.
@@ -1166,7 +1166,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
         static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketTimeoutError),
         protocol.transfer_status
     );
-    mock_port.rx_buffer[17]    = test_buffer[7];  // Restores the invalidated byte back to the original value
+    mock_port.rx_buffer[17]   = test_buffer[7];  // Restores the invalidated byte back to the original value
     mock_port.rx_buffer_index = 0;               // Resets readout index back to 0
 
     // Verifies that the algorithm correctly handles a CRC checksum error (indicates corrupted packets).

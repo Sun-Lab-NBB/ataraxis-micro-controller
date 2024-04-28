@@ -3,7 +3,7 @@
 #include "serialized_transfer_protocol.h"
 
 // Initializes the serial protocol class. Note, passes Serial class reference but does not open the serial port.
-SerializedTransferProtocol<uint16_t, 254, 254>
+SerializedTransferProtocol<uint16_t, 254, 254, 1>
     protocol(Serial, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);  // NOLINT(*-interfaces-global-init)
 uint8_t in_data[7] = {1, 2, 3, 4, 5, 6, 7};
 elapsedMicros timer;

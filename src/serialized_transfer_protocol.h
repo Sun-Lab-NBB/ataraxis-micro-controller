@@ -114,6 +114,12 @@
  * @tparam kMaximumReceivedPayloadSize The maximum size of the payload that is expected to be received during class
  * runtime. Works the same way as kMaximumTransmittedPayloadSize, but allows to independently control the size of the
  * _reception_buffer.
+ * @tparam kMinimumPayloadSize The minimum expected payload size (in bytes) for each incoming packet. This variable
+ * is used to calculate the minimum number of bytes that has to be stored inside the transmission interface
+ * reception buffer to trigger a reception procedure (and for the class Available() method to return 'true'). This
+ * maximizes the chances of each ReceiveData() method call to return a valid packet. This optimization is intended
+ * for some platforms to save CPU time by not wasting it on running reception attempts that are unlikely to succeed.
+ * Note, this value has to be between 1 and 254. Defaults to 1.
  *
  * Example instantiation:
  * @code
@@ -143,8 +149,9 @@
  */
 template <
     typename PolynomialType,
-    const uint8_t kMaximumTransmittedPayloadSize,
-    const uint8_t kMaximumReceivedPayloadSize>
+    const uint8_t kMaximumTransmittedPayloadSize = 254,
+    const uint8_t kMaximumReceivedPayloadSize    = 254,
+    const uint8_t kMinimumPayloadSize            = 1>
 class SerializedTransferProtocol
 {
     // Ensures that the class only accepts uint8, 16 or 32 as valid CRC types, as no other type can be used to store a
@@ -153,7 +160,7 @@ class SerializedTransferProtocol
         stp_shared_assets::is_same_v<PolynomialType, uint8_t> ||
             stp_shared_assets::is_same_v<PolynomialType, uint16_t> ||
             stp_shared_assets::is_same_v<PolynomialType, uint32_t>,
-        "SerializedTransferProtocol class template PolynomialType argument must be either uint8_t, uint16_t, or "
+        "SerializedTransferProtocol class PolynomialType template parameter must be either uint8_t, uint16_t, or "
         "uint32_t."
     );
 
@@ -161,11 +168,21 @@ class SerializedTransferProtocol
     // the maximum supported size).
     static_assert(
         kMaximumTransmittedPayloadSize < 255,
-        "SerializedTransferProtocol class template MaximumTxPayloadSize must be less than 255."
+        "SerializedTransferProtocol class kMaximumTransmittedPayloadSize template parameter must be less than 255."
     );
     static_assert(
         kMaximumReceivedPayloadSize < 255,
-        "SerializedTransferProtocol class template MaximumRxPayloadSize must be less than 255."
+        "SerializedTransferProtocol class kMaximumReceivedPayloadSize template parameter must be less than 255."
+    );
+
+    // Verifies that the minimum payload size is within the valid range of values.
+    static_assert(
+        kMinimumPayloadSize > 0,
+        "SerializedTransferProtocol class kMinimumPayloadSize template parameter must be above 0."
+    );
+    static_assert(
+        kMinimumPayloadSize < 255,
+        "SerializedTransferProtocol class kMinimumPayloadSize template parameter must be less than 255."
     );
 
   public:
@@ -207,12 +224,6 @@ class SerializedTransferProtocol
      * packet construction, this value is eliminated from the payload using COBS encoding. It is advised to use the
      * value of 0x00 (0) as this is the only value that is guaranteed to not occur anywhere in the packet. All other
      * values may also show up as the overhead byte (see COBSProcessor documentation for more details). Defaults to 0.
-     * @param minimum_payload_size The minimum expected payload size (in bytes) for each incoming packet. This variable
-     * is used to calculate the minimum number of bytes that has to be stored inside the transmission interface
-     * reception buffer to trigger a reception procedure (and for the available() method to return 'true'). This
-     * maximizes the chances of each ReceiveData() method call to return a valid packet. This optimization is intended
-     * for some platforms to save CPU time by not wasting it on running reception attempts that are unlikely to succeed.
-     * Note, this value has to be between 1 and 254. Defaults to 1.
      * @param timeout The number of microseconds to wait between receiving any two consecutive bytes of the packet. The
      * algorithm uses this value to detect stale packets, as it expects all bytes of the same packet to arrive close in
      * time to each other. Primarily, this is a safe-guard to break out of stale packet reception cycles and avoid
@@ -258,11 +269,9 @@ class SerializedTransferProtocol
         const PolynomialType crc_final_xor_value = 0x0000,
         const uint8_t start_byte                 = 129,
         const uint8_t delimiter_byte             = 0,
-        const uint8_t minimum_payload_size       = 1,
         const uint32_t timeout                   = 20000,
         const bool allow_start_byte_errors       = false
     ) :
-        kMinimumPayloadSize(minimum_payload_size),
         _port(communication_port),
         _crc_processor(crc_polynomial, crc_initial_value, crc_final_xor_value),
         kStartByte(start_byte),
@@ -272,27 +281,7 @@ class SerializedTransferProtocol
         _transmission_buffer {},  // Initialization doubles up as resetting buffers to 0
         _reception_buffer {}
     {
-        // If the minimum_payload_size is below the valid range, caps it at 1. The lower limit of the range is enforced
-        // as empty payloads are assumed to be an error for most use cases.
-        if (minimum_payload_size == 0)
-        {
-            _minimum_packet_size = 1 + kOverheadByteIndex + kPostambleSize;
-        }
-
-        // If the minimum_payload_size is above the valid range, caps it at 254. The maximum range is determined based
-        // on COBS limitations. See COBSProcessor documentation for more details.
-        else if (minimum_payload_size > 254)
-        {
-            _minimum_packet_size = 254 + kOverheadByteIndex + kPostambleSize;
-        }
-
-        // If the value is in the accepted range, it is used as-is to determine the minimum packet size.
-        else
-        {
-            _minimum_packet_size = minimum_payload_size + kOverheadByteIndex + kPostambleSize;
-        }
-
-        // Also sets the start_byte placeholder to the actual start byte value. This is set at class instantiation and
+        // Sets the start_byte placeholder to the actual start byte value. This is set at class instantiation and
         // kept constant throughout the lifetime of the class.
         _transmission_buffer[0] = kStartByte;
     }
@@ -322,7 +311,7 @@ class SerializedTransferProtocol
     {
         // If enough bytes are available to potentially represent a complete packet, returns 'true' to indicate there
         // are enough bytes to justify a read operation
-        if (_port.available() >= static_cast<int>(_minimum_packet_size))
+        if (_port.available() >= static_cast<int>(kMinimumPacketSize))
         {
             return true;
         }
@@ -912,16 +901,6 @@ class SerializedTransferProtocol
     /// overhead byte.
     static constexpr uint8_t kPayloadStartIndex = kOverheadByteIndex + 1;
 
-    /// Stores the minimum allowed payload size. This variable is defined during class instantiation by the user and
-    /// it allows to optimize class computations by avoiding low-level IO buffer manipulations that are unlikely to
-    /// succeed.
-    const uint8_t kMinimumPayloadSize;
-
-    /// This variable is set as part of class initialization and it is dependent on the kMinimumPayloadSize
-    /// (user-defined) and the preamble and postamble sizes. It allows to optimize class computations by avoiding
-    /// low-level IO buffer manipulations that are unlikely to succeed.
-    uint16_t _minimum_packet_size;
-
     /// The reference to the Stream class object used as the low-level transmission interface by this class. During
     /// testing, this variable can be set to an instance of the StreamMock class, which exposes the low-level buffers to
     /// assist evaluating the behavior fo the tested SerializedTransferProtocol class methods.
@@ -963,6 +942,12 @@ class SerializedTransferProtocol
     /// is appended to the specifically reserved portion of the _transmission_buffer and received into the reserved
     /// portion of the _reception_buffer, rather than being stored in a separate buffer.
     static constexpr uint8_t kPostambleSize = sizeof(PolynomialType);  // NOLINT(*-dynamic-static-initializers)
+
+    /// This variable is set as part of class initialization and it is dependent on the kMinimumPayloadSize
+    /// (user-defined) and the preamble and postamble sizes. It allows to optimize class computations by avoiding
+    /// low-level IO buffer manipulations that are unlikely to succeed.
+    static constexpr uint16_t kMinimumPacketSize =  // NOLINT(*-dynamic-static-initializers)
+        kMinimumPayloadSize + kOverheadByteIndex + kPostambleSize;
 
     /// Stores the size of the _transmission_buffer array, which is derived based on the preamble, encoded payload and
     /// postamble size. The +2 accounts for the overhead byte and delimiter byte of the encoded payload, the
