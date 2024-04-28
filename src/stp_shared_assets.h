@@ -97,19 +97,17 @@ namespace stp_shared_assets
         kPacketStartByteNotFoundError = 105,  ///< Packet start byte was not found in the incoming stream
         kPayloadSizeByteFound         = 106,  ///< Payload size byte was found
         kPayloadSizeByteNotFound      = 107,  ///< Payload size byte was not found in the incoming stream
-        kPacketDelimiterByteFound     = 108,  ///< Packet delimiter byte was found
-        kPacketOutOfBufferSpaceError  = 109,  ///< Packet delimiter byte was not found before using up all buffer space
-        kPacketTimeoutError           = 110,  ///< Packet parsing failed due to stalling (reception timeout)
-        kPostambleTimeoutError        = 111,  ///< Postamble parsing failed due to staling (reception timeout)
-        kPacketParsed                 = 112,  ///< Packet parsing succeeded
-        kCRCCheckFailed               = 113,  ///< CRC check failed, incoming packet corrupted
-        kPacketValidated              = 114,  ///< Packet validation succeeded
-        kPacketReceived               = 115,  ///< Packet reception succeeded
-        kWritePayloadTooSmallError    = 116,  ///< Writing to buffer failed due to not enough payload space
-        kBytesWrittenToBuffer         = 117,  ///< Writing to buffer succeeded
-        kReadPayloadTooSmallError     = 118,  ///< Reading from buffer failed due to not enough payload size
-        kBytesReadFromBuffer          = 119,  ///< Reading from buffer succeeded
-        kNoBytesToParseFromBuffer     = 120   ///< Stream class reception buffer had no packet bytes to parse
+        kInvalidPayloadSize           = 108,  ///< Received payload size is not valid.
+        kPacketTimeoutError           = 109,  ///< Packet parsing failed due to stalling (reception timeout)
+        kNoBytesToParseFromBuffer     = 110,  ///< Stream class reception buffer had no packet bytes to parse
+        kPacketParsed                 = 111,  ///< Packet parsing succeeded
+        kCRCCheckFailed               = 112,  ///< CRC check failed, incoming packet corrupted
+        kPacketValidated              = 113,  ///< Packet validation succeeded
+        kPacketReceived               = 114,  ///< Packet reception succeeded
+        kWriteObjectBufferError       = 115,  ///< Not enough space in the buffer payload region to write the object
+        kObjectWrittenToBuffer        = 116,  ///< The object has been written to the buffer
+        kReadObjectBufferError        = 117,  ///< Not enough bytes in the buffer payload region to read the object from
+        kObjectReadFromBuffer         = 118,  ///< The object has been read from the buffer
     };
 
     // Since Arduino Uno (the lower-end board this code was tested with) boards do not have access to 'cstring' header

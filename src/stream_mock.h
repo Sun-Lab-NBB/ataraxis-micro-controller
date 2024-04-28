@@ -14,6 +14,7 @@
  *
  * This class exposes the following public methods:
  * - read().
+ * - readBytes() To read multiple bytes into the input buffer.
  * - write() [Overloaded to work for single byte-inputs and array inputs].
  * - reset().
  * - flush().
@@ -49,8 +50,8 @@
 #define AMC_STREAM_MOCK_H
 
 // Dependencies:
-#include "Arduino.h"
-#include "Stream.h"
+#include <Arduino.h>
+#include <Stream.h>
 
 /**
  * @class StreamMock
@@ -99,7 +100,7 @@ class StreamMock : public Stream
      * @brief Reads one value ('byte') from the reception buffer and returns it to caller. Returns -1 if no valid
      * values are available.
      *
-     * Note, the buffer uses int16_t type, but only values inside the uint8_t (0 through 255) range are considered
+     * @note The buffer uses int16_t type, but only values inside the uint8_t (0 through 255) range are considered
      * valid. As such, this method fully emulates how a byte-stream would behave.
      *
      * @returns The read value as a byte-range integer, or -1 if no valid values are available.
@@ -121,6 +122,49 @@ class StreamMock : public Stream
         // If the index is beyond the bounds of the buffer or invalid data is encountered, returns -1 without
         // incrementing the index to indicate there is no data to read.
         return -1;
+    }
+
+    /**
+     * @brief Reads a specified number of values (bytes) from the reception buffer and writes them to the input
+     * buffer.
+     *
+     * Specifically, attempts to read the "length" number of values from the class reception buffer into the input
+     * buffer, writing from index 0 of the input buffer up to index length-1. Unlike the real readBytes method, this
+     * method does not use a timeout timer and instead only runs until the data is read, an 'invalid' value is
+     * encountered or until the end of the reception buffer is reached.
+     *
+     * @note The buffer uses int16_t type, but only values inside the uint8_t (0 through 255) range are considered
+     * valid. As such, this method fully emulates how a byte-stream would behave.
+     *
+     * @param buffer The buffer to store the read bytes into.
+     * @param length The maximum number of bytes to read.
+     * @return The number of bytes actually read and stored in the buffer. 0 means no valid ata was found.
+     */
+    size_t readBytes(uint8_t *buffer, size_t length)
+    {
+        size_t bytes_read = 0;
+
+        // Reads bytes from the reception buffer until the specified length is reached or no more valid bytes are
+        // available
+        while (bytes_read < length && rx_buffer_index < sizeof(rx_buffer) / sizeof(rx_buffer[0]))
+        {
+            // Checks if the value at the current index is within the valid uint8_t range
+            if (rx_buffer[rx_buffer_index] >= 0 && rx_buffer[rx_buffer_index] <= 255)
+            {
+                // Converts the int16_t value to uint8_t and stores it in the provided buffer
+                buffer[bytes_read] = static_cast<uint8_t>(rx_buffer[rx_buffer_index]);
+                bytes_read++;
+                rx_buffer_index++;
+            }
+            else
+            {
+                // If an invalid value is encountered, breaks out of the loop as there are no more valid bytes to read
+                break;
+            }
+        }
+
+        // Returns the number of bytes actually read and stored in the buffer
+        return bytes_read;
     }
 
     /**

@@ -125,6 +125,7 @@
  * uint16_t final_xor_value = 0x0000;
  * uint8_t start_byte = 129;
  * uint8_t delimiter_byte = 0;
+ * uint8_t minimum_payload_size = 1;
  * uint32_t timeout = 20000; // In microseconds
  *
  * // Instantiates a new SerializedTransferProtocol object
@@ -135,6 +136,7 @@
  * final_xor_value,
  * start_byte,
  * delimiter_byte,
+ * minimum_payload_size,
  * timeout
  * );
  * @endcode
@@ -260,12 +262,13 @@ class SerializedTransferProtocol
         const uint32_t timeout                   = 20000,
         const bool allow_start_byte_errors       = false
     ) :
+        kMinimumPayloadSize(minimum_payload_size),
         _port(communication_port),
         _crc_processor(crc_polynomial, crc_initial_value, crc_final_xor_value),
         kStartByte(start_byte),
         kDelimiterByte(delimiter_byte),
         kTimeout(timeout),
-        kAllowStartByteErrors(allow_start_byte_errors),
+        allow_start_byte_errors(allow_start_byte_errors),
         _transmission_buffer {},  // Initialization doubles up as resetting buffers to 0
         _reception_buffer {}
     {
@@ -273,20 +276,20 @@ class SerializedTransferProtocol
         // as empty payloads are assumed to be an error for most use cases.
         if (minimum_payload_size == 0)
         {
-            _minimum_packet_size = 1 + kMetadataSize + kPostambleSize;
+            _minimum_packet_size = 1 + kOverheadByteIndex + kPostambleSize;
         }
 
         // If the minimum_payload_size is above the valid range, caps it at 254. The maximum range is determined based
         // on COBS limitations. See COBSProcessor documentation for more details.
         else if (minimum_payload_size > 254)
         {
-            _minimum_packet_size = 254 + kMetadataSize + kPostambleSize;
+            _minimum_packet_size = 254 + kOverheadByteIndex + kPostambleSize;
         }
 
         // If the value is in the accepted range, it is used as-is to determine the minimum packet size.
         else
         {
-            _minimum_packet_size = minimum_payload_size + kMetadataSize + kPostambleSize;
+            _minimum_packet_size = minimum_payload_size + kOverheadByteIndex + kPostambleSize;
         }
 
         // Also sets the start_byte placeholder to the actual start byte value. This is set at class instantiation and
@@ -348,8 +351,8 @@ class SerializedTransferProtocol
      */
     void ResetTransmissionBuffer()
     {
-        _transmission_buffer[1] = 0;  // Payload Size
-        _transmission_buffer[2] = 0;  // Overhead Byte
+        _transmission_buffer[kPayloadSizeIndex]  = 0;  // Payload Size
+        _transmission_buffer[kOverheadByteIndex] = 0;  // Overhead Byte
     }
 
     /**
@@ -372,8 +375,8 @@ class SerializedTransferProtocol
      */
     void ResetReceptionBuffer()
     {
-        _reception_buffer[1] = 0;  // Payload Size
-        _reception_buffer[2] = 0;  // Overhead Byte
+        _reception_buffer[kPayloadSizeIndex]  = 0;  // Payload Size
+        _reception_buffer[kOverheadByteIndex] = 0;  // Overhead Byte
     }
 
     /**
@@ -486,68 +489,78 @@ class SerializedTransferProtocol
     bool CopyTxBufferPayloadToRxBuffer()
     {
         // Ensures that the payload size to move will fit inside the payload region of the _reception_buffer.
-        if (_transmission_buffer[1] > kMaximumReceivedPayloadSize)
+        if (_transmission_buffer[kPayloadSizeIndex] > kMaximumReceivedPayloadSize)
         {
             return false;  // If not aborts by returning false
         }
 
         // Copies the payload from _transmission_buffer to _reception_buffer. Note, this excludes(!) most metadata and
         // crc checksum postamble.
-        memcpy(&_reception_buffer[3], &_transmission_buffer[3], _transmission_buffer[1]);
+        memcpy(
+            &_reception_buffer[kPayloadStartIndex],
+            &_transmission_buffer[kPayloadStartIndex],
+            _transmission_buffer[kPayloadSizeIndex]
+        );
 
         // Updates the payload_size tracker of the _reception_buffer to match the copied payload size.
-        _reception_buffer[1] = _transmission_buffer[1];
+        _reception_buffer[kPayloadSizeIndex] = _transmission_buffer[kPayloadSizeIndex];
 
         return true;  // Returns true to indicate the payload was successfully copied
     }
 
-    /// Returns the current value of the payload_size tracker variable (index 1) of the _transmission_buffer.
+    /// Returns the current value of the payload_size tracker variable of the _transmission_buffer.
     [[nodiscard]]
-    uint16_t get_tx_payload_size() const
+    uint8_t get_tx_payload_size() const
     {
-        return _transmission_buffer[1];
+        return _transmission_buffer[kPayloadSizeIndex];
     }
 
-    /// Returns the current value of the payload_size tracker variable (index 1) of the _reception_buffer.
+    /// Returns the current value of the payload_size tracker variable of the _reception_buffer.
     [[nodiscard]]
-    uint16_t get_rx_payload_size() const
+    uint8_t get_rx_payload_size() const
     {
-        return _reception_buffer[1];
+        return _reception_buffer[kPayloadSizeIndex];
     }
 
-    // Returns the value of the kMaximumTransmittedPayloadSize template parameter of the class
-    static constexpr uint16_t get_maximum_tx_payload_size()
+    /// Sets the allow_start_byte_errors flag to the input boolean value.
+    void set_allow_start_byte_errors(bool flag_value)
+    {
+        allow_start_byte_errors = flag_value;
+    }
+
+    /// Returns the value of the kMaximumTransmittedPayloadSize template parameter of the class
+    static constexpr uint8_t get_maximum_tx_payload_size()
     {
         return kMaximumTransmittedPayloadSize;
     }
 
-    // Returns the value of the kMaximumReceivedPayloadSize template parameter of the class
-    static constexpr uint16_t get_maximum_rx_payload_size()
+    /// Returns the value of the kMaximumReceivedPayloadSize template parameter of the class
+    static constexpr uint8_t get_maximum_rx_payload_size()
     {
         return kMaximumReceivedPayloadSize;
     }
 
-    // Returns the size of the _transmission_buffer used by the class
+    /// Returns the size of the _transmission_buffer used by the class
     static constexpr uint16_t get_tx_buffer_size()
     {
         return kTransmissionBufferSize;
     }
 
-    // Returns the size of the _reception_buffer used by the class
+    /// Returns the size of the _reception_buffer used by the class
     static constexpr uint16_t get_rx_buffer_size()
     {
         return kReceptionBufferSize;
     }
 
     /**
-     * @brief Packages the data inside the _transmission_buffer into a packet and transmits it to the PC using the
+     * @brief Packages the data inside the _transmission_buffer into a serialized packet and transmits it using the
      * transmission interface class.
      *
-     * This is a master-method that aggregates all steps necessary to correctly transmit the payload stored in the
-     * _transmission_buffer as a byte-stream using the transmission interface class. Specifically, it first encodes the
-     * payload using COBS protocol and then calculates and adds the CRC checksum for the encoded packet to the end of
-     * the packet. If all packet construction steps are successful, the method then transmits the data using the
-     * transmission interface.
+     * This is the main transmission method that aggregates all steps necessary to correctly transmit the payload stored
+     * in the _transmission_buffer as a serialized byte-stream using the transmission interface class. Specifically, it
+     * first encodes the payload using COBS protocol and then calculates and adds the CRC checksum for the encoded
+     * packet to the end of the packet. If all packet construction steps are successful, the method then transmits the
+     * data using the transmission interface.
      *
      * @attention This method relies on the payload_size tracker variable of the _transmission_buffer (index 1) to
      * determine how many bytes inside the _transmission_buffer need to be encoded and added to the packet. That value
@@ -577,21 +590,7 @@ class SerializedTransferProtocol
         // If the returned combined_size is not 0, this indicates that the packet has been constructed successfully.
         if (combined_size != 0)
         {
-            // Transmits the packet using the selected stream interface. Starts by transmitting the preamble, which
-            // includes kStartByte value and the size of the transmitted payload. The start_byte notifies the receiver
-            // that the following data is a real packet and the payload size is used primarily to optimize python
-            // runtime speed (see python library code for details). Then, transmits the COBS-encoded packet and the
-            // following CRC checksum postamble. Expects the receiver to know that the packet stops at the delimiter
-            // byte value and to know the fixed size of the postamble to properly parse the CRC checksum. Combining as
-            // much of the data into a unified packet as possible allows optimizing the transmission process, which
-            // works better for bigger chunks of data than many small byte-sized inputs.
-            uint8_t preamble[2] = {kStartByte, static_cast<uint8_t>(_bytes_in_transmission_buffer)};
-
-            // Note, the preamble concept is only used when sending data intended to be processed by the Python
-            // companion library. When receiving data from PC, only the start byte is expected, as compiled c-code does
-            // not really gain anything from knowing the size of the payload ahead of time. This asymmetry is
-            // unfortunate for code maintainability, but saves sending an extra byte where it is not really needed.
-            _port.write(preamble, sizeof(preamble));
+            // Sends the data using the transmission interface class.
             _port.write(_transmission_buffer, combined_size);
 
             // Communicates that the packet has been sent via the transfer_status variable
@@ -611,24 +610,25 @@ class SerializedTransferProtocol
     }
 
     /**
-     * @brief Parses the bytes available from the bundled Serial class reception buffer into a packet, verifies its
-     * integrity and unpacks its payload into the _reception_buffer.
+     * @brief Receives the packet from the transmission interface class and decodes its' payload into the
+     * _reception_buffer.
      *
-     * This is a master-method that aggregates all steps necessary to correctly receive a data packet encoded in a byte
-     * stream stored inside the reception circular buffer of the bundled Stream class. Specifically, when triggered, the
-     * method first reads the packet and the CRC checksum postamble for the packet from the Stream reception buffer into
-     * the class _reception_buffer. If this operation succeeds, the method then validates the integrity of the packet
-     * using CRC checksum and then unpacks the payload of the message using COBS decoding in-place.
+     * This is the main reception method that aggregates all steps necessary to correctly receive a data packet from
+     * bytes stored inside the circular reception buffer of the transmission interface class. Specifically, when
+     * called, the method first reads the packet from raw bytes received by the transmission interface into the
+     * _reception_buffer. If this operation succeeds, the method then validates the integrity of the packet
+     * using the CRC checksum and then unpacks the payload of the packet using COBS decoding in-place. The method will
+     * only run all these steps if enough bytes are available to potentially encode a packet of at least the minimum
+     * packet size.
      *
      * @note Following the successful runtime of this method, the number of payload bytes received from the PC can be
-     * obtained using get_bytes_in_reception_buffer() method.
+     * obtained using get_rx_payload_size() method.
      *
-     * @returns bool true if the packet was successfully received and unpacked, false otherwise. If method runtime
+     * @returns bool True if the packet was successfully received and unpacked, False otherwise. If method runtime
      * fails, use the transfer_status variable to determine the reason for the failure, as it would be set to the
-     * specific error code of the failed operation. Transfer_status values are guaranteed to uniquely match one of the
+     * specific error code of the failed operation. Status values are guaranteed to uniquely match one of the
      * enumerators stored inside the kCOBSProcessorCodes, kCRCProcessorCodes or kSerializedTransferProtocolStatusCodes
      * enumerations available through the stp_shared_assets namespace.
-     * enumeration.
      *
      * Example usage:
      * @code
@@ -639,11 +639,22 @@ class SerializedTransferProtocol
      */
     bool ReceiveData()
     {
-        // Resets the reception buffer, and it's bytes tracker variable to prepare for receiving the next packet.
+        // Returns 'false' if not enough bytes are available to justify the parsing attempt. Specifically, if the
+        // available number of bytes is less than the minimum expected packet size.
+        if (!Available())
+        {
+            // Also sets the status appropriately
+            transfer_status = static_cast<uint8_t>(
+                stp_shared_assets::kSerializedTransferProtocolStatusCodes::kNoBytesToParseFromBuffer
+            );
+            return false;
+        }
+
+        // Resets the reception buffer to prepare for receiving the next packet.
         ResetReceptionBuffer();
 
-        // Attempts to parse a packet (and its CRC checksum postamble) from the Serial port buffer if bytes to read are
-        // available
+        // Attempts to parse a packet (and its CRC checksum postamble) from the transmission interface rx buffer if
+        // bytes to read are available.
         uint16_t packet_size = ParsePacket();
 
         // If the returned packet_size is 0, that indicates an error has occurred during the parsing process.
@@ -670,10 +681,8 @@ class SerializedTransferProtocol
         }
 
         // If the method reaches this point, the packet has been successfully received, validated and unpacked. The
-        // payload is now available for consumption through the _reception_buffer.
-        _bytes_in_reception_buffer = payload_size;  // Records the number of unpacked payload bytes to tracker
-
-        // Sets the status appropriately and returns 'true' to indicate successful runtime.
+        // payload is now available for consumption through the _reception_buffer. Sets the status appropriately and
+        // returns 'true' to indicate successful runtime.
         transfer_status =
             static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketReceived);
         return true;
@@ -684,33 +693,32 @@ class SerializedTransferProtocol
      * start_index.
      *
      * This method modifies the _transmission_buffer by (over)writing the specific portion of the buffer with the bytes
-     * copied from the input object. That means, the buffer remains intact (as-is) everywhere except for the overwritten
-     * area. To reset the whole buffer, use the ResetTransmissionBuffer() method. The input object is not modified in
-     * any way by this method.
+     * copied from the input object. The buffer remains intact (as-is) everywhere except for the overwritten area. To
+     * reset the whole buffer, use the ResetTransmissionBuffer() method. The input object is not modified in any way by
+     * this method.
      *
-     * @warning If the requested start_index and provided_bytes combination exceeds kMaximumTransmittedPayloadSize
-     * class template parameter value, the method will abort and return 0 to indicates no bytes were
-     * written.
+     * @warning If the requested start_index and object size (in bytes) combination exceeds
+     * kMaximumTransmittedPayloadSize class template parameter value, the method will abort and return 0 to indicates no
+     * bytes were written.
      *
-     * @note This method operates specifically on the bytes allocated for the payload of the data packet. It implicitly
+     * @note This method operates specifically on the region allocated for the payload of the packet. It implicitly
      * handles the necessary transformations of the start_index to make sure start_index 0 corresponds to the start
-     * index of the payload (at least 1) and that the end index never exceeds the maximum end_index of the payload
-     * (254). This makes this method a safe way of modifying the payload with respect to the _transmission_buffer layout
-     * heuristics necessary for other class methods to work as intended.
+     * index of the payload (kPayloadStartIndex) and that the end index never exceeds the maximum end_index of the
+     * payload. This makes this method a safe way of modifying the payload with respect to the _transmission_buffer
+     * layout heuristics necessary for other class methods to work as intended.
      *
-     * @tparam ObjectType The type of the object to from which the bytes will be copied over to the
-     * _transmission_buffer. This parameter used by the template to correctly configure the method instance to accept
-     * any input object type and therefore be type-agnostic.
+     * @tparam ObjectType The type of the object from which the bytes will be copied over to the _transmission_buffer.
+     * This parameter is used by the template to instantiate the appropriate version of the method for any valid object.
      * @param object The object from which the bytes are copied. Passed as a constant reference to reduce memory
-     * overhang as the object itself is not modified in any way.
-     * @param start_index The index inside the _transmission_buffer payload, from which to start writing bytes. Minimum
-     * value is 0, maximum value is defined by kMaximumTransmittedPayloadSize (but no more than 254). This index
-     * specifically applies to the payload, not the buffer as a whole.
-     * @param provided_bytes The number of bytes to write to the transmission_buffer. In most cases this should be left
+     * overhead as the object itself is not modified in any way.
+     * @param start_index The index inside the _transmission_buffer payload region, from which to start writing bytes.
+     * Minimum value is 0, maximum value is defined by kMaximumTransmittedPayloadSize - 1 (but no more than 253). This
+     * index specifically applies to the payload, not the buffer as a whole.
+     * @param provided_bytes The number of bytes to write to the _transmission_buffer. In most cases this should be left
      * blank as it allows the method to use the value returned by sizeOf() of the ObjectType (writing as many bytes as
      * supported by the object type).
      *
-     * @returns uint16_t The index immediately following the last overwritten index of the _transmission_buffer. This
+     * @returns uint16_t The index immediately following the last overwritten index of the payload region. This
      * value can be used as the starting index for subsequent write operations to ensure data contiguity. If method
      * runtime fails, returns 0 to indicate no bytes were written to the payload and saves the specific error code that
      * describes the failure to transfer_status class variable.
@@ -741,28 +749,26 @@ class SerializedTransferProtocol
         const uint16_t& provided_bytes = sizeof(ObjectType)
     )
     {
-        // Increments the start_index by 1. This is to conform to the _transmission_buffer layout where the index 0 is
-        // always reserved for the overhead byte. Payloads can only be found between indices 1 and 254.
-        uint16_t local_start_index = start_index + 1;
-
         // Calculates the total size of the payload that would be required to accommodate provided_bytes number of bytes
         // inserted starting with start_index.
-        uint16_t required_size = local_start_index + provided_bytes;
+        uint16_t required_size = start_index + provided_bytes;
 
-        // Verifies that the payload has enough space to accommodate writing the input object using provided start index
-        // Note, uses kMaximumTransmittedPayloadSize + 1 to account for the overhead byte that implicitly modifies the
-        // 'required_size' calculation.
-        if (required_size > kMaximumTransmittedPayloadSize + 1)
+        // Verifies that the payload region of the buffer has sufficient space to accommodate the provided bytes inside
+        // the payload region.
+        if (required_size > kMaximumTransmittedPayloadSize)
         {
-            // If the payload does not have enough space, returns 0 to indicate no bytes were written and sets
-            // transfer_status to the appropriate error code
-            transfer_status = static_cast<uint8_t>(
-                stp_shared_assets::kSerializedTransferProtocolStatusCodes::kWritePayloadTooSmallError
-            );
+            transfer_status =
+                static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kWriteObjectBufferError
+                );
             return 0;
         }
 
-        // If there is enough space in the payload to accommodate the data, uses memcpy to efficiently copy the data
+        // Shifts the input start index to translate it from payload-centric to buffer-centric. The buffer contains
+        // multiple metadata variables not exposed to the user, so any index that is relative to the payload has to be
+        // converted to account for the preceding metadata bytes.
+        uint16_t local_start_index = start_index + kPayloadStartIndex;
+
+        // If there is enough buffer space to accommodate the data, uses memcpy to efficiently copy the data
         // into the _transmission_buffer.
         memcpy(
             static_cast<void*>(&_transmission_buffer[local_start_index]
@@ -771,22 +777,21 @@ class SerializedTransferProtocol
             provided_bytes                      // The number of bytes to write into the buffer
         );
 
-        // If writing to buffer caused the size of the payload to be larger than the size tracker by the
-        // _bytes_in_transmission_buffer, updates the tracker to store the new size. This way, the tracker is only
-        // updated whenever the used size of the payload increases and ignores overwrite operations. This is somewhat
-        // risky, and it mandates that the tracker is reset after each SendData() operation. Also, the entire buffer
-        // has to be cleared and re-written if the payload size needs to be reduced (there is no other mechanism to do
-        // it right now). Note, -1 subtracts the size of the overhead byte so that the user always inputs and receives
-        // the size of the payload that excludes the overhead byte.
-        _bytes_in_transmission_buffer = max(_bytes_in_transmission_buffer, static_cast<uint16_t>(required_size - 1));
+        // If writing to buffer caused the size of the payload to become larger than the size tracked by the
+        // payload_size variable (index 1 of the buffer), updates the tracker to store the new size. This way, the
+        // tracker is only updated whenever the used size of the payload increases and ignores overwrite operations.
+        // The downside of this approach is that the only way to decrease the tracker value is by completely resetting
+        // the buffer, which is nevertheless considered to be a fairly niche use case.
+        _transmission_buffer[kPayloadSizeIndex] =
+            max(_transmission_buffer[kPayloadSizeIndex], static_cast<uint8_t>(required_size));
 
         // Sets the status code to indicate writing to buffer was successful
         transfer_status =
-            static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kBytesWrittenToBuffer);
+            static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kObjectWrittenToBuffer);
 
-        // Also returns the index immediately following the last updated (overwritten) index of the buffer to caller to
-        // support chained method calls.
-        return required_size - 1;
+        // Also returns the index immediately following the last updated (overwritten) index (relative to the start of
+        // the payload) to caller to support chained method calls.
+        return required_size;
     }
 
     /**
@@ -797,35 +802,37 @@ class SerializedTransferProtocol
      *
      * This method copies the data from the _reception_buffer into the provided object, modifying the object. Data can
      * be copied from the _reception_buffer any number of times using arbitrary byte-counts and starting positions, as
-     * long as the ending index of the read operation remains within the payload boundaries. The method explicitly
-     * prevents reading the data outside of the payload boundaries as it may be set to valid values that nevertheless
-     * are meaningless as they are leftover from previously processed payloads (this stems from the fact the buffer is
-     * never fully reset and instead only partially overwritten with data). To actually update the _reception_buffer,
-     * you need to use ReceiveData() or ResetReceptionBuffer() methods.
+     * long as the ending index of the read operation remains within the payload region boundaries. The method
+     * explicitly prevents reading the data outside of the payload region as it may be set to valid values that
+     * nevertheless are meaningless as they are leftover from previously processed payloads (this stems from the fact
+     * the buffer is never fully reset and instead only partially overwritten with data). To actually update the
+     * _reception_buffer, you need to use ReceiveData() or ResetReceptionBuffer() methods.
      *
-     * @warning If the requested start_index and requested_bytes combination exceeds the size of the available payload,
-     * provided by the value of the _bytes_in_reception_buffer tracker, the method will abort and return 0 to indicates
-     * no bytes were read. Use get_bytes_in_reception_buffer() method to obtain the current value of the tracker.
+     * @warning If the requested start_index and requested_bytes combination exceeds the size of the received payload,
+     * provided by the value of the payload_size tracker variable (index 1 of the buffer), the method will abort and
+     * return 0 to indicate no bytes were read. Use get_rx_payload_size() method to obtain the size of the currently
+     * stored payload.
      *
-     * @note This method operates specifically on the bytes allocated for the payload of the data packet. It implicitly
+     * @note This method operates specifically on the region allocated for the payload of the packet. It implicitly
      * handles the necessary transformations of the start_index to make sure start_index 0 corresponds to the start
-     * index of the payload (at least 1) and that the end index never exceeds the end index of the payload inside the
-     * buffer (provided by _bytes_in_reception_buffer) value. This makes this method a safe way of modifying the payload
-     * with respect to the _reception_buffer layout heuristics necessary for other class methods to work as intended.
+     * index of the payload (kPayloadStartIndex) and that the end index never exceeds the maximum end_index of the
+     * payload. This makes this method a safe way of accessing the payload with respect to the _transmission_buffer
+     * layout heuristics necessary for other class methods to work as intended.
      *
-     * @tparam ObjectType The type of the object to which the read bytes would be written. This is used by template to
-     * correctly configure the method instance to accept any input object type and therefore be type-agnostic.
+     * @tparam ObjectType The type of the object to which the read bytes would be written. his parameter is used by the
+     * template to instantiate the appropriate version of the method for any valid object.
      * @param object The object to write the data to. Passed as the reference to the object to enable direct object
-     * manipulation.
-     * @param start_index The index inside the reception_buffer's payload, from which to start reading bytes.
-     * Minimum value is 0, maximum value is defined by _bytes_in_transmission_buffer - 1.
-     * @param requested_bytes The number of bytes to read from the _reception_buffer. In most cases this should be
-     * left blank as it allows the function to use the value returned by sizeOf() of the ObjectType (requesting as many
+     * data manipulation.
+     * @param start_index The index inside the received payload, from which to start reading bytes. Minimum value is 0,
+     * maximum value is defined by kMaximumReceivedPayloadSize - 1 (but no more than 253). This index specifically
+     * applies to the payload, not the buffer as a whole.
+     * @param requested_bytes The number of bytes to read from the _reception_buffer. In most cases, this should be
+     * left blank as it allows the method to use the value returned by sizeOf() of the ObjectType (requesting as many
      * bytes as supported by the object type).
      *
-     * @returns uint16_t The index inside the payload stored in the _reception_buffer that immediately follows the
-     * final index of the data that was read by the method into the provided object. This allows to use the output of
-     * the method as a start_index for subsequent read operations to ensure data contiguity. If method runtime fails,
+     * @returns uint16_t The index inside the payload region of the _reception_buffer that immediately follows the
+     * final index of the variable that was read by the method into the provided object. This allows to use the output
+     * of the method as a start_index for subsequent read operations to ensure data contiguity. If method runtime fails,
      * returns 0 to indicate no bytes were read from the payload and saves the specific error code that describes the
      * failure to transfer_status class variable.
      *
@@ -846,7 +853,7 @@ class SerializedTransferProtocol
      * uint16_t next_index = serial_protocol.ReadData(value);
      * uint16_t next_index = serial_protocol.ReadData(array, next_index);
      * uint16_t next_index = serial_protocol.ReadData(test_structure, next_index);
-    * @endcode
+     * @endcode
      */
     template <typename ObjectType>
     uint16_t ReadData(
@@ -855,137 +862,147 @@ class SerializedTransferProtocol
         const uint16_t& requested_bytes = sizeof(ObjectType)
     )
     {
-        // Increments the start_index by 1. This is to conform to the _reception_buffer layout where the index 0 is
-        // always reserved for the overhead byte. Payloads can only be found between indices 1 and 254.
-        uint16_t local_start_index = start_index + 1;
-
         // Calculates the total size of the payload that is sufficient to accommodate _requested_bytes number of bytes
         // stored upstream of the start_index.
-        uint16_t requested_size = local_start_index + requested_bytes;
+        uint16_t required_size = start_index + requested_bytes;
 
-        // Verifies that the payload has enough bytes to be read. Uses _bytes_in_reception_buffer as it stores the
-        // accurate size of the payload inside the buffer. The payload size tracker is modified by +1 to cancel out the
-        // local_start_index including the overhead byte.
-        if (requested_size > _bytes_in_reception_buffer + 1)
+        // Verifies that the payload region of the buffer has enough bytes to accommodate reading the requested number
+        // of bytes from the start_index. Obtains the current number of payload bytes from the tracker variable inside
+        // the _reception_buffer.
+        if (required_size > _reception_buffer[kPayloadSizeIndex])
         {
-            // If the payload does not have enough bytes, returns 0 to indicate no bytes were read and sets
-            // transfer_status to the appropriate error code
-            transfer_status = static_cast<uint8_t>(
-                stp_shared_assets::kSerializedTransferProtocolStatusCodes::kReadPayloadTooSmallError
-            );
+            transfer_status =
+                static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kReadObjectBufferError);
             return 0;
         }
 
+        // Shifts the input start_index to translate it from payload-centric to buffer-centric. The buffer contains
+        // multiple metadata variables not exposed to the user, so any index that is relative to the payload has to be
+        // converted to account for the preceding metadata bytes.
+        uint16_t local_start_index = start_index + kPayloadStartIndex;
+
         // If there are enough bytes in the payload to read, uses memcpy to efficiently copy the data into the
-        // object from the reception_buffer.
+        // object from the _reception_buffer.
         memcpy(
             static_cast<void*>(&object),                                      // Destination object to write the data to
             static_cast<const void*>(&_reception_buffer[local_start_index]),  // Source to read the data from
             requested_bytes  // The number of bytes to read into the object
         );
 
-        // Critical difference from the WriteData() method: There is no _bytes_in_reception_buffer updating. This is
-        // because the read operation does not modify the buffer in any way. There is still a returned value that
-        // indicates where the read operation stopped, relative to the payload stored inside the buffer.
-
         // Sets the status code to indicate reading from buffer was successful
         transfer_status =
-            static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kBytesReadFromBuffer);
+            static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kObjectReadFromBuffer);
 
         // Also returns the index immediately following the index of the final read byte (relative to the payload) to
         // caller. This index can be used as the next input start_index if multiple read calls are chained together.
-        return requested_size - 1;
+        return required_size;
     }
 
   private:
-    /// The reference to the Stream class object used to transmit and receive data. This variable is made public to
-    /// support class testing via the use of StreamMock class. When it is set to an instance of StreamMock class, it can
-    /// be used to directly access the mock buffers to evaluate the performance of the SerializedTransferProtocol class.
+    /// Tracks the position of the variable that stores the payload size inside the class buffers. This value is
+    /// expected to remain constant in future versions of the class.
+    static constexpr uint8_t kPayloadSizeIndex = 1;
+
+    /// Stores the position of the variable that stores the overhead byte inside the class buffers. This value
+    /// doubles-up as the preamble size. The payload is expected to be found immediately after the overhead byte. This
+    /// value is expected to remain constant in future versions of the class.
+    static constexpr uint8_t kOverheadByteIndex = 2;
+
+    /// Stores the starting position of the payload inside the class buffers. Directly dependent on the position of the
+    /// overhead byte.
+    static constexpr uint8_t kPayloadStartIndex = kOverheadByteIndex + 1;
+
+    /// Stores the minimum allowed payload size. This variable is defined during class instantiation by the user and
+    /// it allows to optimize class computations by avoiding low-level IO buffer manipulations that are unlikely to
+    /// succeed.
+    const uint8_t kMinimumPayloadSize;
+
+    /// This variable is set as part of class initialization and it is dependent on the kMinimumPayloadSize
+    /// (user-defined) and the preamble and postamble sizes. It allows to optimize class computations by avoiding
+    /// low-level IO buffer manipulations that are unlikely to succeed.
+    uint16_t _minimum_packet_size;
+
+    /// The reference to the Stream class object used as the low-level transmission interface by this class. During
+    /// testing, this variable can be set to an instance of the StreamMock class, which exposes the low-level buffers to
+    /// assist evaluating the behavior fo the tested SerializedTransferProtocol class methods.
     Stream& _port;
 
     /// The local instance of the COBSProcessor class that provides the methods to encode and decode packets using
     /// COBS protocol. See the class documentation for more details on the process and the functionality of the class.
-    COBSProcessor _cobs_processor;
+    COBSProcessor<kPayloadSizeIndex, kOverheadByteIndex> _cobs_processor {};
 
     /// The local instance of the CRCProcessor class that provides the methods to calculate the CRC checksum for packets
     /// and save and read the checksum from class buffers. See the class documentation for more details on the process
     /// and the functionality of the class.
     CRCProcessor<PolynomialType> _crc_processor;
 
-    /// The byte used to indicate the start of the packet. Encountering this byte in the evaluated incoming byte-stream
-    /// is the only trigger that starts packet reception cycle.
+    /// The byte-value used to indicate the start of the packet. Encountering this byte in the evaluated incoming
+    /// byte-stream is the only trigger that starts packet reception cycle.
     const uint8_t kStartByte;
 
-    /// The byte used to indicate the end of the packet. All instances of this byte in the payload are eliminated using
-    /// COBS. Encountering this byte is only of way to end packet reception procedure without triggering an error.
+    /// The byte-value used to indicate the end of the packet. All instances of this byte in the payload are eliminated
+    /// using COBS. All valid COBS-encoded packets should end in the delimiter byte value and this heuristic is used as
+    /// a secondary verification step to ensure packet integrity.
     const uint8_t kDelimiterByte;
 
-    /// The maximum number of microseconds (us) to wait between receiving bytes of the packet. When in packet reception
+    /// The maximum number of microseconds (us) to wait between receiving bytes of the packet. In packet reception
     /// mode, the algorithm will wait for the specified number of microseconds before declaring the packet stale and
-    /// aborting the reception procedure. This is the only way to abort packet reception cycle other than encountering
-    /// the delimiter byte value.
+    /// aborting the reception procedure, when waiting for more bytes to become available. This is the only way to abort
+    /// packet reception cycle other than encountering the delimiter byte value.
     const uint32_t kTimeout;
 
     /// A boolean flag that controls whether ParsePacket() method raises errors when it is unable to find the start
     /// byte of the packet. The default behavior is to disable such errors as they are somewhat common due to having
     /// noise in the communication lines. However, some users m,ay want to enable these errors to assist debugging,
     /// so the option is preserved to be user-controllable.
-    const bool kAllowStartByteErrors;
+    bool allow_start_byte_errors;
 
     /// Stores the byte-size of the postamble, which currently statically depends on the declared PolynomialType.
-    /// The postamble is the portion of the data that immediately follows each received and transmitted packet and, at
-    /// the time of writing, only includes the CRC checksum for the packet. To optimize data transfer, the postamble
-    /// is appended to the specifically reserved portion of the _transmission_buffer and received into the specific
+    /// The postamble is the portion of the data that immediately follows the delimiter byte of the encoded payload and,
+    /// at the time of writing, only includes the CRC checksum for the packet. To optimize data transfer, the postamble
+    /// is appended to the specifically reserved portion of the _transmission_buffer and received into the reserved
     /// portion of the _reception_buffer, rather than being stored in a separate buffer.
     static constexpr uint8_t kPostambleSize = sizeof(PolynomialType);  // NOLINT(*-dynamic-static-initializers)
 
-    static constexpr uint8_t kMetadataSize = 4;
-
-    /// Stores the size of the _transmission_buffer array, which is statically set to the maximum transmitted payload
-    /// size (kMaximumTransmittedPayloadSize template parameter) + 2 + size of the postamble. The +2 accounts for the
-    /// overhead byte and delimiter byte and the + kPostambleSize accounts for the CRC checksum placeholder space at the
-    /// end of the buffer (used to do zero-return CRC checks on the packet).
+    /// Stores the size of the _transmission_buffer array, which is derived based on the preamble, encoded payload and
+    /// postamble size. The +2 accounts for the overhead byte and delimiter byte of the encoded payload, the
+    /// kPostambleSize accounts for the CRC checksum and the kOverheadByteIndex serves as the preamble size.
     static constexpr uint16_t kTransmissionBufferSize =  // NOLINT(*-dynamic-static-initializers)
-        kMaximumTransmittedPayloadSize + 2 + kPostambleSize;
+        kMaximumTransmittedPayloadSize + kOverheadByteIndex + 2 + kPostambleSize;
 
     /// Stores the size of the _reception_buffer array, which is statically set to the maximum received payload size
-    /// (kMaximumReceivedPayloadSize template parameter) + 2 + size of the postamble. The +2 accounts for the overhead
-    /// byte and delimiter byte and the + kPostambleSize accounts for the CRC checksum placeholder space at the end of
-    /// the buffer (used to do zero-return CRC checks on the packet).
+    /// (kMaximumReceivedPayloadSize template parameter) modified to account for the preamble and the postamble sizes.
+    /// See kTransmissionBufferSize docstring for more details, the calculation is the same except for the payload size.
     static constexpr uint16_t kReceptionBufferSize =  // NOLINT(*-dynamic-static-initializers)
-        kMaximumReceivedPayloadSize + 2 + kPostambleSize;
+        kMaximumReceivedPayloadSize + kOverheadByteIndex + 2 + kPostambleSize;
 
-    /// Tracks the minimum expected payload size
-    uint8_t _minimum_packet_size = 0;
-
-    /// The buffer that stages the payload data before it is transmitted to the PC. The buffer is constructed with the
-    /// assumption that the first index is always reserved for the overhead byte of each transmitted packet (after the
-    /// payload is packetized using COBS). Also, the size of the buffer ensures there is always enough space after the
-    /// data is packetized with COBS to accommodate appending the postamble to the packet stored inside the buffer.
+    /// The buffer that stages the payload data before it is transmitted. The buffer is constructed in a way that
+    /// reserves enough space for the user-defined payload_size and all of the service variables (preamble, postamble,
+    /// COBS variables) that are needed fro the proper functioning of the class.
     uint8_t _transmission_buffer[kTransmissionBufferSize];
 
-    /// The buffer that stores the data received from the PC. The buffer is constructed with the assumption that the
-    /// first index is always reserved for the overhead byte of each received packet. The buffer is always set to
-    /// accommodate the maximum allowed payload size + overhead and delimiter bytes of the packet + the postamble.
+    /// The buffer that stores the received data before it is consumed. The buffer is constructed in a way that reserves
+    /// enough space for the user-defined payload_size and all of the service variables (preamble, postamble, COBS
+    /// variables) that are needed fro the proper functioning of the class.
     uint8_t _reception_buffer[kReceptionBufferSize];
 
     /**
-     * @brief Constructs the serial packet using the payload stored inside the _transmission_buffer and the
-     * bytes_in_transmission_buffer payload size tracker.
+     * @brief Constructs the serialized packet using the payload stored inside the _transmission_buffer.
      *
-     * Specifically, first uses COBS encoding to eliminate all instances of the delimiter_byte value inside the payload
-     * before appending the delimiter to the end of the newly constructed packet. This generates a packet with a maximum
-     * size of 256 and it includes both the overhead byte at index 0 and the delimiter that immediately follows the last
-     * byte of the payload.
+     * Specifically, first uses COBS encoding to eliminate all instances of the kDelimiterByte value inside the payload.
+     * The payload is expected be found starting at index 3 of the buffer and its size is obtained by reading the
+     * payload_size tracker found at index 1.After COBS encoding, the delimiter is appended to the end of the newly
+     * payload. Note, the packet includes the statically allocated preamble (start byte and payload size) as well as
+     * the overhead byte and the delimiter byte.
      *
-     * Next, calculates the CRC checksum for the constructed packet and adds it to the _transmission_buffer right after
-     * the packet (the maximum packet size achieved after this operation is currently 260 bytes).
+     * Next, calculates the CRC checksum for the constructed packet without the preamble (only the overhead + payload +
+     * delimiter are included in this calculation) and appends it to the end of the packet.
      *
-     * @note This method is intended to be called only within the SerializedTransferProtocol class.
+     * @note This method is intended to be called only by other SerializedTransferProtocol class methods.
      *
-     * @returns uint16_t The combined size of the packet and the CRC checksum postamble in bytes (260 bytes maximum).
-     * If method runtime fails, returns 0 to indicate that the packet was not constructed and uses transfer_status to
-     * communicate the error code of the specific operation that failed.
+     * @returns uint16_t The combined size of the preamble, packet and the CRC checksum postamble in bytes
+     * (262 bytes maximum). If method runtime fails, returns 0 to indicate that the packet was not constructed and uses
+     * transfer_status to communicate the error code of the specific operation that failed.
      *
      * Example usage:
      * @code
@@ -996,8 +1013,8 @@ class SerializedTransferProtocol
     {
         // Carries out in-place payload encoding using COBS algorithm. Relies on the payload_size variable (index 1) in
         // the _transmission_buffer to communicate the payload size. Implicitly uses overhead byte placeholder at index
-        // 2, this class is constructed in a way that the user does not need to care about where the placeholder is, as
-        // all class methods handle this heuristic requirement implicitly.
+        // 2 and expects the buffer to contain enough space to append the delimiter byte to the end of the used payload
+        // region. Note, the returned packet size EXCLUDES the preamble (start byte and payload size).
         uint16_t packet_size = _cobs_processor.EncodePayload(_transmission_buffer, kDelimiterByte);
 
         // If the encoder runs into an error, it returns 0 to indicate that the payload was not encoded. In this
@@ -1012,7 +1029,11 @@ class SerializedTransferProtocol
         // If COBS encoding succeeded, calculates the CRC checksum on the encoded packet. This includes the overhead
         // byte and the delimiter byte added during COBS encoding. Note, uses the CRC type specified by the
         // PolynomialType class template parameter to automatically scale with all supported CRC types.
-        PolynomialType checksum = _crc_processor.CalculatePacketCRCChecksum(_transmission_buffer, 2, packet_size);
+        // Note, the start index is set to the index of the overhead byte and the total checksummed length is the same
+        // as the encoded data length (includes overhead and delimiter bytes). The method implicitly handles all
+        // necessary conversions from payload-centered to buffer-centered indexing.
+        PolynomialType checksum =
+            _crc_processor.CalculatePacketCRCChecksum(_transmission_buffer, kOverheadByteIndex, packet_size);
 
         // If the CRC calculator runs into an error, as indicated by its status code not matching the expected success
         // code, transfers the error status to the transfer_status and returns 0 to indicate packet construction failed
@@ -1024,11 +1045,12 @@ class SerializedTransferProtocol
         }
 
         // Writes the calculated CRC checksum to the _transmission_buffer at the position immediately following the
-        // encoded packet. This way, the PC can runt he CRC calculation on the received data and quickly verify its
+        // encoded packet. This way, the PC can run the CRC calculation on the received data and quickly verify its
         // integrity using the zero-expected-return CRC check method. Note, this relies on the storage buffers being
         // constructed in a way that always reserves enough space for the used CRC checksum, regardless of the
         // payload size.
-        uint16_t combined_size = _crc_processor.AddCRCChecksumToBuffer(_transmission_buffer, packet_size, checksum);
+        uint16_t combined_size =
+            _crc_processor.AddCRCChecksumToBuffer(_transmission_buffer, packet_size + kOverheadByteIndex, checksum);
 
         // If CRC addition fails, as indicated by the returned combined size being 0, transfers the specific error
         // status to the transfer_status and returns 0 to indicate packet construction failed.
@@ -1048,30 +1070,22 @@ class SerializedTransferProtocol
     }
 
     /**
-     * @brief Parses the incoming bytes from the bundled Stream class reception buffer into the reception_buffer array
-     * of this class.
+     * @brief Parses a serialized packet from the bytes stored in the reception buffer of the transmission interface
+     * class.
      *
      * Specifically, if bytes are available for reading, scans through all available bytes until a start byte value
-     * defined by kStartByte is found. Once the start byte is found, enters a while loop that iteratively reads all
-     * following bytes into the _reception_buffer until either kDelimiterByte value is encountered, the loop reads the
-     * kReceptionBufferSize - kPostambleSize of bytes or a timeout of kTimeout microseconds is reached while waiting for
-     * more bytes to become available.
+     * defined by kStartByte is found. Once the start byte is found, retrieves the incoming packet's payload_size (which
+     * is expected to be stored in the byte immediately following the start byte). If the received payload size is
+     * valid, enters a while loop that iteratively reads all packet_bytes (derived from payload_size) into the
+     * _reception_buffer.
      *
-     * @attention This method is asymmetric to the similar method used in the PC (python) version of the library.
-     * Specifically, whereas python parses makes use of payload_size byte sent as part of the preamble, this method
-     * does NOT expect or account for the payload size and expects the preamble to be made up solely of the start_byte,
-     * immediately followed by the overhead byte. This is a bit sub-optimal for code maintainability, but has to be done
-     * this way as PC does benefit from knowing payload_size before parsing and the controller does not (has to do
-     * purely with how python client is implemented).
+     * @note This method is intended to be called only by other SerializedTransferProtocol class methods.
      *
-     * If the packet's delimiter byte was found, the method then reads the kPostambleSize number of bytes that follow
-     * the delimiter adn saves them into the _reception_buffer immediately after the packet.
-     *
-     * @note This method is intended to be called only within the SerializedTransferProtocol class.
-     *
-     * @returns uint16_t The number of packet bytes read into the reception_buffer. If method runtime fails, returns 0
-     * to indicate no packet bytes were read. If 0 is returned, transfer_status is set to the appropriate error code
-     * that communicates the specific operation that resulted in the failure.
+     * @returns uint16_t The number of packet bytes read into the _reception_buffer. The packet size includes the
+     * overhead and delimiter bytes, the payload bytes and the CRC checksum postamble (but excludes the start and the
+     * payload_size bytes). If method runtime fails, returns 0 to indicate no packet bytes were read. If 0 is returned,
+     * transfer_status is set to the appropriate error code that communicates the specific operation that resulted in
+     * the failure.
      *
      * Example usage:
      * @code
@@ -1080,15 +1094,17 @@ class SerializedTransferProtocol
      */
     inline uint16_t ParsePacket()
     {
-        elapsedMicros timeout_timer;  // The timer that disengages the loop if the packet stales
-        uint16_t bytes_read = 0;      // Tracks the number of bytes read from the Serial port into the buffer
+        elapsedMicros timeout_timer;  // The timer that disengages the loop if the packet stales at any stage
+        // Tracks the number of bytes read from the transmission interface buffer minus preamble bytes
+        uint16_t bytes_read = kOverheadByteIndex;  // Initialized to the preamble size, as preamble does not use this
 
         // First, attempts to find the start byte of the packet. The start byte is used to tell the receiver that the
         // following data belongs to a supposedly well-formed packet and should be retained (written to the buffer) and
         // not discarded.
         while (_port.available())
         {
-            // Note, the start byte itself is not saved, which is the intended behavior.
+            // Note, the start byte itself is not saved, which is the intended behavior, despite the rx buffer having
+            // space for it.
             if (_port.read() == kStartByte)
             {
                 // Sets the status to indicate start byte has been found. The status is immediately used below to
@@ -1100,54 +1116,13 @@ class SerializedTransferProtocol
             }
         }
 
-        // If the start byte was found, as indicated by the status variable, enters packet parsing loop
-        if (transfer_status ==
+        // If the start byte was not found, aborts the method runtime and returns 0 to indicate that no data was parsed
+        // as no packet was available.
+        if (transfer_status !=
             static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketStartByteFound))
         {
-            timeout_timer = 0;  // Resets the timer to 0 before entering the loop
-
-            // Loops either until the process times out (packet stales) or until the maximum writeable buffer index is
-            // reached. The loop contains an internal 'break' to end early if delimiter_byte is encountered (correct
-            // exit condition, the other two exit conditions are error-conditions). Note, the buffer space for the crc
-            // checksum is excluded from the space available for the packet, which is done to make sure it is always
-            // available for the CRC check.
-            while (timeout_timer < kTimeout && bytes_read < kReceptionBufferSize - kPostambleSize)
-            {
-                // Uses a separate 'if' to check whether bytes to parse are available to enable waiting for the packet
-                // bytes to become available if at some point the entire reception buffer becomes consumed. In this
-                // case, 'while' loop will block in-place until more bytes are received or the timeout is reached.
-                if (_port.available())
-                {
-                    // Consumes and writes the next available byte to a temporary storage variable
-                    uint8_t byte_value = _port.read();
-                    // Saves the byte to the appropriate buffer position
-                    _reception_buffer[bytes_read] = byte_value;
-                    // Increments the bytes_read to iteratively move along the buffer and add new data
-                    bytes_read += 1;
-
-                    // If delimiter byte value is encountered, breaks out of the while loop and goes into postamble
-                    // parsing mode. Due to COBS encoding, the delimiter byte is ONLY found at the end of the packet and
-                    // not inside the packet payload unless the packet has been corrupted. Packet corruption is jointly
-                    // verified via the CRC checksum and COBS decoding.
-                    if (byte_value == kDelimiterByte)
-                    {
-                        // Uses the status to communicate that the delimiter byte has been found
-                        transfer_status = static_cast<uint8_t>(
-                            stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketDelimiterByteFound
-                        );
-                        break;
-                    }
-
-                    timeout_timer = 0;  // Resets the timer whenever a byte is successfully read and the loop is active
-                }
-            }
-        }
-        // If the start byte was not found, aborts the method and returns 0 to indicate that no data was parsed as no
-        // packet was available.
-        else
-        {
-            // Note, selects the status based on the value of the kAllowStartByteErrors flag
-            if (kAllowStartByteErrors)
+            // Note, selects the status based on the value of the allow_start_byte_errors flag
+            if (allow_start_byte_errors)
             {
                 transfer_status = static_cast<uint8_t>(
                     stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketStartByteNotFoundError
@@ -1162,97 +1137,109 @@ class SerializedTransferProtocol
             return 0;
         }
 
-        // If the delimiter byte has been found and, therefore, the packet has been fully parsed, enters postamble
-        // parsing mode. The postamble size is fixed and, at the time of writing, depends on the used PolynomialType
-        // (the postamble only stores the CRC checksum for the received packet), so uses a 'for' loop here.
-        // Each iteration of the loop blocks until either a timeout occurs or the bytes are available for reading to
-        // once-again realize a mechanism of waiting for bytes to become available if the reception buffer becomes fully
-        // consumed.
-        if (transfer_status ==
-            static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketDelimiterByteFound))
+        // If the start byte was found, attempts to read the next byte, which should be the payload_size byte
+        timeout_timer = 0;                // Resets the timer to 0 before entering the loop
+        while (timeout_timer < kTimeout)  // Blocks until timeout is reached or the byte is read
         {
-            // Loops over each postamble byte and attempts to read it from the incoming stream
-            for (uint8_t i = 0; i < kPostambleSize; i++)
+            // If the byte can be read, reads it into the payload_size variable of the buffer and sets the status to
+            // the appropriate value.
+            if (_port.available())
             {
-                timeout_timer = 0;  // Resets timeout timer for each instance of the loop
+                _reception_buffer[kPayloadSizeIndex] = _port.read();  // Reads payload_sie into the storage variable
 
-                // Blocks until bytes are available for reading
-                while (!(_port.available()))
+                // If payload size is below the declared minimum allowed size or above the declared maximum allowed
+                // size, aborts the reception procedure with an error (and sets the status appropriately).
+                if (_reception_buffer[kPayloadSizeIndex] < kMinimumPayloadSize ||
+                    _reception_buffer[kPayloadSizeIndex] > kMaximumReceivedPayloadSize)
                 {
-                    // If the timer exceeds the timeout value while inside the loop, immediately breaks with code 0 and
-                    // uses the status to communicate that the postamble parsing failed
-                    if (timeout_timer >= kTimeout)
-                    {
-                        transfer_status = static_cast<uint8_t>(
-                            stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPostambleTimeoutError
-                        );
-                        return 0;
-                    }
-
-                    // Note, there is no check for the saving index to be outside buffer boundaries. This is
-                    // intentional and safe, as the buffer size always includes the kPostambleSize and due to
-                    // the discounting in the loop above, the packet is never allowed to use the postamble placeholder
-                    // space.
+                    transfer_status = static_cast<uint8_t>(
+                        stp_shared_assets::kSerializedTransferProtocolStatusCodes::kInvalidPayloadSize
+                    );
+                    return 0;
                 }
 
-                // If the postamble byte is available, reads it into the _reception_buffer buffer. Uses bytes_read to
-                // offset the writing index so that the postamble is added directly after the parsed packet
-                _reception_buffer[bytes_read + i] = _port.read();
+                // If the payload size is within allowed limits, advances to packet reception
+                else
+                {
+                    transfer_status = static_cast<uint8_t>(
+                        stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPayloadSizeByteFound
+                    );      // Sets the status
+                    break;  // Gracefully breaks out of the loop
+                }
             }
+        }
 
-            // If this point in the processing pipeline is reached, this means that the postamble was successfully
-            // parsed. Since this is the last step of packet reception, sets the status appropriately and returns the
-            // packet size to caller.
+        // If the payload_size byte was not found, aborts the method runtime and returns 0 to indicate that packet
+        // reception staled at payload size reception.
+        if (transfer_status !=
+            static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPayloadSizeByteFound))
+        {
+            transfer_status =
+                static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPayloadSizeByteNotFound
+                );
+            return 0;
+        }
+
+        // Calculates how many bytes are expected to be received. This is dependent on the received payload_size and
+        // is modified to account for the CRC postamble and the metadata bytes (preamble is given by kOverheadByteIndex,
+        // static + 2 accounts for the overhead and delimiter bytes)
+        const uint16_t remaining_size = _reception_buffer[kPayloadSizeIndex] + kOverheadByteIndex + kPostambleSize + 2;
+        timeout_timer                 = 0;  // Resets the timer to 0 before entering the loop below
+
+        // Enters the packet reception loop. Loops either until the timeout (packet stales) or the requested number of
+        // bytes is received. This step receives all remaining data, including the CRC checksum postamble.
+        while (timeout_timer < kTimeout && bytes_read < remaining_size)
+        {
+            // Uses a separate 'if' to check whether bytes to parse are available to enable waiting for the packet
+            // bytes to become available if at some point the entire reception buffer becomes consumed. In this
+            // case, 'while' loop will block in-place until more bytes are received or the timeout is reached.
+            if (_port.available())
+            {
+                // Saves the byte to the appropriate buffer position
+                _reception_buffer[bytes_read] = _port.read();
+                // Increments the bytes_read to iteratively move along the buffer and add new data
+                bytes_read++;
+                timeout_timer = 0;  // Resets the timer whenever a byte is successfully read and the loop is active
+            }
+        }
+
+        // If the value of read_bytes matches the packet_size, this means that the packet was successfully parsed.
+        // In this case, sets the status appropriately and returns the number of bytes read into the buffer.
+        if (bytes_read == remaining_size)
+        {
             transfer_status =
                 static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketParsed);
 
             // Since bytes_read directly corresponds to the packet size, returns this to the caller
-            return bytes_read;
+            return bytes_read - kOverheadByteIndex;  // Note, excludes the start and payload_size bytes
         }
-        // Otherwise, if the delimiter byte has not been found, returns code 0 and sets the status to appropriately
-        // communicate the reason for parsing failure
+
+        // Otherwise, issues the packet staling error status and returns 0 to indicate that no data was parsed.
         else
         {
-            // If bytes_read tracker is set to a value beyond the indexable range of the buffer, this indicates
-            // that the packet was not parsed due to running out of buffer space (most likely an issue with the
-            // delimiter byte)
-            if (bytes_read >= kReceptionBufferSize - kPostambleSize)
-            {
-                transfer_status = static_cast<uint8_t>(
-                    stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketOutOfBufferSpaceError
-                );
-            }
-
-            // Otherwise, the packet was not parsed due to timing out while waiting for packet bytes. This may be both
-            // due to staling (transmission error) and invalid delimiter byte setting (for example, if the PC uses a
-            // different value from what the class is set to expect).
-            else
-            {
-                transfer_status =
-                    static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketTimeoutError
-                    );
-            }
-
+            transfer_status =
+                static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kPacketTimeoutError);
             return 0;
         }
     }
 
     /**
-     * @brief Validates successfully parsed packets and decodes them to extract the payload.
+     * @brief Validates the received packet and decodes the payload using COBS scheme.
      *
-     * @attention Assumes that the ParsePacket() appends the crc checksum received with the packet to the end of each
-     * parsed packet.
+     * @attention Assumes that the ParsePacket() appends the CRC checksum postamble to the end of the encoded payload.
      *
-     * Specifically, first runs the CRC calculator on the portion of the buffer that holds the packet and the postamble
-     * CRC checksum, expecting to get a 0 returned checksum. If the CRC check is successful (returns 0), decodes the
-     * packet using COBS to obtain the payload. See CRCProcessor documentation if you wonder why this looks for a 0
-     * return value for the CRC check, but this is a property of the CRC.
+     * Specifically, first runs the CRC calculator on the portion of the buffer that holds the encoded encoded payload
+     * and the postamble CRC checksum, expecting to get a 0 returned checksum. If the CRC check is successful
+     * (returns 0), decodes the payload using COBS to obtain the original payload. See CRCProcessor documentation if you
+     * wonder why this looks for a 0 return value for the CRC check, this is a property of the CRC checksum value.
      *
-     * @note This method is intended to be called only within the SerializedTransferProtocol class and only after the
-     * ParsePacket() method has been successfully called.
+     * @note This method is intended to be called only by other SerializedTransferProtocol class methods and only after
+     * the ParsePacket() method has been successfully called.
      *
      * @param packet_size The size of the packet that was parsed into the _reception_buffer by the ParsePacket() method
-     * in bytes.
+     * in bytes. The size should exclude the leading metadata bytes (start byte and payload_size). At the time of
+     * writing, ValidatePacket() returns the correct packet_size to be input into this method with no further
+     * modifications.
      *
      * @returns uint16_t The number of bytes making up the payload. If method runtime fails, returns 0 to indicate that
      * no bytes passed the verification and uses transfer_status to communicate the error code of the specific operation
@@ -1266,19 +1253,18 @@ class SerializedTransferProtocol
      */
     inline uint16_t ValidatePacket(uint16_t packet_size)
     {
-        // Calculates the combined data size of the packet + crc bytes. This is needed to correctly calculate the
-        // portion of the buffer to run the CRC check on.
-        uint16_t combined_size = packet_size + static_cast<uint16_t>(sizeof(PolynomialType));
-
-        // Runs the CRC calculator on the reception buffer stretch that holds the data + CRC checksum. This relies on
-        // the signature property of the CRC, namely that adding the CRC checksum to the data for which the checksum was
-        // calculated and re-running the CRC on this combined data will always return 0. Assumes that the CRC was stored
-        // as bytes starting with the highest byte first, otherwise this check will not work. Also assumes that the
-        // ParsePacket() method adds the CRC postamble to the portion of the buffer immediately following the packet.
-        PolynomialType packet_checksum = _crc_processor.CalculatePacketCRCChecksum(_reception_buffer, 0, combined_size);
+        // Runs the CRC calculator on the _reception_buffer stretch that holds the encoded payload + CRC checksum. This
+        // relies on the signature property of the CRC, namely that adding the CRC checksum to the data for which the
+        // checksum was calculated and re-running the CRC on this combined data will always return 0. Assumes that the
+        // CRC was stored as bytes starting with the most significant byte first, otherwise this check will not work.
+        // Also assumes that the ParsePacket() method adds the CRC postamble to the portion of the buffer immediately
+        // following the packet. Also starts with the overhead byte position expected to be found at index 2.
+        PolynomialType packet_checksum =
+            _crc_processor.CalculatePacketCRCChecksum(_reception_buffer, kOverheadByteIndex, packet_size);
 
         // Verifies that the CRC calculator ran without errors and returned the success status. If not, sets
-        // the transfer_status to the returned crc status and returns 0 to indicate runtime error.
+        // the transfer_status to the returned crc status and returns 0 to indicate crc calculator runtime error. This
+        // is done to distinguish between failed CRC checks (packet corruption) and failed crc calculator runtime.
         if (_crc_processor.crc_status !=
             static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated))
         {
@@ -1287,11 +1273,11 @@ class SerializedTransferProtocol
         }
 
         // If the crc calculation runtime was successful, ensures that the calculated CRC checksum is 0, which is the
-        // expected correct checksum for an uncorrupted packet
+        // expected correct checksum for an uncorrupted packet (and an uncorrupted transmitted CRC checksum).
         else if (packet_checksum != 0)
         {
             // If the returned checksum is not 0, that means that the packet failed the CRC check and is likely
-            // corrupted
+            // corrupted.
             transfer_status =
                 static_cast<uint8_t>(stp_shared_assets::kSerializedTransferProtocolStatusCodes::kCRCCheckFailed);
             return 0;
