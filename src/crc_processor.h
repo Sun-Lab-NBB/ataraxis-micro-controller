@@ -3,7 +3,7 @@
  * @brief The header file for the CRCProcessor class, which is used to verify transmitted data integrity by calculating
  * the Cyclic Redundancy Check (CRC) Checksum for the outgoing and incoming data packets.
  *
- * @subsection description Description:
+ * @section crc_description Description:
  * Cyclic Redundancy Check (CRC) is a widely used algorithm for verifying data integrity that is based on the residual
  * obtained from dividing the byte-serialized data array by a polynomial. A well known property of the CRC algorithm is
  * that running the CRC calculation on a packet that contains the CRC checksum at the end always returns 0 as the CRC
@@ -27,7 +27,7 @@
  * @attention This class is implemented as a template and many methods adapt to the PolynomialType argument used during
  * class instantiation. See developer notes below for more information.
  *
- * @subsection developer_notes Developer Notes:
+ * @section crc_developer_notes Developer Notes:
  * This class is implemented as a template and all of its methods scale with the CRC polynomial type used during class
  * instantiation. This allows using the same class for all common polynomials used for CRC checksum calculations of
  * types uint8_t, uint16_t and uint32_t. This is part of a boarder effort to make the library sufficiently flexible to
@@ -47,7 +47,7 @@
  * constructor), as the class automatically scales all constructor arguments to the declared polynomial type template
  * parameter.
  *
- * @subsection dependencies Dependencies:
+ * @section crc_dependencies Dependencies:
  * - Arduino.h for Arduino platform methods and macros and cross-compatibility with Arduino IDE (to an extent).
  * - stp_shared_assets.h for shared library assets (mostly status byte-codes for library classes).
  *

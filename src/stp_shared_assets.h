@@ -3,7 +3,7 @@
  * @brief The header-only file that stores all assets intended to be shared between SerializedTransferProtocol library
  * classes wrapped into a common namespace.
  *
- * @subsection description Description:
+ * @section stp_sa_description Description:
  *
  * This file aggregates all general assets that have to be shared between multiple classes of the
  * SerializedTransferProtocol library.
@@ -16,7 +16,7 @@
  * - A custom implementation of the is_same_v() standard method used to verify that two input objects have the same
  * type.
  *
- * @subsection developer_notes Developer Notes:
+ * @section stp_sa_developer_notes Developer Notes:
  *
  * The primary reason for having this file is to store all byte-code enumerations in the same place. To simplify
  * error handling, all codes available through this namespace have to be unique relative to each other (that is, if the
@@ -126,6 +126,7 @@ namespace stp_shared_assets
     template <typename T, typename U>
     struct is_same
     {
+        /// The default value used by the specification for two different input types.
         static const bool value = false;
     };
 
@@ -140,6 +141,7 @@ namespace stp_shared_assets
     template <typename T>
     struct is_same<T, T>
     {
+        /// The default value used by the specification for two identical types.
         static const bool value = true;
     };
 

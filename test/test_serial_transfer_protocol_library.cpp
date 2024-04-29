@@ -1221,14 +1221,41 @@ int RunUnityTests(void)
     return UNITY_END();
 }
 
+// Defines the baud rates for different boards. Note, this list is far from complete and was designed for the boards
+// the author happened to have at hand at the time of writing these tests. When testing on an architecture not
+// explicitly covered below, it may be beneficial to provide the baudrate optimized for the tested platform.
+
+// For Arduino Due, the maximum non-doubled stable rate is 5.25 Mbps at 84 MHz cpu clock.
+#if defined(ARDUINO_SAM_DUE)
+#define SERIAL_BAUD_RATE 5250000
+
+// For Uno, Mega, and other 16 MHz AVR boards, the maximum stable non-doubled rate is 1 Mbps.
+#elif defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_MEGA) || \
+      defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
+      defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__) || \
+      defined(__AVR_ATmega32U4__)
+#define SERIAL_BAUD_RATE 1000000
+
+// For all other board the default 9600 rate is used. Note, this is a very slow rate and it is very likely your board
+// supports a faster rate. Be sure to select the most appropriate rate based on the CPU clock of your board, as it
+// directly affects the error rate at any given baudrate. Boards like Teensy and Dues using USB port ignore the baudrate
+// setting and instead default to the fastest speed support by the particular USB port pair (480 Mbps for most modern
+// ports).
+#else
+#define SERIAL_BAUD_RATE 9600
+#endif
+
 // This is necessary for the Arduino framework testing to work as expected, which includes teensy. All tests are
 // run inside setup function as they are intended to be one-shot tests
 void setup()
 {
+    // Starts the serial connection. Uses the SERIAL_BAUD_RATE defined above based on the specific board architecture
+    // (or the generic safe 9600 buadrate, which is VERY slow and should not really be used in production code).
+    Serial.begin(SERIAL_BAUD_RATE);
+
     // Waits ~5 seconds before the Unity test runner establishes connection with a board Serial interface. For teensy,
     // this is less important as instead of using a UART, it uses a USB interface which does not reset the board on
     // connection.
-    Serial.begin(115200);
     delay(5000);
 
     // Runs the required tests

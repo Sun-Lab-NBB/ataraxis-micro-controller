@@ -1,0 +1,16 @@
+# This configuration file specifies how Doxygen should parse the docstrings inside the C++ source code files.
+# It is used as part of the tox-automated project building workflow to generate API documentation for the library.
+# Currently, this file provides the minimal configuration necessary to build the .xml documentation file that is then
+# parsed and merged with python code documentation by sphinx via 'breathe' bridge.
+
+DOXYFILE_ENCODING      = UTF-8
+PROJECT_NAME           = "SerializedTransferProtocol_Microcontroller"
+OUTPUT_DIRECTORY       = docs/source/doxygen
+OUTPUT_LANGUAGE        = English
+INPUT                  = src/cobs_processor.h \
+                         src/crc_processor.h \
+                         src/serialized_transfer_protocol.h \
+                         src/stp_shared_assets.h \
+                         src/stream_mock.h
+GENERATE_XML           = YES
+XML_OUTPUT             = xml

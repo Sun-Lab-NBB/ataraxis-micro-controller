@@ -3,7 +3,7 @@
  * @brief The header file for the SerializedTransferProtocol class, which aggregates all methods for sending and
  * receiving serialized data over a USB / UART connection.
  *
- * @subsection description Description:
+ * @section stp_description Description:
  * This class provides an intermediate-level API that enables receiving and sending data over the USB or UART serial
  * ports. It conducts all necessary steps to properly encode and decode payloads, verifies their integrity and moves
  * them to and from the transmission interface buffers. This class instantiates private _transmission_buffer and
@@ -29,7 +29,7 @@
  * @attention This class is implemented as a template and many methods adapt to the template arguments used during
  * class instantiation. See developer notes below for more information.
  *
- * @subsection developer_notes Developer Notes:
+ * @section stp_developer_notes Developer Notes:
  * This class exposes the main library API, relying on CRCProcessor and COBSProcessor helper-classes to cary out the
  * specific packet processing and integrity verification steps. The SerializedTransferProtocol class abstracts these two
  * classes and a transmission interface instance by providing an API that can be used to carry out serial communication
@@ -46,7 +46,7 @@
  * encouraged to adjust the size to ensure the buffer at full capacity with the added preamble / postamble bytes fits
  * into the transmission interface buffers, as this often allows for more efficient data transmission.
  *
- * @subsection packet_anatomy Packet Anatomy:
+ * @section stp_packet_anatomy Packet Anatomy:
  * This class sends and receives data in the form of packets. Each packet is expected to adhere to the following general
  * layout:
  * [START] [PAYLOAD SIZE] [COBS OVERHEAD] [PAYLOAD (1 to 254 bytes)] [DELIMITER] [CRC CHECKSUM (1 to 4 bytes)]
@@ -54,11 +54,12 @@
  * When using WriteData() and ReadData() methods, the users are only working with the payload section of the overall
  * packet. The rest of the packet anatomy is controlled internally by this class and is not exposed to the users.
  *
- * @subsection dependencies Dependencies:
+ * @section stp_dependencies Dependencies:
  * - Arduino.h for Arduino platform methods and macros and cross-compatibility with Arduino IDE (to an extent).
  * - cobs_processor.h for COBS encoding and decoding methods.
  * - crc_processor.h for CRC-16 encoding and decoding methods, as well as crc-specific buffer manipulation methods.
  * - elapsedMillis.h for managing packet reception timers.
+ * - stp_shared_assets.h for shared library assets (status byte-codes for the class and is_same_v for static guards).
  */
 
 #ifndef AMC_SERIAL_TRANSFER_PROTOCOL_H
@@ -69,6 +70,7 @@
 #include "cobs_processor.h"
 #include "crc_processor.h"
 #include "elapsedMillis.h"
+#include "stp_shared_assets.h"
 
 /**
  * @class SerializedTransferProtocol

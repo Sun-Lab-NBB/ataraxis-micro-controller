@@ -3,7 +3,7 @@
  * @brief A header-only file that provides the StreamMock class, which simulates a Serial Stream interface to test
  * SerializedTransferProtocol class.
  *
- * @subsection description Description:
+ * @section smock_description Description:
  *
  * @attention This file is part of the microcontroller-targeted SerializedTransferProtocol library. For PC-targeted
  * implementation see the SerializedTransferProtocol-Python or SerializedTransferProtocol-Unity libraries.
@@ -24,7 +24,7 @@
  * @note This class overloads the virtual methods of the Stream base-class and, therefore, uses the same names,
  * arguments and behavior as the base class.
  *
- * @subsection developer_notes Developer Notes:
+ * @section smock_developer_notes Developer Notes:
  * This class is used solely to enable testing the SerializedTransferProtocol class and, in the future, it may be
  * excluded from non-developer builds of the library.
  *
@@ -41,7 +41,7 @@
  * particularly relevant for writing test functions using the class that directly check buffer states against byte
  * inputs.
  *
- * @subsection dependencies Dependencies:
+ * @section smock_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - Stream.h for the base Stream class that is overloaded to form this Mock class.
  */
@@ -196,7 +196,7 @@ class StreamMock : public Stream
     /**
      * @brief Writes the input byte value to the transmission buffer.
      *
-     * @Note Converts the value to the uint16_t type to be stored inside the transmission buffer.
+     * @note Converts the value to the uint16_t type to be stored inside the transmission buffer.
      *
      * @param byte_value The byte value to write.
      * @returns 1 when the method succeeds and 0 otherwise.

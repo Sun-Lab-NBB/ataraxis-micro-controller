@@ -3,7 +3,7 @@
  * @brief The header file for the COBSProcessor class, which is used to encode and decode data arrays (buffers) using
  * Consistent Overhead Byte Stuffing (COBS) scheme.
  *
- * @subsection description Description:
+ * @section cobs_description Description:
  * COBS is a widely used byte-stuffing protocol that ensures a particular byte value is not present in the input data
  * array (payload). In the broader scope of serial communication, COBS is used to force a particular byte value, known
  * as packet delimiter, to only be present at specific points of the transmitted packets, making it suitable for
@@ -21,7 +21,7 @@
  * - Also contains the kCOBSProcessorLimits structure that stores statically defined payload and packet size constrains
  * used for error checking.
  *
- * @subsection developer_notes Developer Notes:
+ * @section cobs_developer_notes Developer Notes:
  * This class is a helper class that is used by the main SerializedTransferProtocol class to encode and decode payloads
  * using COBS scheme. It is not meant to be used on its own and should always be called from the
  * SerializedTransferProtocol class. The class methods expect particularly formatted and organized inputs to function
@@ -39,7 +39,7 @@
  * size (from 1 to 254 bytes), so while the maximum payload size is capped at 254, the payloads do not have to be that
  * long.
  *
- * @subsection dependencies Dependencies:
+ * @section cobs_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - stp_shared_assets.h For COBS-related status codes.
  *
@@ -61,7 +61,7 @@
  * These parameters are mostly used for error-checking inputs to COBS processing methods in an effort to minimize
  * the potential to generate invalid packets.
  *
- * @attnetion It is generally not recommended to change these parameters as they are currently configured to allow
+ * @attention It is generally not recommended to change these parameters as they are currently configured to allow
  * any valid input to be COBS-encoded. These parameter only control maximum and minimum input sizes, within these
  * limits the input can be of any supported size. The input itself can be modified through configuring appropriate
  * SerializedTransferProtocol parameters.
