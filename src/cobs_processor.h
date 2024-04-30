@@ -51,7 +51,7 @@
 #define AMC_COBS_PROCESSOR_H
 
 //Dependencies
-#include "Arduino.h"
+#include <Arduino.h>
 #include "stp_shared_assets.h"
 
 /**

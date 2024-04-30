@@ -66,10 +66,10 @@
 #define AMC_SERIAL_TRANSFER_PROTOCOL_H
 
 // Dependencies
-#include "Arduino.h"
+#include <Arduino.h>
 #include "cobs_processor.h"
 #include "crc_processor.h"
-#include "elapsedMillis.h"
+#include <elapsedMillis.h>
 #include "stp_shared_assets.h"
 
 /**
