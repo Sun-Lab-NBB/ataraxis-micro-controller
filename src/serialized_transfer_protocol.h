@@ -80,7 +80,7 @@
  * This class wraps other low-level helper classes of the library that are used to encode, validate and bidirectionally
  * transmit arbitrary data over the USB or UART interface. To facilitate this process, the class provides two internal
  * buffers: _transmission_buffer (stages the data to be transmitted) and _reception_buffer (stores the received data).
- * Note, both buffers are treated as temporary storage areas and are reset by each SendData() and ReceiveData() call.
+ * Both buffers are treated as temporary storage areas and are reset by each SendData() and ReceiveData() call.
  *
  * @warning Since the buffers follow a very specific layout pattern that is required for this class to work properly,
  * they are stored as private members of this class. The buffers can be manipulated using ReadData() and WriteData()
@@ -126,6 +126,7 @@
  * Example instantiation:
  * @code
  * Serial.begin(9600);
+ *
  * uint8_t maximum_tx_payload_size = 254;
  * uint8_t maximum_rx_payload_size = 200;
  * uint16_t polynomial = 0x1021;
@@ -137,15 +138,15 @@
  * uint32_t timeout = 20000; // In microseconds
  *
  * // Instantiates a new SerializedTransferProtocol object
- * SerializedTransferProtocol<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size> stp_class(
- * Serial,
- * polynomial,
- * initial_value,
- * final_xor_value,
- * start_byte,
- * delimiter_byte,
- * minimum_payload_size,
- * timeout
+ * SerializedTransferProtocol<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size, minimum_payload_size>
+ * stp_class(
+ *  Serial,
+ *  polynomial,
+ *  initial_value,
+ *  final_xor_value,
+ *  start_byte,
+ *  delimiter_byte,
+ *  timeout
  * );
  * @endcode
  */
