@@ -47,8 +47,8 @@
  * .h file with no matching .cpp file. While templates can be defined in a .tpp, it is easier to use the .h file.
  */
 
-#ifndef AMC_COBS_PROCESSOR_H
-#define AMC_COBS_PROCESSOR_H
+#ifndef STP_COBS_PROCESSOR_H
+#define STP_COBS_PROCESSOR_H
 
 //Dependencies
 #include <Arduino.h>
@@ -456,4 +456,4 @@ class COBSProcessor
     static constexpr uint8_t kPayloadStartIndex = kOverheadByteIndex + 1;  // NOLINT(*-dynamic-static-initializers)
 };
 
-#endif  //AMC_COBS_PROCESSOR_H
+#endif  //STP_COBS_PROCESSOR_H

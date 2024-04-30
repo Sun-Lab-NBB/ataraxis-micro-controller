@@ -46,8 +46,8 @@
  * - Stream.h for the base Stream class that is overloaded to form this Mock class.
  */
 
-#ifndef AMC_STREAM_MOCK_H
-#define AMC_STREAM_MOCK_H
+#ifndef STP_STREAM_MOCK_H
+#define STP_STREAM_MOCK_H
 
 // Dependencies:
 #include <Arduino.h>
@@ -313,4 +313,4 @@ class StreamMock : public Stream
     }
 };
 
-#endif  //AMC_STREAM_MOCK_H
+#endif  //STP_STREAM_MOCK_H

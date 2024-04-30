@@ -62,8 +62,8 @@
  * - stp_shared_assets.h for shared library assets (status byte-codes for the class and is_same_v for static guards).
  */
 
-#ifndef AMC_SERIAL_TRANSFER_PROTOCOL_H
-#define AMC_SERIAL_TRANSFER_PROTOCOL_H
+#ifndef STP_SERIAL_TRANSFER_PROTOCOL_H
+#define STP_SERIAL_TRANSFER_PROTOCOL_H
 
 // Dependencies
 #include <Arduino.h>
@@ -1293,4 +1293,4 @@ class SerializedTransferProtocol
     }
 };
 
-#endif  //AMC_SERIAL_TRANSFER_PROTOCOL_H
+#endif  //STP_SERIAL_TRANSFER_PROTOCOL_H

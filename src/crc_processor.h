@@ -56,8 +56,8 @@
  * the .h file.
  */
 
-#ifndef AMC_CRC_PROCESSOR_H
-#define AMC_CRC_PROCESSOR_H
+#ifndef STP_CRC_PROCESSOR_H
+#define STP_CRC_PROCESSOR_H
 
 // Dependencies
 #include <Arduino.h>
@@ -468,4 +468,4 @@ class CRCProcessor
     }
 };
 
-#endif  //AMC_CRC_PROCESSOR_H
+#endif  //STP_CRC_PROCESSOR_H

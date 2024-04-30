@@ -23,8 +23,8 @@
  * value 11 is used to represent 'Standby' state for CRCProcessor, no other status should be using the value 11).
  */
 
-#ifndef AMC_STP_SHARED_ASSETS_H
-#define AMC_STP_SHARED_ASSETS_H
+#ifndef STP_SHARED_ASSETS_H
+#define STP_SHARED_ASSETS_H
 
 /**
  * @namespace stp_shared_assets
@@ -166,4 +166,4 @@ namespace stp_shared_assets
 
 }  // namespace stp_shared_assets
 
-#endif  //AMC_STP_SHARED_ASSETS_H
+#endif  //STP_SHARED_ASSETS_H
