@@ -59,7 +59,7 @@
  * - cobs_processor.h for COBS encoding and decoding methods.
  * - crc_processor.h for CRC-16 encoding and decoding methods, as well as crc-specific buffer manipulation methods.
  * - elapsedMillis.h for managing packet reception timers.
- * - stp_shared_assets.h for shared library assets (status byte-codes for the class and is_same_v for static guards).
+ * - axtl_shared_assets.h for shared library assets (status byte-codes for the class and is_same_v for static guards).
  */
 
 #ifndef STP_SERIAL_TRANSFER_PROTOCOL_H

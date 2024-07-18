@@ -14,23 +14,22 @@
  * no. 2, pp. 159-172, April 1999, doi: @a 10.1109/90.769765.
  *
  * This file contains two methods packaged into the COBSProcessor class namespace:
- * - EncodePayload(): takes in the buffer containing an arbitrary sized payload between 1 and 254 bytes and encodes
- * it using COBS.
- * - DecodePayload(): takes in the buffer that contains a COBS-encoded payload between 1 and 254 bytes, and restores it
- * to the un-encoded state (decodes it).
+ * - EncodePayload(): takes in the buffer containing an arbitrary sized payload between 1 and 254 bytes in length and
+ * encodes it using COBS.
+ * - DecodePayload(): takes in the buffer that contains a COBS-encoded payload between 1 and 254 bytes in length, and
+ * restores it to the un-encoded state (decodes it).
  * - Also contains the kCOBSProcessorLimits structure that stores statically defined payload and packet size constrains
  * used for error checking.
  *
  * @section cobs_developer_notes Developer Notes:
- * This class is a helper class that is used by the main SerializedTransferProtocol class to encode and decode payloads
- * using COBS scheme. It is not meant to be used on its own and should always be called from the
- * SerializedTransferProtocol class. The class methods expect particularly formatted and organized inputs to function
- * properly and will behave unexpectedly if input expectations are not met.
+ * This class is a helper class that is used by the main TransportLayer class to encode and decode payloads
+ * using COBS scheme. It is not meant to be used on its own and should always be called from the TransportLayer
+ * class. The class methods expect particularly formatted and organized inputs to function properly and will behave
+ * unexpectedly if input expectations are not met.
  *
  * The decoder method of the class contains two payload integrity checks, which are intended to be a fallback for the
  * CRC checker. Between the CRC and COBS decoding verification, it should be very unlikely that data corruption during
- * transmission is not detected and reported to caller. Since this library is designed primarily for science
- * applications, data integrity is a major focus for all classes in this library.
+ * transmission is not detected and reported to caller.
  *
  * @note Due to the limitations of transmitting data as byte-values and COBS specifications, the maximum payload size
  * the class can handle is 254 bytes. The payload buffer itself is expected to accommodate at least 258 bytes to account
@@ -41,18 +40,15 @@
  *
  * @section cobs_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - stp_shared_assets.h For COBS-related status codes.
- *
- * @attention Due to the use of templates as a much safer approach to array operations, this class only exists as an
- * .h file with no matching .cpp file. While templates can be defined in a .tpp, it is easier to use the .h file.
+ * - axtl_shared_assets.h For COBS-related status codes.
  */
 
-#ifndef STP_COBS_PROCESSOR_H
-#define STP_COBS_PROCESSOR_H
+#ifndef AXTL_COBS_PROCESSOR_H
+#define AXTL_COBS_PROCESSOR_H
 
 //Dependencies
 #include <Arduino.h>
-#include "stp_shared_assets.h"
+#include "axtl_shared_assets.h"
 
 /**
  * @struct kCOBSProcessorLimits
@@ -64,7 +60,7 @@
  * @attention It is generally not recommended to change these parameters as they are currently configured to allow
  * any valid input to be COBS-encoded. These parameter only control maximum and minimum input sizes, within these
  * limits the input can be of any supported size. The input itself can be modified through configuring appropriate
- * SerializedTransferProtocol parameters.
+ * TransportLayer parameters.
  */
 struct kCOBSProcessorLimits
 {
@@ -85,10 +81,10 @@ struct kCOBSProcessorLimits
  * @attention This class assumes that the input buffer is configured in a certain way, specified by the template
  * parameters at class instantiation (see below). The use of template parameters allows fine-tuning the class to work
  * for almost any buffer layout. In turn, this supports static buffer instantiation, which is critical for memory
- * efficiency reasons. The b
+ * efficiency reasons.
  *
- * @note Do not use this class outside of the SerializedTransferProtocol class unless you know what you are doing, as it
- * is the job of the SerializedTransferProtocol class to make sure the data buffer(s) used by the methods of this class
+ * @note Do not use this class outside of the TransportLayer class unless you know what you are doing, as it
+ * is the job of the TransportLayer class to make sure the data buffer(s) used by the methods of this class
  * are configured appropriately. If buffers are not appropriately sized, this can lead to undefined behavior and data
  * corruption. The class expects the input buffer to reserve the space for the overhead and delimiter bytes flanking
  * the payload region, in addition to any preamble and postamble variables.
@@ -111,9 +107,9 @@ class COBSProcessor
   public:
     /// Stores the latest runtime status of the COBSProcessor. This variable is primarily designed to communicate
     /// the specific errors encountered during encoding or decoding in the form of byte-codes taken from the
-    /// kCOBSProcessorCodes enumeration (available through stp_shared_assets namespace). Use the communicated status to
+    /// kCOBSProcessorCodes enumeration (available through axtl_shared_assets namespace). Use the communicated status to
     /// precisely determine the runtime status of any class method.
-    uint8_t cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kStandby);
+    uint8_t cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kStandby);
 
     /**
      * @brief Encodes the input payload according to COBS scheme in-place.
@@ -123,8 +119,8 @@ class COBSProcessor
      * closer).
      *
      * Then, updates the overhead byte expected to be found under the index kOverheadByteIndex of the input
-     * payload_buffer to store the distance to the nearest delimiter_byte_value or the end of the packet and inserts an
-     * unencoded delimiter_byte_value at the end of the payload (last index of the payload + 1).
+     * payload_buffer to store the distance to the nearest delimiter_byte_value or the end of the packet. Finally,
+     * inserts an unencoded delimiter_byte_value at the end of the payload (last index of the payload + 1).
      *
      * In so-doing, implements a classic COBS encoding scheme as described by the original paper. Uses a modern approach
      * of backward-looping over the payload with project-specific heuristics. Instead of dynamically recreating the
@@ -135,26 +131,24 @@ class COBSProcessor
      * an attempt to encode an already encoded data and aborts with an error to prevent data corruption from
      * re-encoding.
      *
-     * @attention This method makes certain assumptions about the layout of the input buffer, which are set using the
-     * class template parameters. To ensure assumptions are met, this method is not intended to be called directly.
-     * Instead, it should be called by the SerializedTransferProtocol class methods that instantiate the appropriate
-     * specification of this processor class.
+     * @attention This method makes certain assumptions about the layout of the input buffer. To ensure assumptions
+     * are met, this method is not intended to be called directly. Instead, it should be called by the TransportLayer
+     * class methods that instantiates the appropriate template specification of this processor class.
      *
-     * @tparam buffer_size The size of the input buffer array. This size is used to ensure any memory modifications
-     * carried out using the buffer stay within the bounds of the buffer. This prevents undefined behavior and / or data
-     * corruption due to modifying memory allocated for other objects.
+     * @tparam buffer_size The size of the input buffer array. This size is used to ensure memory modifications
+     * carried out using the buffer stay within the bounds of the buffer. This prevents undefined behavior
+     * and / or data corruption due to modifying memory allocated for other objects.
      * @param payload_buffer The buffer (array) that holds the payload to be encoded. Should conform to the layout
      * specified by the class template parameters.
      * @param delimiter_byte_value The value between 0 and 255 (any value that fits into uint8_t range) that will be
      * used as packet delimiter. All instances of this value inside the input payload will be eliminated as per COBS
      * scheme. It is highly advised to use the value of 0 (0x00), since this is the only value that the overhead byte
      * cannot be set to. Any other value runs the risk of being present both at the end of the encoded packet
-     * (delimiter byte) and the overhead byte position. This library as a whole is designed to work around this
-     * potential discrepancy, but this may be problematic if COBSProcessor class is used outside of this library.
+     * (delimiter byte) and the overhead byte position.
      *
      * @returns uint16_t The size of the encoded packet in bytes, which includes the overhead and the delimiter bytes
      * values. Failed runtimes return 0. Use cobs_status class variable to obtain specific runtime error code if the
-     * method fails (can be interpreted by using kCOBSProcessorCodes enumeration available through stp_shared_assets
+     * method fails (can be interpreted by using kCOBSProcessorCodes enumeration available through axtl_shared_assets
      * namespace).
      *
      * Example usage:
@@ -172,24 +166,24 @@ class COBSProcessor
     {
         // Extracts the payload size from the payload_size variable. Expects that this variable is located at index
         // kPayloadSizeIndex of the buffer
-        uint8_t payload_size = payload_buffer[kPayloadSizeIndex];
+        const uint8_t payload_size = payload_buffer[kPayloadSizeIndex];
 
         // Also calculates the minimum buffer size that can store the payload and all metadata bytes. This is based on
         // the index of the overhead, which matches the size of the preamble + 2 to account for the overhead and the
         // delimiter bytes mandated by COBS specification.
-        auto minimum_required_buffer_size = static_cast<uint16_t>(payload_size + kOverheadByteIndex + 2);
+        const auto minimum_required_buffer_size = static_cast<uint16_t>(payload_size + kOverheadByteIndex + 2);
 
         // Prevents encoding empty payloads (as it is generally meaningless)
         if (payload_size < static_cast<uint8_t>(kCOBSProcessorLimits::kMinPayloadSize))
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize);
             return 0;
         }
 
         // Prevents encoding too large payloads (due to COBS limitations)
         else if (payload_size > static_cast<uint8_t>(kCOBSProcessorLimits::kMaxPayloadSize))
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize);
             return 0;
         }
 
@@ -197,17 +191,17 @@ class COBSProcessor
         // by this method. This guards against out-of-bounds memory access.
         if (static_cast<uint16_t>(buffer_size) < minimum_required_buffer_size)
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer);
             return 0;
         }
 
         // Checks that the input buffer's overhead byte placeholder is set to 0, which is not a valid value for an
-        // encoded buffer's overhead byte, so an overhead byte set to 0 indicates that the payload inside the buffer is
+        // encoded buffer's overhead byte. An overhead byte set to 0 indicates that the payload inside the buffer is
         // not encoded. This check is used to prevent accidentally running the encoder on already encoded data, which
         // will corrupt it.
         if (payload_buffer[kOverheadByteIndex] != 0)
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded);
             return 0;
         }
 
@@ -233,8 +227,8 @@ class COBSProcessor
         // overhead_byte stores the distance to the first delimiter_byte_value variable, which then is converted to
         // store the distance to the next delimiter_byte_value, all the way until the appended delimiter_byte is
         // reached. This way, the only instance of delimiter_byte_value will be found at the very end of the payload
-        // (and the overhead byte, at worst, will store the distance of 255, to point straight to that value).
-        for (uint16_t i = payload_end_index; i >= kPayloadStartIndex; i--)
+        // and the overhead byte, at worst, will store the distance of 255, to point straight to that value.
+        for (uint16_t i = payload_end_index; i >= kPayloadStartIndex; --i)
         {
             if (payload_buffer[i] == delimiter_byte_value)
             {
@@ -273,7 +267,7 @@ class COBSProcessor
         else payload_buffer[kOverheadByteIndex] = kDelimiterIndex - kOverheadByteIndex;
 
         // Sets the status to indicate that encoding was successful.
-        cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadEncoded);
+        cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadEncoded);
 
         // Returns the size of the packet accounting for the addition of the overhead byte and the delimiter byte. Once
         // this method is done running, the buffer looks like this:
@@ -309,11 +303,11 @@ class COBSProcessor
      *
      * @attention This method makes certain assumptions about the layout of the input buffer, which are set using the
      * class template parameters. To ensure assumptions are met, this method is not intended to be called directly.
-     * Instead, it should be called by the SerializedTransferProtocol class methods that instantiate the appropriate
+     * Instead, it should be called by the TransportLayer class methods that instantiate the appropriate
      * specification of this processor class.
      *
-     * @tparam buffer_size The size of the input buffer, calculated automatically via template. This ensures that all
-     * buffer-manipulating operations are performed within the buffer boundaries. This is crucial for avoiding
+     * @tparam buffer_size The size of the input buffer, calculated automatically via template. This ensures that
+     * buffer-manipulations are performed within the buffer boundaries. This is crucial for avoiding
      * unexpected behavior and/or data corruption.
      * @param packet_buffer The buffer (array) that holds the COBS-encoded packet to be decoded. Should conform to the
      * layout specified by the class template parameters.
@@ -327,7 +321,7 @@ class COBSProcessor
      *
      * @returns The size of the payload in bytes. Failed runtimes return 0. Use cobs_status class variable to obtain
      * specific runtime error code if the method fails (can be interpreted by using kCOBSProcessorCodes enumeration
-     * available through stp_shared_assets namespace).
+     * available through axtl_shared_assets namespace).
      *
      * Example usage:
      * @code
@@ -344,8 +338,8 @@ class COBSProcessor
     {
         // Extracts payload size expected to be found under index 1 of the input packet_buffer and uses it to calculate
         // the packet size (by adding the overhead and delimiter bytes to the payload size).
-        const uint8_t kPayloadSize                = packet_buffer[kPayloadSizeIndex];
-        const uint16_t kPacketSize                = kPayloadSize + 2;  // Includes overhead and delimiter bytes
+        const uint8_t kPayloadSize = packet_buffer[kPayloadSizeIndex];
+        const uint16_t kPacketSize = kPayloadSize + 2;  // Includes overhead and delimiter bytes
         // This is based on the index of the overhead, which matches the size of the preamble + 2 to account for the
         // overhead and the delimiter bytes mandated by COBS specification.
         const uint16_t kMinimumRequiredBufferSize = kPayloadSize + kOverheadByteIndex + 2;
@@ -355,7 +349,7 @@ class COBSProcessor
         // and delimiter byte).
         if (kPacketSize < static_cast<uint16_t>(kCOBSProcessorLimits::kMinPacketSize))
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize);
             return 0;
         }
 
@@ -363,7 +357,7 @@ class COBSProcessor
         // scheme).
         else if (kPacketSize > kCOBSProcessorLimits::kMaxPacketSize)
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize);
             return 0;
         }
 
@@ -371,7 +365,7 @@ class COBSProcessor
         // size bytes. This guards against accessing memory outside the buffer boundaries during runtime.
         if (static_cast<uint16_t>(buffer_size) < kMinimumRequiredBufferSize)
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer);
             return 0;
         }
 
@@ -380,7 +374,7 @@ class COBSProcessor
         // will corrupt the data, which is avoided via this check.
         if (packet_buffer[kOverheadByteIndex] == 0)
         {
-            cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded);
+            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded);
             return 0;
         }
 
@@ -415,7 +409,7 @@ class COBSProcessor
                 if (read_index == kDelimiterIndex)
                 {
                     // Sets the status to indicate that encoding was successful.
-                    cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kPayloadDecoded);
+                    cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadDecoded);
 
                     // Returns the decoded payload size
                     return kPayloadSize;
@@ -427,7 +421,7 @@ class COBSProcessor
                 else
                 {
                     cobs_status =
-                        static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly);
+                        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly);
                     return 0;
                 }
             }
@@ -447,7 +441,7 @@ class COBSProcessor
         // greater than or equal to the minimum_required_buffer_size (at most, >= 258), this means that the packet is
         // in some way malformed. Well-formed packets should always end in delimiter_byte_value reachable by traversing
         // COBS-encoding variables. In this case, sets the error status and returns 0.
-        cobs_status = static_cast<uint8_t>(stp_shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter);
+        cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter);
         return 0;
     }
 
@@ -456,4 +450,4 @@ class COBSProcessor
     static constexpr uint8_t kPayloadStartIndex = kOverheadByteIndex + 1;  // NOLINT(*-dynamic-static-initializers)
 };
 
-#endif  //STP_COBS_PROCESSOR_H
+#endif  //AXTL_COBS_PROCESSOR_H

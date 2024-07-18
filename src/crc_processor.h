@@ -31,7 +31,7 @@
  * This class is implemented as a template and all of its methods scale with the CRC polynomial type used during class
  * instantiation. This allows using the same class for all common polynomials used for CRC checksum calculations of
  * types uint8_t, uint16_t and uint32_t. This is part of a boarder effort to make the library sufficiently flexible to
- * be used on a wide variety of platforms, which includes microcontrollers and major PCs.
+ * be used on a wide variety of platforms, which includes microcontrollers and PCs.
  *
  * @note 64-bit+ polynomials are currently not supported, largely due to their fairly niche use case and issues
  * with using the existing testing environment with 64-bit variables. That said, the code is designed in a way that
@@ -43,25 +43,22 @@
  * @code
  * CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
  * @endcode
+ *
  * It is important to use the same template type argument as used by the polynomial (first argument of the class
  * constructor), as the class automatically scales all constructor arguments to the declared polynomial type template
  * parameter.
  *
  * @section crc_dependencies Dependencies:
  * - Arduino.h for Arduino platform methods and macros and cross-compatibility with Arduino IDE (to an extent).
- * - stp_shared_assets.h for shared library assets (mostly status byte-codes for library classes).
- *
- * @attention Due to the use of templates to improve class safety and versatility, this class only exists as an .h file
- * with no matching .cpp file. While templates can be defined in a .tpp, for embedded programming it is easier to use
- * the .h file.
+ * - axtl_shared_assets.h for shared library assets (mostly status byte-codes for library classes).
  */
 
-#ifndef STP_CRC_PROCESSOR_H
-#define STP_CRC_PROCESSOR_H
+#ifndef AXTL_CRC_PROCESSOR_H
+#define AXTL_CRC_PROCESSOR_H
 
 // Dependencies
 #include <Arduino.h>
-#include "stp_shared_assets.h"
+#include "axtl_shared_assets.h"
 
 /**
  * @class CRCProcessor
@@ -78,7 +75,7 @@
  *
  * @attention This class makes certain assumptions about the layout of the input buffers and, additionally, is very
  * sensitive to the correct constructor configuration (due to the high versatility of CRC-table generation method). Due
- * to these reasons, this class is intended to be used exclusively by the SerializedTransferProtocol class, which
+ * to these reasons, this class is intended to be used exclusively by the TransportLayer class, which
  * appropriately handles all assumptions and configuration requirements.
  *
  * @tparam PolynomialType The datatype of the CRC polynomial to be used by the class. Valid types are uint8_t, uint16_t
@@ -101,9 +98,9 @@ class CRCProcessor
     // and most likely not necessary for most use cases of this library. As such, at the time, there are no plans to
     // offer 64-bit polynomial support.
     static_assert(
-        stp_shared_assets::is_same_v<PolynomialType, uint8_t> ||
-            stp_shared_assets::is_same_v<PolynomialType, uint16_t> ||
-            stp_shared_assets::is_same_v<PolynomialType, uint32_t>,
+        axtl_shared_assets::is_same_v<PolynomialType, uint8_t> ||
+            axtl_shared_assets::is_same_v<PolynomialType, uint16_t> ||
+            axtl_shared_assets::is_same_v<PolynomialType, uint32_t>,
         "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, or uint32_t."
     );
 
@@ -112,7 +109,7 @@ class CRCProcessor
     /// specific errors encountered during crc checksum calculation or reading / writing crc checksum to buffers in the
     /// form of byte-codes taken from the kCRCProcessorCodes enumeration (available through stp_shared_assets
     /// namespace). Use the communicated status to precisely determine the runtime status of any class method.
-    uint8_t crc_status = static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kStandby);
+    uint8_t crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kStandby);
 
     /// The array that stores the CRC lookup table. The lookup table is used to speed-up CRC checksum calculation by
     /// pre-computing the checksum value for each possible byte-value (from 0 through 255: 256 values total). The table
@@ -151,7 +148,7 @@ class CRCProcessor
      * This method loops over packet_size bytes starting with start_index inside the buffer and iteratively computes a
      * CRC checksum for the data.
      *
-     * The method is primarily intended to be used on the buffers of the SerializedTransferProtocol class and was
+     * The method is primarily intended to be used on the buffers of the TransportLayer class and was
      * constructed to work with their specific layout. However, the method is implemented in a way that it can be
      * flexibly configured for any buffer layout.
      *
@@ -169,7 +166,7 @@ class CRCProcessor
      * fits inside the buffer and will not lead to an out-of-bounds access. This guards against undefined behavior and
      * potential data corruption.
      * @param buffer The buffer that stores the data to be checksummed. This is intended to be a well-formed and
-     * COBS-encoded packet to be sent to the PC using SerializedTransferProtocol class. That said, the method will
+     * COBS-encoded packet to be sent to the PC using TransportLayer class. That said, the method will
      * checksum any valid byte-array.
      * @param start_index The index that points to the first byte-value of the portion of the data inside the input
      * buffer to be checksummed (where to start check-summing from). This is helpful to limit the checksum calculation
@@ -204,7 +201,7 @@ class CRCProcessor
         if ((static_cast<uint16_t>(buffer_size) - start_index) < (packet_size))
         {
             crc_status =
-                static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall);
+                static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall);
 
             // NOTE, unlike most other methods, ANY returned value of this method is potentially valid, so 0 here is
             // just a placeholder. If the method returns 0, this DOES NOT mean the method failed its runtime. That can
@@ -239,7 +236,7 @@ class CRCProcessor
         crc_checksum ^= kFinalXORValue;
 
         // Sets the status to indicate runtime success and returns calculated checksum to the caller.
-        crc_status = static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated);
+        crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated);
         return crc_checksum;
     }
 
@@ -296,7 +293,7 @@ class CRCProcessor
         // Ensures there is enough space in the buffer for the CRC to be added at the start index.
         if (kCRCByteLength > static_cast<uint16_t>(buffer_size) - start_index)
         {
-            crc_status = static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kAddCRCChecksumBufferTooSmall);
+            crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kAddCRCChecksumBufferTooSmall);
             return 0;
         }
 
@@ -311,7 +308,7 @@ class CRCProcessor
 
         // Returns the new size of the buffer after appending the CRC checksum to it and also sets the crc_status
         // appropriately.
-        crc_status = static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kCRCChecksumAddedToBuffer);
+        crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumAddedToBuffer);
         return start_index + kCRCByteLength;
     }
 
@@ -363,7 +360,7 @@ class CRCProcessor
         // Ensures the CRC checksum to read is fully within the bounds of the buffer
         if (kCRCByteLength > static_cast<uint16_t>(buffer_size) - start_index)
         {
-            crc_status = static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kReadCRCChecksumBufferTooSmall);
+            crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kReadCRCChecksumBufferTooSmall);
             // Note, similar to checksum calculator method, 0 is a perfectly valid number. The only way to determine the
             // runtime status of the method is to use the crc_status byte-code.
             return 0;
@@ -380,7 +377,7 @@ class CRCProcessor
         }
 
         // Returns the extracted crc to caller and sets the crc_status appropriately.
-        crc_status = static_cast<uint8_t>(stp_shared_assets::kCRCProcessorCodes::kCRCChecksumReadFromBuffer);
+        crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumReadFromBuffer);
         return static_cast<PolynomialType>(extracted_crc);
     }
 
@@ -468,4 +465,4 @@ class CRCProcessor
     }
 };
 
-#endif  //STP_CRC_PROCESSOR_H
+#endif  //AXTL_CRC_PROCESSOR_H
