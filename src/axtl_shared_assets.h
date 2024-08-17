@@ -9,9 +9,9 @@
  * ataraxis-transport-layer library.
  *
  * This file contains:
- * - kCOBSProcessorCodes structure that stores status bytecodes used by the COBSProcessor to report it's runtime status.
- * - kCRCProcessorCodes structure that stores status bytecodes used by the CRCProcessor to report it's runtime status.
- * - kTLStatusCodes structure that stores status bytecodes used by the TransportLayer to report it's runtime status.
+ * - kCOBSProcessorCodes structure that stores status bytecodes used by the COBSProcessor to report its runtime status.
+ * - kCRCProcessorCodes structure that stores status bytecodes used by the CRCProcessor to report its runtime status.
+ * - kTLStatusCodes structure that stores status bytecodes used by the TransportLayer to report its runtime status.
  * - A custom implementation of the is_same_v() standard method used to verify that two input objects have the same
  * type.
  *
@@ -44,8 +44,8 @@ namespace axtl_shared_assets
      * @enum kCOBSProcessorCodes
      * @brief Assigns meaningful names to all status codes used by the COBSProcessor class.
      *
-     * @note Due to a unified approach to status-coding in this library, this enumeration should only use code values in
-     * the range of 11 through 50. This is to simplify chained error handling in the TransportLayer class of the
+     * @note Due to the unified approach to status-coding in this library, this enumeration should only use code values
+     * in the range of 11 through 50. This is to simplify chained error handling in the TransportLayer class of the
      * library.
      */
     enum class kCOBSProcessorCodes : uint8_t
@@ -69,7 +69,7 @@ namespace axtl_shared_assets
      * @enum kCRCProcessorCodes
      * @brief Assigns meaningful names to all status codes used by the CRCProcessor class.
      *
-     * @note Due to a unified approach to error-code handling in this library, this enumeration should only use code
+     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
      * values in the range of 51 through 100. This is to simplify chained error handling in the
      * TransportLayer class of the library.
      */
@@ -88,14 +88,14 @@ namespace axtl_shared_assets
      * @enum kTransportLayerStatusCodes
      * @brief Assigns meaningful names to all status codes used by the TransportLayer class.
      *
-     * @note Due to a unified approach to error-code handling in this library, this enumeration should only use code
+     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
      * values in the range of 101 through 150. This is to simplify chained error handling in the
      * TransportLayer class of the library.
      */
     enum class kTransportLayerStatusCodes : uint8_t
     {
         kStandby                      = 101,  ///< The default value used to initialize the transfer_status variable
-        kPacketConstructed            = 102,  ///< Packet was sucessfully constructed
+        kPacketConstructed            = 102,  ///< Packet was successfully constructed
         kPacketSent                   = 103,  ///< Packet was successfully transmitted
         kPacketStartByteFound         = 104,  ///< Packet start byte was found
         kPacketStartByteNotFoundError = 105,  ///< Packet start byte was not found in the incoming stream
@@ -115,7 +115,7 @@ namespace axtl_shared_assets
     };
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
-    // that is available to Teensy, some useful assets have to be reimplemented manually. They are implemented in as
+    // that is available to Teensy, some assets had to be reimplemented manually. They are implemented in as
     // similar of a way as possible to be drop-in replaceable with std:: namespace.
 
     /**

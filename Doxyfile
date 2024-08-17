@@ -9,8 +9,8 @@ OUTPUT_DIRECTORY       = docs/source/doxygen
 OUTPUT_LANGUAGE        = English
 INPUT                  = src/cobs_processor.h \
                          src/crc_processor.h \
-                         src/serialized_transfer_protocol.h \
-                         src/stp_shared_assets.h \
+                         src/transport_layer.h \
+                         src/axtl_shared_assets.h \
                          src/stream_mock.h
 GENERATE_XML           = YES
 XML_OUTPUT             = xml

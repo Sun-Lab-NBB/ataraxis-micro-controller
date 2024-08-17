@@ -1,9 +1,9 @@
 #include "Arduino.h"
 #include "elapsedMillis.h"
-#include "serialized_transfer_protocol.h"
+#include "transport_layer.h"
 
 // Initializes the serial protocol class. Note, passes Serial class reference but does not open the serial port.
-SerializedTransferProtocol<uint16_t, 254, 254, 1>
+TransportLayer<uint16_t>
     protocol(Serial, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);  // NOLINT(*-interfaces-global-init)
 uint8_t in_data[7] = {1, 2, 3, 4, 5, 6, 7};
 elapsedMicros timer;
@@ -20,9 +20,8 @@ void loop()
 {
     if (protocol.Available())
     {
-        timer              = 0;
-        bool data_received = protocol.ReceiveData();
-        if (data_received)
+        timer = 0;
+        if (protocol.ReceiveData())
         {
             protocol.ReadData(in_data);
             add_index = protocol.WriteData(in_data, 0);

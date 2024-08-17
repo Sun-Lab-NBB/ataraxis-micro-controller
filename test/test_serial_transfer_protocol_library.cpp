@@ -4,13 +4,13 @@
 // tests to be evaluated to the RunUnityTests function at the bottom of this file. Comment unused tests out if needed.
 
 // Dependencies
-#include <Arduino.h>                       // For Arduino functions
-#include <unity.h>                         // This is the C testing framework, no connection to the Unity game engine
-#include "cobs_processor.h"                // COBSProcessor class
-#include "crc_processor.h"                 // CRCProcessor class
-#include "serialized_transfer_protocol.h"  // SerializedTransferProtocol class
-#include "stream_mock.h"                   // StreamMock class required for SerializedTransferProtocol class testing
+#include <Arduino.h>  // For Arduino functions
+#include <unity.h>    // This is the C testing framework, no connection to the Unity game engine
 #include "axtl_shared_assets.h"
+#include "cobs_processor.h"   // COBSProcessor class
+#include "crc_processor.h"    // CRCProcessor class
+#include "stream_mock.h"      // StreamMock class required for SerializedTransferProtocol class testing
+#include "transport_layer.h"  // SerializedTransferProtocol class
 
 // This function is called automatically before each test function. Currently not used.
 void setUp(void)
