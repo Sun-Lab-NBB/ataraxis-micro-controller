@@ -1,5 +1,5 @@
-#include "Arduino.h"
-#include "elapsedMillis.h"
+#include <Arduino.h>
+#include <elapsedMillis.h>
 #include "transport_layer.h"
 
 // Initializes the serial protocol class. Note, passes Serial class reference but does not open the serial port.
