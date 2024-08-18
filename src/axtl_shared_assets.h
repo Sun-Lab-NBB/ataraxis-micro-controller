@@ -19,7 +19,7 @@
  *
  * The primary reason for having this file is to store all byte-code enumerations in the same place. To simplify
  * error handling, all codes available through this namespace have to be unique relative to each other. For example, if
- * the value 11 is used to represent 'Standby' state for CRCProcessor, no other status should be using the value 11).
+ * value 11 is used to represent 'Standby' state for CRCProcessor, no other status should be using value 11).
  *
  * @section axtl_sa_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
@@ -28,6 +28,7 @@
 #ifndef AXTL_SHARED_ASSETS_H
 #define AXTL_SHARED_ASSETS_H
 
+// Dependencies
 #include <Arduino.h>
 
 /**
@@ -56,12 +57,12 @@ namespace axtl_shared_assets
         kEncoderPacketLargerThanBuffer = 14,  ///< Encoded payload buffer is too small to accommodate the packet
         kPayloadAlreadyEncoded         = 15,  ///< Cannot encode payload as it is already encoded (overhead value != 0)
         kPayloadEncoded                = 16,  ///< Payload was successfully encoded into a transmittable packet
-        kDecoderTooSmallPacketSize     = 17,  ///< Decoder failed to decode packet because packet size is too small
-        kDecoderTooLargePacketSize     = 18,  ///< Decoder failed to decode packet because packet size is too large
+        kDecoderTooSmallPacketSize     = 17,  ///< Decoder failed to decode the packet because packet size is too small
+        kDecoderTooLargePacketSize     = 18,  ///< Decoder failed to decode the packet because packet size is too large
         kDecoderPacketLargerThanBuffer = 19,  ///< Packet size to be decoded is larger than the storage buffer size
         kDecoderUnableToFindDelimiter  = 20,  ///< Decoder failed to find the delimiter at the end of the packet
         kDecoderDelimiterFoundTooEarly = 21,  ///< Decoder found a delimiter before reaching the end of the packet
-        kPacketAlreadyDecoded          = 22,  ///< Cannot decode packet as it is already decoded (overhead value == 0)
+        kPacketAlreadyDecoded          = 22,  ///< Cannot decode the packet as it is already decoded (overhead == 0)
         kPayloadDecoded                = 23,  ///< Payload was successfully decoded from the received packet
     };
 
@@ -76,7 +77,7 @@ namespace axtl_shared_assets
     enum class kCRCProcessorCodes : uint8_t
     {
         kStandby                            = 51,  ///< The value used to initialize the crc_status variable
-        kCalculateCRCChecksumBufferTooSmall = 52,  ///< Checksum calculator failed due to packet exceeding buffer space
+        kCalculateCRCChecksumBufferTooSmall = 52,  ///< Checksum calculator failed, the packet exceeds buffer space
         kCRCChecksumCalculated              = 53,  ///< Checksum was successfully calculated
         kAddCRCChecksumBufferTooSmall       = 54,  ///< Not enough remaining buffer space to add checksum to buffer
         kCRCChecksumAddedToBuffer           = 55,  ///< Checksum was successfully added to the buffer
@@ -105,7 +106,7 @@ namespace axtl_shared_assets
         kPacketTimeoutError           = 109,  ///< Packet parsing failed due to stalling (reception timeout)
         kNoBytesToParseFromBuffer     = 110,  ///< Stream class reception buffer had no packet bytes to parse
         kPacketParsed                 = 111,  ///< Packet was successfully parsed
-        kCRCCheckFailed               = 112,  ///< CRC check failed, incoming packet corrupted
+        kCRCCheckFailed               = 112,  ///< CRC check failed, the incoming packet is corrupted
         kPacketValidated              = 113,  ///< Packet was successfully validated
         kPacketReceived               = 114,  ///< Packet was successfully received
         kWriteObjectBufferError       = 115,  ///< Not enough space in the buffer payload region to write the object
@@ -125,7 +126,7 @@ namespace axtl_shared_assets
      * @tparam U The second type.
      *
      * This struct is used to compare two types at compile-time. It defines a static constant member `value` which is
-     * set to `false` by default, indicating that the two types are not the same.
+     * set to `false` by default, indicating that the two types are different.
      */
     template <typename T, typename U>
     struct is_same
@@ -162,7 +163,7 @@ namespace axtl_shared_assets
      * Example usage:
      * @code
      * static_assert(is_same_v<int, int>, "int and int are the same");
-     * static_assert(!is_same_v<int, float>, "int and float are not the same");
+     * static_assert(!is_same_v<int, float>, "int and float are different");
      * @endcode
      */
     template <typename T, typename U>

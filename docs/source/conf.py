@@ -15,9 +15,9 @@ extensions = [
 
 # Breathe configuration
 # Specifies the source of the C++ documentation
-breathe_projects = {"SerializedTransferProtocol_Microcontroller": "./doxygen/xml"}
+breathe_projects = {"ataraxis-tl-microcontroller": "./doxygen/xml"}
 # Specifies default project name if C++ documentation is not available
-breathe_default_project = "SerializedTransferProtocol_Microcontroller"
+breathe_default_project = "ataraxis-tl-microcontroller"
 
 templates_path = ['_templates']
 exclude_patterns = []

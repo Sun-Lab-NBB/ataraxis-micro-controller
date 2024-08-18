@@ -4,32 +4,32 @@
 API Documentation
 =========================
 
-Serialized Transfer Protocol
-----------------------------
+Transport Layer
+---------------
 
-.. doxygenfile:: serialized_transfer_protocol.h
-   :project: SerializedTransferProtocol_Microcontroller
+.. doxygenfile:: transport_layer.h
+   :project: ataraxis-tl-microcontroller
 
 COBS Processor
 --------------
 
 .. doxygenfile:: cobs_processor.h
-   :project: SerializedTransferProtocol_Microcontroller
+   :project: ataraxis-tl-microcontroller
 
 CRC Processor
 -------------
 
 .. doxygenfile:: crc_processor.h
-   :project: SerializedTransferProtocol_Microcontroller
+   :project: ataraxis-tl-microcontroller
 
 Stream Mock
 -----------
 
 .. doxygenfile:: stream_mock.h
-   :project: SerializedTransferProtocol_Microcontroller
+   :project: ataraxis-tl-microcontroller
 
 STP Shared Assets
 -----------------
 
-.. doxygenfile:: stp_shared_assets.h
-   :project: SerializedTransferProtocol_Microcontroller
+.. doxygenfile:: axtl_shared_assets.h
+   :project: ataraxis-tl-microcontroller
