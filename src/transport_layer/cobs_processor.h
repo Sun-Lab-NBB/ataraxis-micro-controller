@@ -40,15 +40,15 @@
  *
  * @section cobs_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - axtl_shared_assets.h For COBS-related status codes.
+ * - shared_assets.h For COBS-related status codes.
  */
 
-#ifndef AXTL_COBS_PROCESSOR_H
-#define AXTL_COBS_PROCESSOR_H
+#ifndef AXMC_COBS_PROCESSOR_H
+#define AXMC_COBS_PROCESSOR_H
 
 //Dependencies
 #include <Arduino.h>
-#include "axtl_shared_assets.h"
+#include "shared_assets.h"
 
 /**
  * @struct kCOBSProcessorLimits
@@ -108,9 +108,9 @@ class COBSProcessor
   public:
     /// Stores the latest runtime status of the COBSProcessor. This variable is primarily designed to communicate
     /// the specific errors encountered during encoding or decoding in the form of byte-codes taken from the
-    /// kCOBSProcessorCodes enumeration (available through axtl_shared_assets namespace). Use the communicated status to
+    /// kCOBSProcessorCodes enumeration (available through shared_assets namespace). Use the communicated status to
     /// precisely determine the runtime status of any class method.
-    uint8_t cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kStandby);
+    uint8_t cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kStandby);
 
     /**
      * @brief Encodes the input payload in-place, according to COBS scheme.
@@ -149,7 +149,7 @@ class COBSProcessor
      *
      * @returns uint16_t The size of the encoded packet in bytes, which includes the overhead and delimiter byte
      * values. Failed runtimes return 0. Use cobs_status class variable to get specific runtime error code if the
-     * method fails (can be interpreted by using kCOBSProcessorCodes enumeration available through axtl_shared_assets
+     * method fails (can be interpreted by using kCOBSProcessorCodes enumeration available through shared_assets
      * namespace).
      *
      * Example usage:
@@ -177,14 +177,14 @@ class COBSProcessor
         // Prevents encoding empty payloads (as it is generally meaningless)
         if (payload_size < static_cast<uint8_t>(kCOBSProcessorLimits::kMinPayloadSize))
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize);
             return 0;
         }
 
         // Prevents encoding too large payloads (due to COBS limitations)
         if (payload_size > static_cast<uint8_t>(kCOBSProcessorLimits::kMaxPayloadSize))
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize);
             return 0;
         }
 
@@ -192,7 +192,7 @@ class COBSProcessor
         // by this method. This guards against out-of-bounds memory access.
         if (static_cast<uint16_t>(buffer_size) < minimum_required_buffer_size)
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer);
             return 0;
         }
 
@@ -202,7 +202,7 @@ class COBSProcessor
         // will corrupt it.
         if (payload_buffer[kOverheadByteIndex] != 0)
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded);
             return 0;
         }
 
@@ -268,7 +268,7 @@ class COBSProcessor
         else payload_buffer[kOverheadByteIndex] = kDelimiterIndex - kOverheadByteIndex;
 
         // Sets the status to indicate that encoding was successful.
-        cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadEncoded);
+        cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadEncoded);
 
         // Returns the size of the packet accounting for the addition of the overhead byte and the delimiter byte. Once
         // this method is done running, the buffer looks like this:
@@ -322,7 +322,7 @@ class COBSProcessor
      *
      * @returns The size of the payload in bytes. Failed runtimes return 0. Use cobs_status class variable to get
      * specific runtime error code if the method fails (can be interpreted by using kCOBSProcessorCodes enumeration
-     * available through axtl_shared_assets namespace).
+     * available through shared_assets namespace).
      *
      * Example usage:
      * @code
@@ -350,7 +350,7 @@ class COBSProcessor
         // and delimiter byte).
         if (kPacketSize < static_cast<uint16_t>(kCOBSProcessorLimits::kMinPacketSize))
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize);
             return 0;
         }
 
@@ -358,7 +358,7 @@ class COBSProcessor
         // scheme).
         if (kPacketSize > kCOBSProcessorLimits::kMaxPacketSize)
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize);
             return 0;
         }
 
@@ -366,7 +366,7 @@ class COBSProcessor
         // size bytes. This guards against accessing memory outside the buffer boundaries during runtime.
         if (static_cast<uint16_t>(buffer_size) < kMinimumRequiredBufferSize)
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer);
             return 0;
         }
 
@@ -375,7 +375,7 @@ class COBSProcessor
         // will corrupt the data, which is avoided via this check.
         if (packet_buffer[kOverheadByteIndex] == 0)
         {
-            cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded);
+            cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded);
             return 0;
         }
 
@@ -410,7 +410,7 @@ class COBSProcessor
                 if (read_index == kDelimiterIndex)
                 {
                     // Sets the status to indicate that encoding was successful.
-                    cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadDecoded);
+                    cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadDecoded);
 
                     // Returns the decoded payload size
                     return kPayloadSize;
@@ -422,7 +422,7 @@ class COBSProcessor
                 else
                 {
                     cobs_status =
-                        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly);
+                        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly);
                     return 0;
                 }
             }
@@ -442,7 +442,7 @@ class COBSProcessor
         // greater than or equal to the minimum_required_buffer_size (at most, >= 258), this means that the packet is
         // in some way malformed. Well-formed packets should always end in delimiter_byte_value reachable by traversing
         // COBS-encoding variables. In this case, sets the error status and returns 0.
-        cobs_status = static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter);
+        cobs_status = static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter);
         return 0;
     }
 
@@ -451,4 +451,4 @@ class COBSProcessor
     static constexpr uint8_t kPayloadStartIndex = kOverheadByteIndex + 1;  // NOLINT(*-dynamic-static-initializers)
 };
 
-#endif  //AXTL_COBS_PROCESSOR_H
+#endif  //AXMC_COBS_PROCESSOR_H

@@ -1,45 +1,46 @@
 /**
  * @file
- * @brief The header-only file that stores all assets intended to be shared between ataraxis-transport-layer library
- * classes wrapped into a common namespace.
+ * @brief The header-only file that stores all general assets intended to be shared between library classes wrapped
+ * into a common namespace.
  *
- * @section axtl_sa_description Description:
- *
- * This file aggregates all general assets that have to be shared between multiple classes of the
- * ataraxis-transport-layer library.
+ * @section axmc_sa_description Description:
  *
  * This file contains:
- * - kCOBSProcessorCodes structure that stores status bytecodes used by the COBSProcessor to report its runtime status.
- * - kCRCProcessorCodes structure that stores status bytecodes used by the CRCProcessor to report its runtime status.
- * - kTLStatusCodes structure that stores status bytecodes used by the TransportLayer to report its runtime status.
+ * - kCOBSProcessorCodes enumeration that stores status bytecodes used by the COBSProcessor to report its runtime
+ * status.
+ * - kCRCProcessorCodes enumeration that stores status bytecodes used by the CRCProcessor to report its runtime status.
+ * - kTransportLayerStatusCodes enumeration that stores status bytecodes used by the TransportLayer to report its
+ * runtime status.
+ * - kCommunicationStatusCodes enumeration that stores status bytecodes used by the Communication to report its runtime
+ * status.
  * - A custom implementation of the is_same_v() standard method used to verify that two input objects have the same
  * type.
  *
- * @section axtl_sa_developer_notes Developer Notes:
+ * @section axmc_sa_developer_notes Developer Notes:
  *
  * The primary reason for having this file is to store all byte-code enumerations in the same place. To simplify
  * error handling, all codes available through this namespace have to be unique relative to each other. For example, if
  * value 11 is used to represent 'Standby' state for CRCProcessor, no other status should be using value 11).
  *
- * @section axtl_sa_dependencies Dependencies:
+ * @section axmc_sa_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  */
 
-#ifndef AXTL_SHARED_ASSETS_H
-#define AXTL_SHARED_ASSETS_H
+#ifndef AXMC_SHARED_ASSETS_H
+#define AXMC_SHARED_ASSETS_H
 
 // Dependencies
 #include <Arduino.h>
 
 /**
- * @namespace axtl_shared_assets
+ * @namespace shared_assets
  * @brief Provides all assets (structures, enumerations, functions) that are intended to be shared between the classes
- * of the ataraxis-transport-layer library.
+ * of the library.
  *
  * The shared assets are primarily used to simplify library development by storing co-dependent assets in the same
  * place. Additionally, it simplifies using these assets with template classes from the library.
  */
-namespace axtl_shared_assets
+namespace shared_assets
 {
     /**
      * @enum kCOBSProcessorCodes
@@ -115,6 +116,91 @@ namespace axtl_shared_assets
         kObjectReadFromBuffer         = 118,  ///< The object has been read from the buffer
     };
 
+    /**
+     * @enum kCommunicationStatusCodes
+     * @brief Assigns meaningful names to all status codes used by the Communication class.
+     *
+     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
+     * values in the range of 151 through 200. This is to simplify chained error handling in the Communication class
+     * of the library.
+     */
+    enum class kCommunicationStatusCodes : uint8_t
+    {
+        kStandby           = 151,  ///< Standby placeholder used to initialize the status tracker.
+    };
+
+    /**
+     * @struct ControllerRuntimeParameters
+     * @brief Stores global runtime parameters that are addressable through the Communication interface to broadly
+     * configure Controller behavior.
+     *
+     * The scope of modification realized through these parameters is very broad and affects many downstream methods and
+     * runtime behavior patterns. Additionally, since all of these parameters can be dynamically changed during runtime,
+     * this allows to change Controller behavior on-the-fly, which is in contrast to some other broad parameters that
+     * are statically defined. Primarily, this is helpful when working with precisely configured Controllers tightly
+     * embedded in an actively used experimental control system that should not be radically altered by software or
+     * physical pinout modifications.
+     *
+     * @warning This structure is defined in shared_assets.h as it is used by multiple Core level classes. However,
+     * the @b only class allowed to modify this structure is the Kernel class. While each Module-derived
+     * class requires an instance of this structure to properly support runtime behavior, that instance is introduced
+     * by referencing the root instance of the Kernel class. Interfering with this declaration and use pattern may
+     * result in unexpected behavior and should be avoided if possible.
+     *
+     * To enforce the user-pattern described above, the only class that contains the functionality and, more
+     * importantly, the address-codes enumeration is the Kernel class. If you need to add or modify variables of
+     * this structure, be sure to properly update structure modification methods and address-codes stored inside the
+     * Kernel class.
+     */
+    struct ControllerRuntimeParameters
+    {
+        /// Enables running the controller logic without physically issuing commands. This is helpful for testing and
+        /// debugging microcontroller systems. Specifically, blocks @b action pins from writing. Sensor and TTL pins are
+        /// unaffected by this variable's state.
+        bool action_lock = true;
+
+        /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Currently only applies to
+        /// TTL Module commands, but, in the future, may be tied to any Module that sends a ttl pulse of any kind
+        /// using digital pins. The reason this is separate from action_lock is because action pins connected to
+        /// physical systems are often capable of damaging connected systems if the code that runs them is not properly
+        /// calibrated. Conversely, this is usually not a concern for ttl signals that convey information without
+        /// triggering any physical changes in the connected systems. As such, it is not uncommon to have a use case
+        /// where action_lock needs to be enabled without enabling the ttl_lock.
+        bool ttl_lock = true;
+
+        /// Controls whether the controller uses simulated or real sensor readout values. To support python-driven AMC
+        /// tests, all code comes with simulation capacity where necessary. Specifically, when set to @b true, this
+        /// parameter forces all functions to return code-generated values rather than real-world derived values.
+        /// For example, instead of reading a sensor the code will return a random or predefined sensor value as if it
+        /// was obtained by reading the sensor.
+        bool simulate_responses = false;
+
+        /// If simulate_responses is set to @b true, determines whether simulated values are generated using random()
+        /// function or a predefined simulated_value. The random approach is good for longitudinal speed / pipeline
+        /// resilience testing as it is a better approximation of real world performance in certain scenarios and the
+        /// predefined approach is good for unit-testing PC-Controller interactions and logic. If random generation
+        /// (simulation) is used, the range of random generation is set to the maximum resolution of the expected output
+        /// variable type.
+        bool simulate_specific_responses = false;
+
+        /// If simulate_specific_responses is @b true, this is the value that will be returned by EVERY sensor-reading
+        /// function call. If this value does not fit into the bit-size of the variable expected from a particular
+        /// function that calls the simulation sub-routine, the returned value will actually be the maximum value
+        /// supported by the variable's bit-size. For example, if this variable is a 1000, and it is used to simulate
+        /// the response of a sensor that can only read HIGH or LOW (bool), the number 1000 will be converted to HIGH
+        /// and returned as HIGH (1).
+        uint32_t simulated_value = 1000;
+
+        /// Allows to enforce a specific @em minimum sensor-loop lock duration in @b microseconds. This variable
+        /// specifically affects the loops that lock until particular sensor value is encountered. These loops are
+        /// modified indirectly via the simulate_specific_responses variable that, if @b false, introduces a random
+        /// readout component where each call to the sensor reading function will return a random value that may or may
+        /// not satisfy the loop exit requirement. This variable acts as an additional simulation step which will
+        /// prevent loop breaking until the specified number of microseconds has passed, even if the sensor value
+        /// criterion has been satisfied.
+        uint32_t minimum_lock_duration = 20000;
+    };
+
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
     // that is available to Teensy, some assets had to be reimplemented manually. They are implemented in as
     // similar of a way as possible to be drop-in replaceable with std:: namespace.
@@ -169,6 +255,6 @@ namespace axtl_shared_assets
     template <typename T, typename U>
     constexpr bool is_same_v = is_same<T, U>::value;  // NOLINT(*-dynamic-static-initializers)
 
-}  // namespace axtl_shared_assets
+}  // namespace shared_assets
 
-#endif  //AXTL_SHARED_ASSETS_H
+#endif  //AXMC_SHARED_ASSETS_H

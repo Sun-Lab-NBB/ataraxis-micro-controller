@@ -50,15 +50,15 @@
  *
  * @section crc_dependencies Dependencies:
  * - Arduino.h for Arduino platform methods and macros and cross-compatibility with Arduino IDE (to an extent).
- * - axtl_shared_assets.h for shared library assets (mostly status byte-codes for library classes).
+ * - shared_assets.h for shared library assets (mostly status byte-codes for library classes).
  */
 
-#ifndef AXTL_CRC_PROCESSOR_H
-#define AXTL_CRC_PROCESSOR_H
+#ifndef AXMC_CRC_PROCESSOR_H
+#define AXMC_CRC_PROCESSOR_H
 
 // Dependencies
 #include <Arduino.h>
-#include "axtl_shared_assets.h"
+#include "shared_assets.h"
 
 /**
  * @class CRCProcessor
@@ -98,18 +98,18 @@ class CRCProcessor
     // and most likely not necessary for most use cases of this library. As such, at the time, there are no plans to
     // offer 64-bit polynomial support.
     static_assert(
-        axtl_shared_assets::is_same_v<PolynomialType, uint8_t> ||
-            axtl_shared_assets::is_same_v<PolynomialType, uint16_t> ||
-            axtl_shared_assets::is_same_v<PolynomialType, uint32_t>,
+        shared_assets::is_same_v<PolynomialType, uint8_t> ||
+            shared_assets::is_same_v<PolynomialType, uint16_t> ||
+            shared_assets::is_same_v<PolynomialType, uint32_t>,
         "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, or uint32_t."
     );
 
   public:
     /// Stores the latest runtime status of the CRCProcessor. This variable is primarily designed to communicate the
     /// specific errors encountered during crc checksum calculation or reading / writing crc checksum to buffers. It
-    /// uses byte-codes taken from the kCRCProcessorCodes enumeration (available through stp_shared_assets
+    /// uses byte-codes taken from the kCRCProcessorCodes enumeration (available through shared_assets
     /// namespace). Use the communicated status to precisely determine the runtime status of any class method.
-    uint8_t crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kStandby);
+    uint8_t crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kStandby);
 
     /// The array that stores the CRC lookup table. The lookup table is used to speed up CRC checksum calculation by
     /// pre-computing the checksum value for each possible byte-value (from 0 through 255: 256 values total). The table
@@ -178,7 +178,7 @@ class CRCProcessor
      * @returns PolynomialType The CRC checksum of the requested data cast to the appropriate type based on the
      * polynomial type (uint8_t, uint16_t, uint32_t). Make sure to use the crc_status class variable to determine the
      * success or failure status of the method based on the byte-code it is set to after the method's runtime. The
-     * crc_status can be interpreted using kCRCProcessorCodes enumeration available through stp_shared_assets namespace.
+     * crc_status can be interpreted using kCRCProcessorCodes enumeration available through shared_assets namespace.
      *
      * Example usage:
      * @code
@@ -201,7 +201,7 @@ class CRCProcessor
         if (static_cast<uint16_t>(buffer_size) - start_index < packet_size)
         {
             crc_status =
-                static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall);
+                static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall);
 
             // NOTE, unlike most other methods, ANY returned value of this method is potentially valid, so 0 here is
             // just a placeholder. If the method returns 0, this DOES NOT mean the method failed its runtime. That can
@@ -236,7 +236,7 @@ class CRCProcessor
         crc_checksum ^= kFinalXORValue;
 
         // Sets the status to indicate runtime success and returns calculated checksum to the caller.
-        crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated);
+        crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated);
         return crc_checksum;
     }
 
@@ -272,7 +272,7 @@ class CRCProcessor
      * start_index + crc_checksum byte-size. Returns 0 if method runtime fails to indicate no data has been added to
      * the buffer. Use crc_status to determine the particular error that led to runtime failure (or success code if the
      * method succeeds). The status byte-codes can be interpreted using kCRCProcessorCodes enumeration available
-     * through stp_shared_assets namespace.
+     * through shared_assets namespace.
      *
      * Example usage:
      * @code
@@ -293,7 +293,7 @@ class CRCProcessor
         // Ensures there is enough space in the buffer for the CRC to be added at the start index.
         if (kCRCByteLength > static_cast<uint16_t>(buffer_size) - start_index)
         {
-            crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kAddCRCChecksumBufferTooSmall);
+            crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kAddCRCChecksumBufferTooSmall);
             return 0;
         }
 
@@ -308,7 +308,7 @@ class CRCProcessor
 
         // Returns the new size of the buffer after appending the CRC checksum to it and also sets the crc_status
         // appropriately.
-        crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumAddedToBuffer);
+        crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumAddedToBuffer);
         return start_index + kCRCByteLength;
     }
 
@@ -344,7 +344,7 @@ class CRCProcessor
      * template argument (so if the class was initialized with uint8_t PolynomialType, the returned CRC checksum will
      * also use uint8_t, etc.). The returned value itself is not meaningful until it is verified using the status
      * code available through the crc_status variable of the class. The returned status byte-code can be interpreted
-     * using the kCRCProcessorCodes enumeration available through stp_shared_assets namespace.
+     * using the kCRCProcessorCodes enumeration available through shared_assets namespace.
      *
      * Example usage:
      * @code
@@ -360,7 +360,7 @@ class CRCProcessor
         // Ensures the CRC checksum to read is fully within the bounds of the buffer
         if (kCRCByteLength > static_cast<uint16_t>(buffer_size) - start_index)
         {
-            crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kReadCRCChecksumBufferTooSmall);
+            crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kReadCRCChecksumBufferTooSmall);
             // Note. Similar to checksum calculator method, 0 is a perfectly valid number. The only way to determine the
             // runtime status of the method is to use the crc_status byte-code.
             return 0;
@@ -377,7 +377,7 @@ class CRCProcessor
         }
 
         // Returns the extracted crc to caller and sets the crc_status appropriately.
-        crc_status = static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumReadFromBuffer);
+        crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumReadFromBuffer);
         return static_cast<PolynomialType>(extracted_crc);
     }
 
@@ -465,4 +465,4 @@ class CRCProcessor
     }
 };
 
-#endif  //AXTL_CRC_PROCESSOR_H
+#endif  //AXMC_CRC_PROCESSOR_H

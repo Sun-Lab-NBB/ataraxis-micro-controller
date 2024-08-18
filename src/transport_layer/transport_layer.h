@@ -58,18 +58,18 @@
  * - cobs_processor.h for COBS encoding and decoding methods.
  * - crc_processor.h for CRC calculation method, as well as crc-specific buffer manipulation methods.
  * - elapsedMillis.h for managing packet reception timers.
- * - axtl_shared_assets.h for shared library assets (status byte-codes for the class and is_same_v for static guards).
+ * - shared_assets.h for shared library assets (status byte-codes for the class and is_same_v for static guards).
  */
 
-#ifndef AXTL_TRANSPORT_LAYER_H
-#define AXTL_TRANSPORT_LAYER_H
+#ifndef AXMC_TRANSPORT_LAYER_H
+#define AXMC_TRANSPORT_LAYER_H
 
 // Dependencies
 #include <Arduino.h>
 #include <elapsedMillis.h>
-#include "axtl_shared_assets.h"
 #include "cobs_processor.h"
 #include "crc_processor.h"
+#include "shared_assets.h"
 
 /**
  * @class TransportLayer
@@ -159,9 +159,9 @@ class TransportLayer
     // Ensures that the class only accepts uint8, 16 or 32 as valid CRC types, as no other type can be used to store a
     // CRC polynomial at the time of writing.
     static_assert(
-        axtl_shared_assets::is_same_v<PolynomialType, uint8_t> ||
-            axtl_shared_assets::is_same_v<PolynomialType, uint16_t> ||
-            axtl_shared_assets::is_same_v<PolynomialType, uint32_t>,
+        shared_assets::is_same_v<PolynomialType, uint8_t> ||
+            shared_assets::is_same_v<PolynomialType, uint16_t> ||
+            shared_assets::is_same_v<PolynomialType, uint32_t>,
         "TransportLayer class PolynomialType template parameter must be either uint8_t, uint16_t, or "
         "uint32_t."
     );
@@ -192,10 +192,10 @@ class TransportLayer
     /// derived from the kTransportLayerStatusCodes enumeration if it originates from a native method of
     /// this class. Alternatively, it uses the enumerations for the COBSProcessor and CRCProcessor helper classes
     /// if the status (error) originates from one of these classes. As such, you may need to use all the enumerations
-    /// available through axtl_shared_assets namespace to determine the status of the most recently called method.
+    /// available through shared_assets namespace to determine the status of the most recently called method.
     /// All status codes used by this library are unique across the library, so any returned byte-code always has a
     /// single meaning.
-    uint8_t transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kStandby);
+    uint8_t transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kStandby);
 
     /**
      * @brief Instantiates a new TransportLayer class object.
@@ -562,7 +562,7 @@ class TransportLayer
      * fails, use the transfer_status variable to determine the reason for the failure, as it would be set to the
      * specific error code of the failed operation. Status values are guaranteed to uniquely match one of the
      * enumerators stored inside the kCOBSProcessorCodes, kCRCProcessorCodes, or kTransportLayerStatusCodes
-     * enumerations available through the axtl_shared_assets namespace.
+     * enumerations available through the shared_assets namespace.
      *
      * Example usage:
      * @code
@@ -583,7 +583,7 @@ class TransportLayer
             _port.write(_transmission_buffer, combined_size);
 
             // Communicates that the packet has been sent via the transfer_status variable
-            transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketSent);
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketSent);
 
             // Resets the transmission_buffer after every successful transmission
             ResetTransmissionBuffer();
@@ -616,7 +616,7 @@ class TransportLayer
      * fails, use the transfer_status variable to determine the reason for the failure, as it would be set to the
      * specific error code of the failed operation. Status values are guaranteed to uniquely match one of the
      * enumerators stored inside the kCOBSProcessorCodes, kCRCProcessorCodes, or kTransportLayerStatusCodes
-     * enumerations available through the axtl_shared_assets namespace.
+     * enumerations available through the shared_assets namespace.
      *
      * Example usage:
      * @code
@@ -633,7 +633,7 @@ class TransportLayer
         {
             // Also sets the status appropriately
             transfer_status =
-                static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer);
+                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer);
             return false;
         }
 
@@ -668,7 +668,7 @@ class TransportLayer
         // If the method reaches this point, the packet has been successfully received, validated and unpacked. The
         // payload is now available for consumption through the _reception_buffer. Sets the status appropriately and
         // returns 'true' to indicate successful runtime.
-        transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketReceived);
+        transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketReceived);
         return true;
     }
 
@@ -742,7 +742,7 @@ class TransportLayer
         if (required_size > kMaximumTransmittedPayloadSize)
         {
             transfer_status =
-                static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError);
+                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError);
             return 0;
         }
 
@@ -769,7 +769,7 @@ class TransportLayer
             max(_transmission_buffer[kPayloadSizeIndex], static_cast<uint8_t>(required_size));
 
         // Sets the status code to indicate writing to buffer was successful
-        transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer);
+        transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer);
 
         // Also returns the index immediately following the last updated (overwritten) index (relative to the start of
         // the payload) to caller to support chained method calls.
@@ -854,7 +854,7 @@ class TransportLayer
         if (required_size > _reception_buffer[kPayloadSizeIndex])
         {
             transfer_status =
-                static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError);
+                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError);
             return 0;
         }
 
@@ -872,7 +872,7 @@ class TransportLayer
         );
 
         // Sets the status code to indicate reading from buffer was successful
-        transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer);
+        transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer);
 
         // Also returns the index immediately following the index of the final read byte (relative to the payload) to
         // caller. This index can be used as the next input start_index if multiple read calls are chained together.
@@ -1014,7 +1014,7 @@ class TransportLayer
         // If the CRC calculator runs into an error, as indicated by its status code not matching the expected success
         // code, transfers the error status to the transfer_status and returns 0 to indicate packet construction failed
         if (_crc_processor.crc_status !=
-            static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated))
+            static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated))
         {
             transfer_status = _crc_processor.crc_status;
             return 0;
@@ -1040,7 +1040,7 @@ class TransportLayer
         // checksummed and the CRC checksum has been added to the end of the encoded packet. Sets the transfer_status
         // appropriately and returns the combined size of the packet and the added CRC checksum to let the caller know
         // how many bytes to transmit to the PC.
-        transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketConstructed);
+        transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketConstructed);
         return combined_size;
     }
 
@@ -1085,7 +1085,7 @@ class TransportLayer
                 // Sets the status to indicate start byte has been found. The status is immediately used below to
                 // evaluate loop runtime
                 transfer_status =
-                    static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketStartByteFound);
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteFound);
                 break;
             }
         }
@@ -1093,18 +1093,18 @@ class TransportLayer
         // If the start byte was not found, aborts the method runtime and returns 0 to indicate that no data was parsed
         // as no packet was available.
         if (transfer_status !=
-            static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketStartByteFound))
+            static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteFound))
         {
             // Note, selects the status based on the value of the allow_start_byte_errors flag
             if (allow_start_byte_errors)
             {
                 transfer_status =
-                    static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketStartByteNotFoundError);
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteNotFoundError);
             }
             else
             {
                 transfer_status =
-                    static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer);
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer);
             }
             return 0;
         }
@@ -1125,13 +1125,13 @@ class TransportLayer
                     _reception_buffer[kPayloadSizeIndex] > kMaximumReceivedPayloadSize)
                 {
                     transfer_status =
-                        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize);
+                        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize);
                     return 0;
                 }
 
                 // If the payload size is within allowed limits, advances to packet reception
                 transfer_status =
-                    static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound
                     );  // Sets the status
                 break;  // Gracefully breaks out of the loop
             }
@@ -1140,10 +1140,10 @@ class TransportLayer
         // If the payload_size byte was not found, aborts the method runtime and returns 0 to indicate that packet
         // reception staled at payload size reception.
         if (transfer_status !=
-            static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound))
+            static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound))
         {
             transfer_status =
-                static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound);
+                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound);
             return 0;
         }
 
@@ -1174,14 +1174,14 @@ class TransportLayer
         // In this case, sets the status appropriately and returns the number of bytes read into the buffer.
         if (bytes_read == remaining_size)
         {
-            transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketParsed);
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketParsed);
 
             // Since bytes_read directly corresponds to the packet size, returns this to the caller
             return bytes_read - kOverheadByteIndex;  // Note, excludes the start and payload_size bytes
         }
 
         // Otherwise, issues the packet staling error status and returns 0 to indicate that no data was parsed.
-        transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError);
+        transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError);
         return 0;
     }
 
@@ -1228,7 +1228,7 @@ class TransportLayer
         // the transfer_status to the returned crc status and returns 0 to indicate crc calculator runtime error. This
         // is done to distinguish between failed CRC checks (packet corruption) and failed crc calculator runtime.
         if (_crc_processor.crc_status !=
-            static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated))
+            static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated))
         {
             transfer_status = _crc_processor.crc_status;
             return 0;
@@ -1240,7 +1240,7 @@ class TransportLayer
         {
             // If the returned checksum is not 0, that means that the packet failed the CRC check and is likely
             // corrupted.
-            transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kCRCCheckFailed);
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kCRCCheckFailed);
             return 0;
         }
 
@@ -1261,9 +1261,9 @@ class TransportLayer
         }
 
         // If COBS decoding was successful, sets the packet status appropriately and returns the payload size to caller
-        transfer_status = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketValidated);
+        transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketValidated);
         return payload_size;
     }
 };
 
-#endif  //AXTL_TRANSPORT_LAYER_H
+#endif  //AXMC_TRANSPORT_LAYER_H

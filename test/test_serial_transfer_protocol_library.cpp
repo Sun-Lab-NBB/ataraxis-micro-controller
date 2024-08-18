@@ -4,11 +4,11 @@
 // tests to be evaluated to the RunUnityTests function at the bottom of this file. Comment unused tests out if needed.
 
 // Dependencies
-#include <Arduino.h>  // For Arduino functions
-#include <unity.h>    // This is the C testing framework, no connection to the Unity game engine
-#include "axtl_shared_assets.h"
-#include "cobs_processor.h"   // COBSProcessor class
-#include "crc_processor.h"    // CRCProcessor class
+#include <Arduino.h>         // For Arduino functions
+#include <unity.h>           // This is the C testing framework, no connection to the Unity game engine
+#include "cobs_processor.h"  // COBSProcessor class
+#include "crc_processor.h"   // CRCProcessor class
+#include "shared_assets.h"
 #include "stream_mock.h"      // StreamMock class required for SerializedTransferProtocol class testing
 #include "transport_layer.h"  // SerializedTransferProtocol class
 
@@ -49,7 +49,7 @@ void TestCOBSProcessor()
 
     // Verifies that the cobs_status is initialized to the expected standby value
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kStandby),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kStandby),
         cobs_processor.cobs_status
     );
 
@@ -58,7 +58,7 @@ void TestCOBSProcessor()
 
     // Verifies the encoding runtime status
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
         cobs_processor.cobs_status
     );
 
@@ -73,7 +73,7 @@ void TestCOBSProcessor()
 
     // Verifies the decoding runtime status
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
         cobs_processor.cobs_status
     );
 
@@ -114,7 +114,7 @@ void TestCOBSProcessorErrors(void)
     payload_buffer[1] = static_cast<uint8_t>(kCOBSProcessorLimits::kMinPayloadSize);
     uint16_t result   = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(kCOBSProcessorLimits::kMinPacketSize), result);
@@ -122,7 +122,7 @@ void TestCOBSProcessorErrors(void)
     // Verifies packets with minimal size are decoded correctly. Uses the packet encoded above.
     result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(kCOBSProcessorLimits::kMinPayloadSize), result);
@@ -131,7 +131,7 @@ void TestCOBSProcessorErrors(void)
     payload_buffer[1] = static_cast<uint8_t>(kCOBSProcessorLimits::kMaxPayloadSize);
     result            = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadEncoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(kCOBSProcessorLimits::kMaxPacketSize), result);
@@ -139,7 +139,7 @@ void TestCOBSProcessorErrors(void)
     // Verifies that packets with maximal size are decoded correctly. Uses the packet encoded above.
     result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadDecoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(static_cast<uint16_t>(kCOBSProcessorLimits::kMaxPayloadSize), result);
@@ -152,7 +152,7 @@ void TestCOBSProcessorErrors(void)
     payload_buffer[1] = static_cast<uint8_t>(kCOBSProcessorLimits::kMinPayloadSize) - 1;
     result            = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kEncoderTooSmallPayloadSize),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -161,7 +161,7 @@ void TestCOBSProcessorErrors(void)
     // payload size).
     result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderTooSmallPacketSize),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -170,7 +170,7 @@ void TestCOBSProcessorErrors(void)
     payload_buffer[1] = static_cast<uint8_t>(kCOBSProcessorLimits::kMaxPayloadSize) + 1;
     result            = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kEncoderTooLargePayloadSize),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -178,7 +178,7 @@ void TestCOBSProcessorErrors(void)
     // Tests too large packet size decoder error. Uses the same payload size as above.
     result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderTooLargePacketSize),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -207,7 +207,7 @@ void TestCOBSProcessorErrors(void)
     payload_buffer[1] = 13;
     result            = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderUnableToFindDelimiter),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -226,7 +226,7 @@ void TestCOBSProcessorErrors(void)
     // Tests delimiter found too early error code
     result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderDelimiterFoundTooEarly),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -236,7 +236,7 @@ void TestCOBSProcessorErrors(void)
     // Also ensure the error takes precedence over the kDecoderDelimiterFoundTooEarly error.
     result = cobs_processor.DecodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPacketAlreadyDecoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -247,7 +247,7 @@ void TestCOBSProcessorErrors(void)
     // Tests correct kPayloadAlreadyEncoded error
     result = cobs_processor.EncodePayload(payload_buffer, 0);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kPayloadAlreadyEncoded),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -259,7 +259,7 @@ void TestCOBSProcessorErrors(void)
     // error
     result = cobs_processor.EncodePayload(test_buffer, 11);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kEncoderPacketLargerThanBuffer),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -267,7 +267,7 @@ void TestCOBSProcessorErrors(void)
     // Same as above, but tests the error for the decoder function
     result = cobs_processor.DecodePayload(test_buffer, 11);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer),
+        static_cast<uint8_t>(shared_assets::kCOBSProcessorCodes::kDecoderPacketLargerThanBuffer),
         cobs_processor.cobs_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -413,7 +413,7 @@ void TestCRCProcessor(void)
 
     // Verifies that the crc_status initializes to the expected value
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kStandby),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kStandby),
         crc_processor.crc_status
     );
     // Runs the checksum generation function on the test packet
@@ -421,7 +421,7 @@ void TestCRCProcessor(void)
 
     // Verifies that the CRC checksum generator returns the expected number and status
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_HEX16(0xF54E, result);
@@ -432,7 +432,7 @@ void TestCRCProcessor(void)
     // Verifies that the addition function works as expected and returns the correct used size of the buffer and status
     // code
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumAddedToBuffer),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumAddedToBuffer),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_UINT16(8, buffer_size);
@@ -444,7 +444,7 @@ void TestCRCProcessor(void)
     // CRC checksums often used in-place of direct checksum comparison when CRC-verified payload is checked upon
     // reception for errors.
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumCalculated),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -454,7 +454,7 @@ void TestCRCProcessor(void)
 
     // Verifies that the checksum is correctly extracted from buffer using the expected value check and status check
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCRCChecksumReadFromBuffer),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCRCChecksumReadFromBuffer),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_HEX16(0xF54E, extracted_checksum);
@@ -475,7 +475,7 @@ void TestCRCProcessorErrors(void)
     // code (this is the critical part tested here).
     uint16_t checksum = crc_processor.CalculatePacketCRCChecksum(test_buffer, 0, 11);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, checksum);
@@ -489,7 +489,7 @@ void TestCRCProcessorErrors(void)
     // to an error.
     uint16_t result = crc_processor.AddCRCChecksumToBuffer(test_buffer, 4, checksum);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kAddCRCChecksumBufferTooSmall),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kAddCRCChecksumBufferTooSmall),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -498,7 +498,7 @@ void TestCRCProcessorErrors(void)
     // to read the CRC from it).
     result = crc_processor.ReadCRCChecksumFromBuffer(test_buffer, 4);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kCRCProcessorCodes::kReadCRCChecksumBufferTooSmall),
+        static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kReadCRCChecksumBufferTooSmall),
         crc_processor.crc_status
     );
     TEST_ASSERT_EQUAL_UINT16(0, result);
@@ -686,7 +686,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_rx_buffer, test_rx_buffer, rx_buffer_size);
 
     // Transfer Status
-    uint8_t expected_code = static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kStandby);
+    uint8_t expected_code = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kStandby);
     TEST_ASSERT_EQUAL_UINT8(expected_code, protocol.transfer_status);
 
     // Payload size trackers. Generally, this is a redundant check since payload size is now part of the overall buffer
@@ -716,7 +716,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
 
     // Verifies that the buffer status matches the expected status (bytes successfully written)
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer,
+        shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer,
         protocol.transfer_status
     );
 
@@ -830,7 +830,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
 
     // Verifies that the buffer status matches the expected status (bytes successfully read)
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer,
+        shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer,
         protocol.transfer_status
     );
 
@@ -874,7 +874,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // payload size and status code
     protocol.WriteData(test_value, protocol.get_maximum_tx_payload_size() - 1);
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer,
+        shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer,
         protocol.transfer_status
     );
 
@@ -882,7 +882,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     uint16_t error_index = protocol.WriteData(test_value, protocol.get_maximum_tx_payload_size());
     TEST_ASSERT_EQUAL_UINT16(0, error_index);
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError,
+        shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError,
         protocol.transfer_status
     );
 
@@ -894,7 +894,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // Verifies that reading from the end of the payload functions as expected
     protocol.ReadData(test_value, protocol.get_maximum_rx_payload_size() - 1);
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer,
+        shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer,
         protocol.transfer_status
     );
 
@@ -902,7 +902,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     error_index = protocol.ReadData(test_value, protocol.get_maximum_rx_payload_size());
     TEST_ASSERT_EQUAL_UINT16(0, error_index);
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError,
+        shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError,
         protocol.transfer_status
     );
 }
@@ -937,7 +937,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
     // Verifies that the data has been successfully sent to the Stream buffer
     TEST_ASSERT_TRUE(sent_status);
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kPacketSent,
+        shared_assets::kTransportLayerStatusCodes::kPacketSent,
         protocol.transfer_status
     );
 
@@ -983,7 +983,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
 
     // Verifies that the data has been successfully received from the StreamMock rx buffer
     TEST_ASSERT_EQUAL_UINT8(
-        axtl_shared_assets::kTransportLayerStatusCodes::kPacketReceived,
+        shared_assets::kTransportLayerStatusCodes::kPacketReceived,
         protocol.transfer_status
     );
     TEST_ASSERT_TRUE(receive_status);
@@ -1055,7 +1055,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
 
     // Verifies that the data has been 'sent' successfully
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketSent),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketSent),
         protocol.transfer_status
     );
 
@@ -1076,7 +1076,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[0] = 0;  // Removes the start byte
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;  // Resets readout index back to 0
@@ -1087,7 +1087,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     // Verifies that when Start Bytes are enabled, the algorithm correctly returns the error code.
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketStartByteNotFoundError),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteNotFoundError),
         protocol.transfer_status
     );
     mock_port.rx_buffer[0]    = 129;              // Restores the start byte
@@ -1100,7 +1100,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[1] = -1;  // Essentially aborts reception at the payload_size byte value.
     bool result            = protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer),
         protocol.transfer_status
     );
     TEST_ASSERT_FALSE(result);
@@ -1124,7 +1124,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[11] = -1;  // Essentially aborts reception at the payload_size byte value.
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;  // Resets readout index back to 0
@@ -1136,7 +1136,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[11] = 4;  // Too small payload value
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;  // Resets readout index back to 0
@@ -1145,7 +1145,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[11] = 61;  // Too large payload value
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;   // Resets readout index back to
@@ -1164,7 +1164,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[17] = -1;  // Sets byte 8 to an 'invalid' value to simulate not receiving valid bytes at index 7
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError),
         protocol.transfer_status
     );
     mock_port.rx_buffer[17]   = test_buffer[7];  // Restores the invalidated byte back to the original value
@@ -1174,7 +1174,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[24] = 123;  // Fake CRC byte, overwrites the crc byte value found at the end of the packet
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axtl_shared_assets::kTransportLayerStatusCodes::kCRCCheckFailed),
+        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kCRCCheckFailed),
         protocol.transfer_status
     );
     mock_port.rx_buffer[24]   = static_cast<int16_t>(test_buffer[14]);  // Restores the CRC byte value

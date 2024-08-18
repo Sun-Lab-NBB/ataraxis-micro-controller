@@ -6,7 +6,7 @@
  * @section comm_sa_description Description:
  *
  * This file aggregates all assets used to interface with the Communication class and support its runtime. These assets
- * are stored separately from the axtl_shared_assets to improve future code maintainability, allowing to adjust the
+ * are stored separately from other shared assets to improve future code maintainability, allowing to adjust the
  * Communication class API independently of the rest of the library.
  *
  * This file contains:
@@ -164,26 +164,6 @@ namespace communication_assets
         kDataCommunicationError = 1,    ///< SerialPCCommunication() class method runtime error
         kPayloadAddressError    = 2,    ///< Unable to address received data payload to any Module or Kernel
         kErrorCode              = 250,  ///< The code used to identify error-communicating Datum values
-    };
-
-    /**
-     * @enum kCommunicationStatusCodes
-     * @brief Enumerates the byte-codes used to communicate the status of the PC/Controller communication.
-     *
-     * Primarily, this enumeration is used to codify the error codes used by this class to communicate the status of the
-     * communication via the public communication_status variable. Use this enumeration to handle the returned
-     * status-codes originating from the methods of this class.
-     *
-     * @note Like many other enumerations and structures avoids using codes 0 through 10 and 250 through 255, which are
-     * all reserved for specific system use. Additionally, uses codes from 101 onward since most of these codes will be
-     * used together with status codes derived from SerialTransferProtocol class, which are numbered from 11 to ~50 at
-     * the time of writing. While not strictly necessary, this aids visual debugging of the code by ensuring that codes
-     * originating from this class do not overlap with the codes originating from the underlying protocol class.
-     */
-    enum class kCommunicationStatusCodes : uint8_t
-    {
-        kStandby           = 151,  ///< Standby placeholder used to initialize the status tracker.
-        kUnableToPackValue = 153,
     };
 } // namespace communication_assets
 

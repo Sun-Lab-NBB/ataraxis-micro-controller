@@ -73,9 +73,9 @@
 
 // Dependencies:
 #include <Arduino.h>
+#include "../communication_assets.h"
+#include "shared_assets.h"
 #include "transport_layer.h"
-# include "axtl_shared_assets.h"
-#include "communication_assets.h"
 
 // Statically defines the size of the Serial class reception buffer associated with different Arduino and Teensy board
 // architectures. This is required to ensure the Communication class is configured appropriately. If you need to adjust
