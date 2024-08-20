@@ -95,14 +95,17 @@ class Communication
 {
   public:
 
-    /// Tracks the most recent class runtime status. Primar
+    /// Tracks the most recent class runtime status.
     uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
 
     /**
      * @brief Instantiates a new Communication class object.
      *
-     * Critically, the constructor class also initializes the AtaraxisTransportLayer as part of it's instantiation
+     * Critically, the constructor class also initializes the TransportLayer as part of its instantiation
      * cycle, which is essential for the correct functioning of the communication interface.
+     *
+     * @notes Make sure that the referenced Stream interface is initialized via its begin() method before calling
+     * Communication class methods.
      *
      * @param communication_port A reference to the fully configured instance of a Stream interface class, such as
      * Serial or USBSerial. This class is used as a low-level access point that physically manages the hardware used to
@@ -110,20 +113,20 @@ class Communication
      *
      * Example instantiation:
      * @code
+     * Communication comm_class(Serial);  // Instantiates the Communication class.
      * Serial.begin(9600);  // Initializes serial interface.
-     * Communication(Serial) comm_class;  // Instantiates the Communication class.
      * @endcode
      */
     explicit Communication(Stream& communication_port) :
-        _serial_protocol(
-            communication_port,  // References the Stream class instance (Serial or USBSerial)
-            0x1021,  // Polynomial to be used for CRC, should be the same bit-width as used by serial_protocol's template
-            0xFFFF,  // The value that CRC checksum is initialized to
-            0x0000,  // The final value the calculated CRC checksum is XORed with
-            129,     // The value used to denote the start of a packet
-            0,       // The value used as packet delimiter
-            20000,   // The maximum number of microseconds allowed between receiving consecutive bytes of the packet.
-            false    // A boolean flag that specifies whether to record start_byte detection errors
+        _transport_layer(
+            communication_port,  // Stream
+            0x1021,              // CRC Polynomial
+            0xFFFF,              // Initial CRC value
+            0x0000,              // Final CRC XOR value
+            129,                 // Start byte value
+            0,                   // Delimiter byte value
+            20000,               // Packet reception timeout (in microseconds)
+            false                // Disables start byte detection errors
         )
     {}
 
@@ -131,37 +134,51 @@ class Communication
      * @brief Resets the transmission_buffer and any TransportLayer and Communication class tracker variables
      * implicated in the data transmission process.
      *
-     * @note Generally, this method is called by all other class methods where necessary and does not need to be called
-     * manually while using the Communication class. The method is publicly exposed to support testing and for users
-     * with specific, non-standard use-cases that may require this functionality.
-     *
-     * @attention This method does not reset the _outgoing_header variable of the Communication class.
+     * @note This method is called by all other class methods where necessary and does not need to be called manually.
+     * It is kept public to support testing.
      */
     void ResetTransmissionState()
     {
-        _serial_protocol.ResetTransmissionBuffer(
-        );                               // Resets the necessary AXTL class variables (including the buffer).
-        _transmission_buffer_index = 0;  // Resets local transmission_buffer index tracker.
-
-        // Critically, this method does NOT reset the _outgoing_header class variable. This is done on purpose to optimize
-        // certain message header manipulations.
+        _transport_layer.ResetTransmissionBuffer();
     }
 
     /**
      * @brief Resets the reception_buffer and any AtaraxisTransportLayer and Communication class tracker
      * variables implicated in the data reception process.
      *
-     * @note Generally, this method is called by all other class methods where necessary and does not need to be called
-     * manually while using the Communication class. The method is publicly exposed to support testing and for users
-     * with specific, non-standard use-cases that may require this functionality.
-     *
-     * @attention This method does not reset the _incoming_header variable of the Communication class.
+     * @note This method is called by all other class methods where necessary and does not need to be called manually.
+     * It is kept public to support testing.
      */
     void ResetReceptionState()
     {
-        // Resets the protocol buffer and trackers
-        _serial_protocol.ResetReceptionBuffer();
-        _reception_buffer_index = 0;
+        _transport_layer.ResetReceptionBuffer();
+    }
+
+    void SendErrorMessage(const uint8_t error_code, const uint8_t module_type, const uint8_t module_id, const uint8_t command)
+    {
+      _transport_layer.ResetTransmissionBuffer();
+      error_message
+      _transport_layer.WriteData();
+    }
+
+    bool ReceiveMessage()
+    {
+        // Attempts to receive the next available message
+        if (_transport_layer.ReceiveData())
+        {
+            // Parses the protocol code of the received message and returns true
+            if (const uint16_t next_index = _transport_layer.ReadData(_protocol_code, kProtocolIndex); next_index != 0)
+            {
+              // Returns True to indicate that the message was received and its protocol code was extracted
+              return true;
+            }
+            else
+            {
+              // If protocol extraction fails, uses the TransportLayer status code to send an error message
+              communication_status = _transport_layer.transfer_status;
+            }
+        }
+        return false;
     }
 
     /**
@@ -198,7 +215,7 @@ class Communication
         const uint16_t write_index = _transmission_buffer_index + header_size;
 
         // Writes the structure instantiated above to the transmission buffer of the AtaraxisTransportLayer class.
-        uint16_t next_index = _serial_protocol.WriteData(value_structure, write_index);
+        uint16_t next_index = _transport_layer.WriteData(value_structure, write_index);
 
         // Handles cases when writing to buffer fails, which is indicated by the returned next_index being 0.
         if (next_index == 0)
@@ -217,82 +234,56 @@ class Communication
     // bool SendCommand();
 
   private:
-    /// Stores the minimum valid size of incoming payloads. Currently, the smallest message structure is the
-    /// ParameterMessage structure. This structure contains 3 'header' bytes, followed by, as a minimum, 1-parameter
-    /// byte. Also, this statically includes the 'protocol' header byte.
+    /// Stores the minimum valid incoming payload size. Currently, this is the size of the ParameterMessage header
+    /// (3 bytes) + 1 Protocol byte + minimal Parameter object size (1 byte). This value is used to optimize incoming
+    /// message reception behavior.
     static constexpr uint16_t kMinimumPayloadSize = sizeof(communication_assets::ParameterMessage) + 2;
 
     /// Stores the size of the CRC Checksum postamble in bytes. This is directly dependent on the variable type used
-    /// for the PolynomialType template parameter when specializing the TransportLayer class (see below).
-    /// At the time of writing, valid values are 1 (for uint8_t), 2 (for uint16_t) and 4 (for uint32_t).
+    /// for the PolynomialType template parameter when specializing the TransportLayer class. At the time of writing,
+    /// valid values are 1 (for uint8_t), 2 (for uint16_t) and 4 (for uint32_t). The local TransportLayer binding uses
+    /// CRC-16 by default (byte size: 2).
     static constexpr uint8_t kCRCSize = 2;
 
-    /// Stores the size of the preamble and the COBS metadata variables in bytes. There is no reliable heuristic for
-    /// calculating this beyond knowing what the particular version of TransportLayer uses internally, but
-    /// COBS statically reserves 2 bytes (overhead and delimiter) and at the time of writing the preamble consists of
-    /// start_byte and payload_size (another 2 bytes).
+    /// Stores the size of the metadata variables used by the TransportLayer class. At the time of writing, this
+    /// includes: the start byte, payload size byte, COBS overhead byte and COBS delimiter byte. A total of 4 bytes.
     static constexpr uint8_t kMetadataSize = 4;
 
-    /// Combines the CRC and Metadata sizes to produce the final size of the payload region that would be reserved for
-    /// the TransportLayer variables. This is necessary to calculate the available reception buffer space, accounting
-    /// for the fact the TransportLayer class needs space for its variables in addition to the payload. Note; this
-    /// does not include the protocol byte, which is considered part of the payload managed by the Communication class.
+    /// Combines the CRC and Metadata sizes to calculate the transmission buffer space reserved for TransportLayer
+    /// variables. This value is used to calculate the (remaining) payload buffer space.
     static constexpr uint8_t kReservedNonPayloadSize = kCRCSize + kMetadataSize;
 
-    /**
-     * @brief The maximum size of the payloads expected to be sent and received by this microcontroller.
-     *
-     * Calculates the maximum feasible payload region size to use for the communication messages. Mostly, this is
-     * important for received payloads, as transmitted payloads do not have to fully fit into the buffer (it helps
-     * though). Many microcontroller architectures limit the size of the circular buffers used by the Serial class to
-     * receive data. Therefore, if the incoming message exceeds circular buffer size, it may be clipped unexpectedly
-     * when using a very fast baudrate (the main runtime is not able to 'retrieve' the received bytes to free the
-     * buffer in time). To avoid this issue, this variable calculates and stores the highest feasible buffer size given
-     * either the static 254 limitation (due to COBS) or the difference of system-reserved space and the buffer size
-     * supported by the architecture. Note, the latter choice relies on statically defining buffer sizes for different
-     * board architectures (see preprocessor directives at the top of this file) and may not work for your specific
-     * board if it is not one of the explicitly defined architectures.
-     */
+    /// Calculates maximum transmitted and received payload size. At a maximum, this can be 254 bytes (COBS limitation).
+    /// For most controllers, this will be a lower value that depends on the available buffer space and the space
+    /// reserved for TransportLayer variables.
     static constexpr uint16_t kMaximumPayloadSize =  // NOLINT(*-dynamic-static-initializers)
         min(kSerialBufferSize - kReservedNonPayloadSize, 254);
 
-    /**
-     *  The specialization of the AtaraxisTransportLayer class that handles all low-level operations required to
-     *  send and receive data. Note, the AXTL class is specialized statically and initialized as part of the
-     *  Communication class initialization. As such, to alter the configuration of the class, you may need to alter
-     *  specialization, construction or both initialization steps.
-     *
-     *  @warning Do not alter AXTL specialization unless you know what you are doing. This is especially important for
-     *  the maximum and minimum payload size parameters, which are meant to be calculated using preprocessor directives
-     *  found at the top of the Communication.h file. These parameters are very important for the correct functioning of
-     *  the Communication class and ideally should not be tempered with.
-     *
-     *  @attention If you chose to modify any of the specialization parameters, make sure the Communication class
-     *  Constructor and _serial_protocol variable declaration are internally consistent. This
-     *  will likely require at the very least reading the main AtaraxisTransportLayer class documentation alongside
-     *  the Communication class documentation and, preferably, thorough isolated testing.
-     */
-    TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize, kMinimumPayloadSize> _serial_protocol;
+    /// Stores the index of the protocol code in the incoming message payload sequence. The protocol code should
+    /// always occupy the first byte of each received and transmitted payload.
+    static constexpr uint8_t kProtocolIndex = 0;
 
-    /// Stores the index of the nearest unused byte in the payload region of the transmission_buffer, relative to the
-    /// beginning of the buffer. This is used internally to sequentially and iteratively write to the payload region of
-    /// the transmission_buffer. This tracker is critically important for working with the transmission_buffer and,
-    /// therefore, is not directly exposed to the user.
-    uint16_t _transmission_buffer_index = 0;
+    /// Stores the first index of the message data region in the incoming payload sequence. This applies to any
+    /// supported incoming or outgoing message structure.
+    static constexpr uint8_t kMessageIndex = 1;
 
-    /// Stores the index to the nearest unread byte in the payload region of the reception_buffer, relative to the
-    /// beginning of the buffer. This tracker is similar to the transmission_buffer_index, but used to read data from
-    /// the reception buffer. Given its' critical importance for processing received data, it is not exposed to the
-    /// user.
-    uint16_t _reception_buffer_index = 0;
+    /// Stores the first index of the Parameter message object data in the incoming message payload sequence. Parameter
+    /// messages are different from other messages, as the parameter object itself is not part of the message structure.
+    /// However, the message header has a fixed size, so the first index of the parameter data is static. it is the
+    /// size of the ParameterMessage structure + Protocol byte (1).
+    static constexpr uint8_t kParameterObjectIndex = sizeof(communication_assets::ParameterMessage) + 1;
 
-    /// Stores the currently active protocol code. This is used in multiple internal checks to allow the end-users to
-    /// work with PackedObjects without processing the header and metadata structures. Specifically, the user is
-    /// required to provide a protocol code when reading PackedObjects, which is compared to the value of this variable.
-    /// If the values mismatch, the AXMC raises an error, as this is a violation of the safety standards. For example,
-    /// this mechanism is used when the user is filling the payload for a data message to ensure the message is sent
-    /// before allowing writing a new data message.
+    /// The bound TransportLayer instance that abstracts low-level data communication steps. This class statically
+    /// specializes and initializes the TransportLayer to use sensible defaults. It is highly advised not to alter
+    /// default initialization parameters unless you know what you are doing.
+    TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize, kMinimumPayloadSize> _transport_layer;
+
+    /// Stores the protocol code of the last received message.
     uint8_t _protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
+
+    uint8_t _module_type = 0;
+
+    uint8_t _module_id = 0;
 };
 
 #endif  //AXMC_COMMUNICATION_H

@@ -323,6 +323,9 @@ namespace communication_assets
         /// sender upon successfully processing the received command. This is to notify the sender that the command was
         /// received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
         uint8_t return_code = 0;
+
+        /// Stores the number of bytes (byte-size) of the parameters structure included with the message.
+        uint8_t object_size = 0;
     } __attribute__((packed));
 
     /**
@@ -350,6 +353,10 @@ namespace communication_assets
 
         /// The unique code of the event within the command runtime that prompted the data transmission.
         uint8_t event = 0;
+
+        /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
+        /// size of the ObjectType template parameter.
+        uint8_t objectSize = static_cast<uint8_t>(sizeof(ObjectType));
 
         /// The transmitted data object. This can be any valid object type, as long as it fits the
         /// specification imposed by the maximum message payload size.
