@@ -267,10 +267,6 @@ class AMCKernel
     {
         kActionLock                = 11,  ///< Enables or disables triggering (writing to) action pins
         kTTLLock                   = 12,  ///< Enables or disables triggering (writing to) TTL pins
-        kSimulateResponses         = 13,  ///< Enables or disables simulating sensor values (instead of reading pins)
-        kSimulateSpecificResponses = 14,  ///< Determines whether to use random or predefined simulated values
-        kSimulatedValue            = 15,  ///< Specifies the predefined value to be used for simulation
-        kMinimumLockDuration       = 16,  ///< Specifies the minimum duration to lock sensor loops in simulation mode
     };
 
     /**

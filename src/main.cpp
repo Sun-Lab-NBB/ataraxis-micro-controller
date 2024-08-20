@@ -86,6 +86,8 @@ struct StaticRuntimeParameters
      * generally as a last-resort when all other potential error sources have been ruled out.
      */
     bool log_start_byte_detection_errors = false;
+
+    uint32_t idle_message_interval = 1000000; // In microseconds
 } kStaticRuntimeParameters;
 
 // Instantiates all classes used during runtime
