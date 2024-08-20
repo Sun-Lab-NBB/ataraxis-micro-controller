@@ -1,75 +1,60 @@
 /**
  * @file
- * @brief The header file for the Core Communication class, which is used to establish and maintain bidirectional
- * communication with the rest of the Ataraxis-compatible systems over the USB or UART interface.
+ * @brief The header file for the Communication class, which is used to establish and maintain bidirectional
+ * communication with other Ataraxis systems over the USB or UART interface.
  *
  * @section comm_description Description:
  *
  * @note A single instance of this class should be created inside the main.cpp file and provided as a reference input
- * to all other classes from this library that need to communicate with other systems.
+ * to Kernel and (base) Module-derived classes.
+ *
+ * Communication class functions as an opinionated extension of the TransportLayer class, enforcing consistent
+ * message structures and runtime error handling behaviors.
  *
  * @subsection developer_notes Developer Notes:
  *
- * @attention This is a high-level API wrapper for the low-level AtaraxisTransportLayer class. It is used to define the
- * payload microstructure and abstracts away the low-level handling of serial packet formation, transmission, parsing
- * and validation.
+ * This is a high-level API wrapper for the low-level TransportLayer class. It is used to define the
+ * communicated payload microstructure and abstracts away all communication steps.
  *
- * Given the importance of class error codes for diagnosing any potential problems, all data packing and unpacking
- * functions use fixed status byte-codes transmitted through the communication_status variable alongside returned
- * boolean values. Returned codes can be identified by passing them through the kSerialPCCommunicationCodes enumeration
- * that is available through class namespace.
- *
- * The PC error-messaging functionality is executed regardless of caller behavior as it is deemed critically important
- * to notify the main client of any errors encountered at this stage. Specifically, any failure of any methods,
- * available through this class, triggers full buffer and communication variables reset followed by constructing and
- * sending a standardized error message to the PC.
- *
- * @note The error-messaging method contains the fallbacks that avoids sending messages if this results in the
- * controller being stuck in an infinite loop. Therefore, the absence of errors does not automatically mean that the
- * library works as expected and extensive testing is heavily encouraged prior to using this library for production
- * runtimes.
+ * @attention For this class to work as intended, its configuration, message layout structures and status codes should
+ * be the same as those used by the Ataraxis system this class communicates with. Make sure that both communicating
+ * parties are configured appropriately!
  *
  * @subsubsection rx_tx_data_structures_overview Rx/Tx Data Structures Overview
  *
- * These datastructures are used to serialize and de-serialize the data for Serial transmission. Each incoming or
- * outgoing serial stream consists of a package macrostructure (handled by AtaraxisTransportLayer class), and
- * microstructure, defined using header structures available through this class. Each header structure contains the
- * information critical for properly addressing the packet.
+ * These datastructures are used to serialize and deserialize the data for Serial transmission. Each incoming or
+ * outgoing serial stream consists of a package macrostructure (handled by TransportLayer class), and microstructure,
+ * defined via Communication class message layouts (Protocols). Each supported message layout, available through the
+ * communication_assets namespace, is uniquely configured to optimally support the intended communication format.
  *
- * All data that follows the header is organized into sub-structures with two fields: ID and value. The ID fields are
- * used to determine the size, type and specific purpose of the bundled data-value. Specifically, it can identify unique
- * parameters, data-values, commands, etc. This system relies on sender and receiver sharing the same set of unique IDs
- * that can be used to individuate all data-values. The data IDs only need to be unique within the broader context of
- * the message header structure (i.e: given the specific combination of header structure values).
+ * @attention It is expected that every incoming or outgoing payload uses the first non-metadata byte to store the
+ * protocol code. This code is used to interpret the rest of the message. Further, it is expected that each transmitted
+ * packet contains a single message.
  *
  * @note The physical payload limit is 254 bytes, so there is a cap on how much data can be sent as a single packet.
  * This class contains validation mechanisms that raise errors if the buffer overflows, although this is considered an
  * unlikely scenario if the class is used as intended.
  *
- * @attention The PC and this class should be fully aligned on the datastructures that make up each stream (Rx or Tx),
- * their contents and positions inside the stream. Otherwise, correct serialization and de-serialization would not be
- * possible. Great care should be taken when writing command and data communication subroutines for new Modules and it
- * is highly advised to test all communication protocols prior to using them during live experiments.
- *
  * @subsubsection rx_tx_datastructures_visualization Byte-Stream Anatomy Visualized:
  *
- * This is a rough outline of how the Rx and Tx data streams look. Each |block| represents a datastructure either
- * defined inside this class or provided by AtaraxisTransportLayer class. Only the datastructures defined inside this
- * class are relevant for data serialization and de-serialization, AtaraxisTransportLayer handles processing the
- * starting and ending structures of each stream prior to de-serializing the custom datastructures of this project.
+ * This is a rough outline of how the Rx and Tx data streams look. Each |block| represents a structure either provided
+ * by this class or TransportLayer class. Only the datastructures defined inside this class are relevant for data
+ * serialization and deserialization, TransportLayer handles processing the preamble and postamble structures of
+ * each stream prior to deserializing the custom datastructures of this project. Note, only the Protocol Code and
+ * Message Payload count towards the 254-byte limit for message payload.
  *
- * - **Protocol**: |Start| |Packet Layout| |General ID| |Protocol Metadata| |PackedObject 1| ... |PackedObject n| |End|.
+ * - **Protocol**: |Start Byte| |Header Preamble| |Protocol Code| |Message Payload| |Delimiter Byte| |CRC Postamble|.
  *
  * @subsection dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - ataraxis_transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
- * - shared_assets.h for globally shared static message byte-codes.
+ * - transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
+ * - shared_assets.h for globally shared assets, including communication_assets namespace.
  *
  * @see serial_pc_communication.cpp for method implementation.
  */
 
-#ifndef AXTL_COMMUNICATION_H
-#define AXTL_COMMUNICATION_H
+#ifndef AXMC_COMMUNICATION_H
+#define AXMC_COMMUNICATION_H
 
 // Dependencies:
 #include <Arduino.h>
@@ -78,8 +63,8 @@
 
 /**
  * @class Communication
- * @brief Exposes methods that allow interfacing with project Ataraxis infrastructure via an internal binding of the
- * AtaraxisTransportLayer library.
+ * @brief Exposes methods that allow establishing and maintaining bidirectional serialized communication with other
+ * Ataraxis systems via the internal binding of the TransportLayer library.
  *
  * This class handles all communications between the microcontroller and the rest of the Ataraxis infrastructure over
  * the USB (preferred) or UART serial interface. It relies on the AtaraxisTransportLayer library, which is
@@ -101,8 +86,8 @@
  *
  * Example instantiation:
  * @code
- * Serial.begin(9600);  // Initializes serial interface.
- * Communication(Serial) comm_class;  // Instantiates the Communication class.
+ * constexpr uint16_t kSerialBufferSize = 256;  // Controller port buffer size.
+ * Communication<kSerialBufferSize> comm_class(Serial);  // Instantiates the Communication class.
  * @endcode
  */
 template <uint16_t kSerialBufferSize>
@@ -110,9 +95,7 @@ class Communication
 {
   public:
 
-    /// Tracks the most recent class runtime status. This is mainly helpful for unit testing, as during production
-    /// runtime most of the status codes are sent over to other Ataraxis systems for evaluation instead of being
-    /// processed locally.
+    /// Tracks the most recent class runtime status. Primar
     uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
 
     /**
@@ -145,8 +128,8 @@ class Communication
     {}
 
     /**
-     * @brief Resets the transmission_buffer and any AtaraxisTransportLayer and Communication class tracker
-     * variables implicated in the data transmission process.
+     * @brief Resets the transmission_buffer and any TransportLayer and Communication class tracker variables
+     * implicated in the data transmission process.
      *
      * @note Generally, this method is called by all other class methods where necessary and does not need to be called
      * manually while using the Communication class. The method is publicly exposed to support testing and for users
@@ -312,4 +295,4 @@ class Communication
     uint8_t _protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
 };
 
-#endif  //AXTL_COMMUNICATION_H
+#endif  //AXMC_COMMUNICATION_H

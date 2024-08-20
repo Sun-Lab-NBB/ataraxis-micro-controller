@@ -283,6 +283,11 @@ namespace communication_assets
         /// The unique code of the command to execute.
         uint8_t command = 0;
 
+        /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
+        /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise, the
+        /// controller will run other commands concurrently, while waiting for the block to complete.
+        bool noblock = false;
+
         /// Determines whether the command is executed once or repeatedly cycled with a certain periodicity.
         /// Together with cycle_duration, this allows triggering both one-shot and cyclic command runtimes.
         bool cycle = false;
