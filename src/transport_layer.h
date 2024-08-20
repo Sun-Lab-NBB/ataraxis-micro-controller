@@ -159,8 +159,7 @@ class TransportLayer
     // Ensures that the class only accepts uint8, 16 or 32 as valid CRC types, as no other type can be used to store a
     // CRC polynomial at the time of writing.
     static_assert(
-        shared_assets::is_same_v<PolynomialType, uint8_t> ||
-            shared_assets::is_same_v<PolynomialType, uint16_t> ||
+        shared_assets::is_same_v<PolynomialType, uint8_t> || shared_assets::is_same_v<PolynomialType, uint16_t> ||
             shared_assets::is_same_v<PolynomialType, uint32_t>,
         "TransportLayer class PolynomialType template parameter must be either uint8_t, uint16_t, or "
         "uint32_t."
@@ -240,26 +239,25 @@ class TransportLayer
      * Example instantiation:
      * @code
      * Serial.begin(9600);
-     * uint8_t maximum_tx_payload_size = 254;
-     * uint8_t maximum_rx_payload_size = 200;
-     * uint16_t polynomial = 0x1021;
-     * uint16_t initial_value = 0xFFFF;
-     * uint16_t final_xor_value = 0x0000;
-     * uint8_t start_byte = 129;
-     * uint8_t delimiter_byte = 0;
-     * uint8_t minimum_payload_size = 1;
-     * uint32_t timeout = 20000; // In microseconds
-     * bool allow_start_byte_errors = false;
+     * constexpr uint8_t maximum_tx_payload_size = 254;
+     * constexpr uint8_t maximum_rx_payload_size = 200;
+     * constexpr uint16_t polynomial = 0x1021;
+     * constexpr uint16_t initial_value = 0xFFFF;
+     * constexpr uint16_t final_xor_value = 0x0000;
+     * constexpr uint8_t start_byte = 129;
+     * constexpr uint8_t delimiter_byte = 0;
+     * constexpr uint8_t minimum_payload_size = 1;
+     * constexpr uint32_t timeout = 20000; // In microseconds
+     * constexpr bool allow_start_byte_errors = false;
      *
      * // Instantiates a new TransportLayer object
-     * TransportLayer<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size> tl_class(
+     * TransportLayer<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size, minimum_payload_size> tl_class(
      * Serial,
      * polynomial,
      * initial_value,
      * final_xor_value,
      * start_byte,
      * delimiter_byte,
-     * minimum_payload_size,
      * timeout,
      * allow_start_byte_errors
      * );
@@ -309,7 +307,8 @@ class TransportLayer
      * bool available = serial_protocol.Available();
      * @endcode
      */
-    [[nodiscard]] bool Available() const
+    [[nodiscard]]
+    bool Available() const
     {
         // If enough bytes are available to potentially represent a complete packet, returns 'true' to indicate there
         // are enough bytes to justify a read operation
@@ -741,8 +740,7 @@ class TransportLayer
         // the payload region.
         if (required_size > kMaximumTransmittedPayloadSize)
         {
-            transfer_status =
-                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError);
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError);
             return 0;
         }
 
@@ -853,8 +851,7 @@ class TransportLayer
         // the _reception_buffer.
         if (required_size > _reception_buffer[kPayloadSizeIndex])
         {
-            transfer_status =
-                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError);
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError);
             return 0;
         }
 
@@ -900,7 +897,7 @@ class TransportLayer
 
     /// The local instance of the COBSProcessor class that provides the methods to encode and decode packets using
     /// COBS protocol. See the class documentation for more details on the process and the functionality of the class.
-    COBSProcessor<> _cobs_processor {}; // Default template argument values match static variables of this class.
+    COBSProcessor<> _cobs_processor {};  // Default template argument values match static variables of this class.
 
     /// The local instance of the CRCProcessor class that provides the methods to calculate the CRC checksum for packets
     /// and save and read the checksum from class buffers. See the class documentation for more details on the process
@@ -1092,8 +1089,7 @@ class TransportLayer
 
         // If the start byte was not found, aborts the method runtime and returns 0 to indicate that no data was parsed
         // as no packet was available.
-        if (transfer_status !=
-            static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteFound))
+        if (transfer_status != static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteFound))
         {
             // Note, selects the status based on the value of the allow_start_byte_errors flag
             if (allow_start_byte_errors)
@@ -1110,7 +1106,7 @@ class TransportLayer
         }
 
         // If the start byte was found, attempts to read the next byte, which should be the payload_size byte
-        elapsedMicros timeout_timer = 0;     // Resets the timer to 0 before entering the loop
+        elapsedMicros timeout_timer = 0;  // Resets the timer to 0 before entering the loop
         while (timeout_timer < kTimeout)  // Blocks until timeout is reached or the byte is read
         {
             // If the byte can be read, reads it into the payload_size variable of the buffer and sets the status to
@@ -1130,20 +1126,17 @@ class TransportLayer
                 }
 
                 // If the payload size is within allowed limits, advances to packet reception
-                transfer_status =
-                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound
-                    );  // Sets the status
+                transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound
+                );      // Sets the status
                 break;  // Gracefully breaks out of the loop
             }
         }
 
         // If the payload_size byte was not found, aborts the method runtime and returns 0 to indicate that packet
         // reception staled at payload size reception.
-        if (transfer_status !=
-            static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound))
+        if (transfer_status != static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteFound))
         {
-            transfer_status =
-                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound);
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound);
             return 0;
         }
 

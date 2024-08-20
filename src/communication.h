@@ -3,10 +3,10 @@
  * @brief The header file for the Core Communication class, which is used to establish and maintain bidirectional
  * communication with the rest of the Ataraxis-compatible systems over the USB or UART interface.
  *
- * @section comms_description Description:
+ * @section comm_description Description:
  *
  * @note A single instance of this class should be created inside the main.cpp file and provided as a reference input
- * to all other classes from this library that need to communicate with the PC.
+ * to all other classes from this library that need to communicate with other systems.
  *
  * @subsection developer_notes Developer Notes:
  *
@@ -73,51 +73,8 @@
 
 // Dependencies:
 #include <Arduino.h>
-#include "../communication_assets.h"
 #include "shared_assets.h"
 #include "transport_layer.h"
-
-// Statically defines the size of the Serial class reception buffer associated with different Arduino and Teensy board
-// architectures. This is required to ensure the Communication class is configured appropriately. If you need to adjust
-// the STP buffers (for example, because you manually increased the buffer size used by the Serial class of your board),
-// do it by editing or specifying a new preprocessor directive below. It is HIGHLY advised not to tamper with these
-// settings, however, and to always have the kSerialBufferSize set exactly to the size of the Serial class reception
-// buffer.
-#if defined(ARDUINO_ARCH_SAM)
-// Arduino Due (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-
-#elif defined(ARDUINO_ARCH_SAMD)
-// Arduino Zero, MKR series (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-
-#elif defined(ARDUINO_ARCH_NRF52)
-// Arduino Nano 33 BLE (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-
-// Note, teensies are identified based on the processor model. This WILL need to be updated for future versions of
-// Teensy boards.
-#elif defined(CORE_TEENSY)
-#if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__) || \
-    defined(__IMXRT1062__)
-// Teensy 3.x, 4.x (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 1024;
-#else
-// Teensy 2.0, Teensy++ 2.0 (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-#endif
-
-#elif defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_MEGA) ||  \
-    defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
-    defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__)
-// Arduino Uno, Mega, and other AVR-based boards (UART serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 64;
-
-#else
-// Default fallback for unsupported boards is the reasonable minimum buffer size
-static constexpr uint16_t kSerialBufferSize = 64;
-
-#endif
 
 /**
  * @class Communication
@@ -148,6 +105,7 @@ static constexpr uint16_t kSerialBufferSize = 64;
  * Communication(Serial) comm_class;  // Instantiates the Communication class.
  * @endcode
  */
+template <uint16_t kSerialBufferSize>
 class Communication
 {
   public:
@@ -155,135 +113,7 @@ class Communication
     /// Tracks the most recent class runtime status. This is mainly helpful for unit testing, as during production
     /// runtime most of the status codes are sent over to other Ataraxis systems for evaluation instead of being
     /// processed locally.
-    uint8_t communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kStandby);
-
-    /**
-     * @struct ID
-     * @brief The header structure used by all incoming or outgoing message payloads, that stores the information
-     * necessary to properly process the payload.
-     *
-     * @attention The layout of the ID structure is the same for all payloads. This structure forms the backbone of the
-     * highly flexible communication system of the project Ataraxis and it primarily determines the addressee of each
-     * transmitted message.
-     *
-     * The ID structure is expected to occupy the first 4 bytes of every incoming and outgoing message payload.
-     */
-    struct ID
-    {
-        /// The ID of the communication protocol. This ID specifies which of the multiple supported message protocols
-        /// (layouts) were used to compose the message. This is the most significant variable of the entire message as
-        /// it controls how all following values are interpreted.
-        uint8_t protocol = 0;
-
-        /// The type-code of the module to which the message is addressed OR which sent the message. Module types are
-        /// families of modules, e.g. water valve, lick sensor, IR camera, etc. The specific use of this variable is
-        /// determined by the protocol. Commonly, command protocols use this field to address the command and data
-        /// protocols use this field to specify the source. Note, module-type IDs should be unique across all used
-        /// systems.
-        uint8_t module_type = 0;
-
-        /// The specific module ID within the broader module family specified by module_type. Specifically, if module
-        /// type addresses the payload to a water valve, this field would supply the ID of the specific water-valve to
-        /// use. This is needed to target specific modules (physical) when multiple modules of the same type are used.
-        uint8_t module_id = 0;
-
-        /// The use of this field enables 'delivery-report' functionality. Specifically, when this is set to
-        /// a non-zero value, the Communication class will send this code back to the sender upon successfully
-        /// processing the received message to notify the sender that the message was received intact. This allows
-        /// optionally ensuring message delivery. Setting this field to 255 disables delivery assurance.
-        uint8_t return_code = 0;
-    } __attribute__((packed));
-
-    /**
-     * @struct PackedObject
-     * @brief The structure used by the PackedObject protocol family to bundle each transmitted object (value) with a
-     * unique ID code.
-     *
-     * @tparam ObjectType The type of the transmitted object. This allows using the same structure definition to
-     * flexibly support many object types, improving code maintainability. This works for any valid object type,
-     * including structures and arrays.
-     *
-     * This structure serves as a standardized building-block from which the majority of the PackedObject protocol
-     * family payloads are assembled. Specifically, it bundles each transmitted object (value, array, structure, etc.)
-     * with a unique ID code (at least when combined with the general header ID structure and protocol metadata
-     * structure).  Overall, this offers a good mix of robustness and flexibility that is generally sufficient for
-     * the vast majority of use-cases.
-     *
-     * @attention A major downside of using these structures as building blocks is that the receiver and the sender
-     * need to use the same procedures for packing and unpacking each unique ID, including inferring the object size
-     * and type from the unique ID.
-     *
-     * @warning This structure is used both by Data and Command protocol variants. While the protocols themselves differ
-     * in terms of the protocol metadata structure that comes after the general header, they are otherwise assembled
-     * from PackedObject structures.
-     */
-    template <typename ObjectType>
-    struct PackedObject
-    {
-        /// The id for the input object. Object-bound IDs are used to uniquely identify the transmitted objects given a
-        /// particular combination of the general header ID structure and the protocol metadata structure. The ID
-        /// is used to infer the size and type of the object by the receiver.
-        uint8_t id = 0;
-
-        /// The transmitted object. This can be any valid object type, as long as it fits into the constrains imposed
-        /// by the maximum message payload size.
-        ObjectType object = 0;
-    } __attribute__((packed));
-
-    /**
-     * @struct CommandMetadata
-     * @brief The metadata structure used by CommandPackedObject protocol to store the command-specific metadata.
-     *
-     * This data block comes after the general header ID structure and it contains information that has to be present
-     * for every command to work as intended. For example, this includes the unique command code to execute (and there
-     * can only be one command code per each Command message).
-     *
-     * @attention This structure has to be included between General ID and any PackedObject structures for each Command
-     * message.
-     */
-    struct CommandMetadata
-    {
-        /// The unique ID of the command to execute. This works much like PackedObject IDs do, but allows to separate
-        /// commands from general packed objects, which typically communicate command-specific parameters.
-        uint8_t command = 0;
-
-        /// Determines whether the command needs to be executed once or repeatedly cycles with a certain periodicity.
-        /// Together with the cycle_duration (see below), this allows communicating both one-shot and cyclic command
-        /// runtimes.
-        bool cycle = 0;
-
-        /// The period of time, in milliseconds, to delay before repeating (cycling) the command. This is only used if
-        /// cycle field is set to True.
-        uint32_t cycle_duration = 0;
-    } __attribute__((packed));
-
-    /**
-     * @struct DataMetadata
-     * @brief The metadata structure used by DataPackedObject protocol to store the data-specific metadata.
-     *
-     * Similar to CommandMetadata, this structure stores specific parameters necessary for data messages to work as
-     * intended.
-     *
-     * @attention This structure has to be included between General ID and any PackedObject structures for each Data
-     * message.
-     */
-    struct DataMetadata
-    {
-        /// The unique ID of the command that was being executed when the data message was sent. Since the AXMC has to be
-        /// executing a command to produce data, this explicitly links any data message to the ongoing command.
-        uint8_t command = 0;
-
-        /// The major unique data-type code. Broadly speaking, data messages can be divided into multiple types,
-        /// such as sensor data, error messages, warnings, etc. This code is used to communicate the kind of the data
-        /// message. In turn, this may inform how the message is processed by the receiver.
-        uint8_t type = 0;
-
-        /// Stores the code that describes the event. This can be a specific error code or data-event code. This
-        /// is used similar to the 'command' code and allows identifying the main event that triggered the message.
-        /// The message can include additional PAckedObjects to communicate event data-points or include additional
-        /// information codes.
-        uint8_t event = 0;
-    } __attribute__((packed));
+    uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
 
     /**
      * @brief Instantiates a new Communication class object.
@@ -301,7 +131,18 @@ class Communication
      * Communication(Serial) comm_class;  // Instantiates the Communication class.
      * @endcode
      */
-    explicit Communication(Stream& communication_port);
+    explicit Communication(Stream& communication_port) :
+        _serial_protocol(
+            communication_port,  // References the Stream class instance (Serial or USBSerial)
+            0x1021,  // Polynomial to be used for CRC, should be the same bit-width as used by serial_protocol's template
+            0xFFFF,  // The value that CRC checksum is initialized to
+            0x0000,  // The final value the calculated CRC checksum is XORed with
+            129,     // The value used to denote the start of a packet
+            0,       // The value used as packet delimiter
+            20000,   // The maximum number of microseconds allowed between receiving consecutive bytes of the packet.
+            false    // A boolean flag that specifies whether to record start_byte detection errors
+        )
+    {}
 
     /**
      * @brief Resets the transmission_buffer and any AtaraxisTransportLayer and Communication class tracker
@@ -313,7 +154,15 @@ class Communication
      *
      * @attention This method does not reset the _outgoing_header variable of the Communication class.
      */
-    void ResetTransmissionState();
+    void ResetTransmissionState()
+    {
+        _serial_protocol.ResetTransmissionBuffer(
+        );                               // Resets the necessary AXTL class variables (including the buffer).
+        _transmission_buffer_index = 0;  // Resets local transmission_buffer index tracker.
+
+        // Critically, this method does NOT reset the _outgoing_header class variable. This is done on purpose to optimize
+        // certain message header manipulations.
+    }
 
     /**
      * @brief Resets the reception_buffer and any AtaraxisTransportLayer and Communication class tracker
@@ -325,7 +174,12 @@ class Communication
      *
      * @attention This method does not reset the _incoming_header variable of the Communication class.
      */
-    void ResetReceptionState();
+    void ResetReceptionState()
+    {
+        // Resets the protocol buffer and trackers
+        _serial_protocol.ResetReceptionBuffer();
+        _reception_buffer_index = 0;
+    }
 
     /**
      *
@@ -340,7 +194,7 @@ class Communication
      * @return Boolean true if the operation succeeds and false otherwise.
      */
     template <typename ObjectType>
-    bool PackDataObject(uint8_t protocol, uint8_t object_id, ObjectType &object)
+    bool PackDataObject(uint8_t protocol, uint8_t object_id, ObjectType& object)
     {
         uint16_t header_size;
         if (protocol == static_cast<uint8_t>(axmc_shared_assets::kCommunicationProtocols::kPackedObjectCommand))
@@ -380,27 +234,26 @@ class Communication
     // bool SendCommand();
 
   private:
-    /// Stores the minimum valid size of incoming payloads. Currently, this necessarily includes the general ID,
-    /// 4 bytes (the size of the smallest Protocol Metadata section) and 2 bytes for the smallest supported
-    /// PackedObject.
-    static constexpr uint16_t kMinimumPayloadSize = sizeof(ID) + 6;
+    /// Stores the minimum valid size of incoming payloads. Currently, the smallest message structure is the
+    /// ParameterMessage structure. This structure contains 3 'header' bytes, followed by, as a minimum, 1-parameter
+    /// byte. Also, this statically includes the 'protocol' header byte.
+    static constexpr uint16_t kMinimumPayloadSize = sizeof(communication_assets::ParameterMessage) + 2;
 
     /// Stores the size of the CRC Checksum postamble in bytes. This is directly dependent on the variable type used
-    /// for the PolynomialType template parameter when specializing the AtaraxisTransportLayer class (see below).
+    /// for the PolynomialType template parameter when specializing the TransportLayer class (see below).
     /// At the time of writing, valid values are 1 (for uint8_t), 2 (for uint16_t) and 4 (for uint32_t).
     static constexpr uint8_t kCRCSize = 2;
 
     /// Stores the size of the preamble and the COBS metadata variables in bytes. There is no reliable heuristic for
-    /// calculating this beyond knowing what the particular version of AtaraxisTransportLayer uses internally, but
-    /// COBS statically reserves 2 bytes (overhead and delimiter) and at the time of writing the preamble consisted of
+    /// calculating this beyond knowing what the particular version of TransportLayer uses internally, but
+    /// COBS statically reserves 2 bytes (overhead and delimiter) and at the time of writing the preamble consists of
     /// start_byte and payload_size (another 2 bytes).
     static constexpr uint8_t kMetadataSize = 4;
 
     /// Combines the CRC and Metadata sizes to produce the final size of the payload region that would be reserved for
-    /// the protocol variables. This is needed to appropriately discount the available reception buffer space to account
-    /// for the fact the AXTL class needs space for its variables in addition to the payload. Note, this does NOT
-    /// include the general ID structure or any protocol Metadata structure, as they are considered parts of the actual
-    /// payload that are handled separately by the Communication class itself.
+    /// the TransportLayer variables. This is necessary to calculate the available reception buffer space, accounting
+    /// for the fact the TransportLayer class needs space for its variables in addition to the payload. Note; this
+    /// does not include the protocol byte, which is considered part of the payload managed by the Communication class.
     static constexpr uint8_t kReservedNonPayloadSize = kCRCSize + kMetadataSize;
 
     /**
@@ -417,15 +270,8 @@ class Communication
      * board architectures (see preprocessor directives at the top of this file) and may not work for your specific
      * board if it is not one of the explicitly defined architectures.
      */
-    static constexpr uint16_t kMaximumPayloadSize = min(kSerialBufferSize - kReservedNonPayloadSize, 254);
-
-    /// Stores the first index inside the buffer payload region that can be used to store PackedObjects. This allows
-    /// reserving buffer space to account for the header ID and command Metadata structures. In turn, this information
-    /// allows working with PackedObjects independently of the header and metadata information.
-    static constexpr uint16_t kCommandHeaderSize = sizeof(CommandMetadata) + sizeof(ID);
-
-    /// Sames as kCommandHeaderSize, but for data messages.
-    static constexpr uint16_t kDataHeaderSize = sizeof(DataMetadata) + sizeof(ID);
+    static constexpr uint16_t kMaximumPayloadSize =  // NOLINT(*-dynamic-static-initializers)
+        min(kSerialBufferSize - kReservedNonPayloadSize, 254);
 
     /**
      *  The specialization of the AtaraxisTransportLayer class that handles all low-level operations required to
@@ -443,7 +289,7 @@ class Communication
      *  will likely require at the very least reading the main AtaraxisTransportLayer class documentation alongside
      *  the Communication class documentation and, preferably, thorough isolated testing.
      */
-    AtaraxisTransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize, kMinimumPayloadSize> _serial_protocol;
+    TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize, kMinimumPayloadSize> _serial_protocol;
 
     /// Stores the index of the nearest unused byte in the payload region of the transmission_buffer, relative to the
     /// beginning of the buffer. This is used internally to sequentially and iteratively write to the payload region of
@@ -457,23 +303,13 @@ class Communication
     /// user.
     uint16_t _reception_buffer_index = 0;
 
-    /// Stores the ID structure used for the outgoing messages. While the structure is typically also stored in the
-    /// transmission_buffer, having an independent storage variable helps when the buffer needs to be recreated and for
-    /// certain other scenarios.
-    ID _outgoing_header;
-
-    /// Stores the ID structure extracted from incoming messages. While this structure is typically also stored in the
-    /// reception_buffer, having an independent storage variable for the structure is beneficial for optimizing ID data
-    /// readout procedures.
-    ID _incoming_header;
-
     /// Stores the currently active protocol code. This is used in multiple internal checks to allow the end-users to
     /// work with PackedObjects without processing the header and metadata structures. Specifically, the user is
     /// required to provide a protocol code when reading PackedObjects, which is compared to the value of this variable.
     /// If the values mismatch, the AXMC raises an error, as this is a violation of the safety standards. For example,
     /// this mechanism is used when the user is filling the payload for a data message to ensure the message is sent
     /// before allowing writing a new data message.
-    uint8_t _protocol_code = axmc_shared_assets::kCommunicationProtocols::kUndefined;
+    uint8_t _protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
 };
 
 #endif  //AXTL_COMMUNICATION_H

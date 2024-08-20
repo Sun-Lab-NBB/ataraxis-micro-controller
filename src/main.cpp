@@ -36,13 +36,13 @@
 // Dependencies
 #include <digitalWriteFast.h>
 #include "Arduino.h"
-#include "ataraxis_transport_layer.h"
+#include "transport_layer.h"
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
 #include "stream_mock.h"
 /**
- * @struct StaticRuntimeVariables
+ * @struct StaticRuntimeParameters
  * @brief Stores global runtime variables that are unlikely to or are incapable of changing during runtime.
  *
  * These variables broadly alter controller runtime behavior such as the resolution of Analog pins or communication
@@ -53,7 +53,7 @@
  * within that file. It is declared inside the Kernel file for general organization purposes so that it is automatically
  * available to all other Core and Module classes that all import Kernel.
  */
-struct StaticRuntimeVariables
+struct StaticRuntimeParameters
 {
     /**
      * @brief Bit-resolution of ADC (Analog-to-Digital) readouts.
@@ -86,9 +86,30 @@ struct StaticRuntimeVariables
      * generally as a last-resort when all other potential error sources have been ruled out.
      */
     bool log_start_byte_detection_errors = false;
-} kStaticRuntimeVariables;
+} kStaticRuntimeParameters;
 
 // Instantiates all classes used during runtime
+
+constexpr uint8_t maximum_tx_payload_size = 254;
+constexpr uint8_t maximum_rx_payload_size = 200;
+constexpr uint16_t polynomial             = 0x1021;
+constexpr uint16_t initial_value          = 0xFFFF;
+constexpr uint16_t final_xor_value        = 0x0000;
+constexpr uint8_t start_byte              = 129;
+constexpr uint8_t delimiter_byte          = 0;
+constexpr uint8_t minimum_payload_size    = 1;
+constexpr uint32_t timeout                = 20000; // In microseconds
+bool allow_start_byte_errors    = false;
+TransportLayer<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size, minimum_payload_size> tl_class(
+     Serial,
+     polynomial,
+     initial_value,
+     final_xor_value,
+     start_byte,
+     delimiter_byte,
+     timeout,
+     allow_start_byte_errors
+     );
 
 // Bidirectional serial connection interface to PC (Uses SerialTransfer under the hood). Note, this initializes the
 // class instances, but to support proper function it has to be started during setup() loop by calling

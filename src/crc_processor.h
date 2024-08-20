@@ -98,8 +98,7 @@ class CRCProcessor
     // and most likely not necessary for most use cases of this library. As such, at the time, there are no plans to
     // offer 64-bit polynomial support.
     static_assert(
-        shared_assets::is_same_v<PolynomialType, uint8_t> ||
-            shared_assets::is_same_v<PolynomialType, uint16_t> ||
+        shared_assets::is_same_v<PolynomialType, uint8_t> || shared_assets::is_same_v<PolynomialType, uint16_t> ||
             shared_assets::is_same_v<PolynomialType, uint32_t>,
         "CRCProcessor class template PolynomialType argument must be either uint8_t, uint16_t, or uint32_t."
     );
@@ -200,8 +199,7 @@ class CRCProcessor
         // Note, uses the start_index to offset the buffer_size before comparing it to the packet_size.
         if (static_cast<uint16_t>(buffer_size) - start_index < packet_size)
         {
-            crc_status =
-                static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall);
+            crc_status = static_cast<uint8_t>(shared_assets::kCRCProcessorCodes::kCalculateCRCChecksumBufferTooSmall);
 
             // NOTE, unlike most other methods, ANY returned value of this method is potentially valid, so 0 here is
             // just a placeholder. If the method returns 0, this DOES NOT mean the method failed its runtime. That can

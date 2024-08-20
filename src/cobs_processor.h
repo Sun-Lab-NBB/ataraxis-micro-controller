@@ -104,7 +104,6 @@ struct kCOBSProcessorLimits
 template <const uint8_t kPayloadSizeIndex = 1, const uint8_t kOverheadByteIndex = 2>
 class COBSProcessor
 {
-
   public:
     /// Stores the latest runtime status of the COBSProcessor. This variable is primarily designed to communicate
     /// the specific errors encountered during encoding or decoding in the form of byte-codes taken from the

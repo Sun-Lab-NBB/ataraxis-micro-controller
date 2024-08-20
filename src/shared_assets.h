@@ -1,26 +1,20 @@
 /**
  * @file
- * @brief The header-only file that stores all general assets intended to be shared between library classes wrapped
- * into a common namespace.
+ * @brief The header-only file that stores all assets intended to be shared between library classes.
  *
  * @section axmc_sa_description Description:
  *
  * This file contains:
- * - kCOBSProcessorCodes enumeration that stores status bytecodes used by the COBSProcessor to report its runtime
- * status.
- * - kCRCProcessorCodes enumeration that stores status bytecodes used by the CRCProcessor to report its runtime status.
- * - kTransportLayerStatusCodes enumeration that stores status bytecodes used by the TransportLayer to report its
- * runtime status.
- * - kCommunicationStatusCodes enumeration that stores status bytecodes used by the Communication to report its runtime
- * status.
- * - A custom implementation of the is_same_v() standard method used to verify that two input objects have the same
- * type.
+ * - shared_assets namespace that stores general-purpose assets shared between library classes. This includes
+ * implementations of some std:: namespace functions, such as is_same_v.
+ * - communication_assets namespace that stores structures and enumerations used by the Communication, Kernel and
+ * (base) Module classes to support bidirectional communication with other Ataraxis systems.
  *
  * @section axmc_sa_developer_notes Developer Notes:
  *
- * The primary reason for having this file is to store all byte-code enumerations in the same place. To simplify
- * error handling, all codes available through this namespace have to be unique relative to each other. For example, if
- * value 11 is used to represent 'Standby' state for CRCProcessor, no other status should be using value 11).
+ * The primary reason for having this file is to store shared byte-code enumerations and structures in the same place.
+ * Many of the codes available through this file have to be unique across the library and / or Ataraxis project as
+ * a whole.
  *
  * @section axmc_sa_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
@@ -117,16 +111,22 @@ namespace shared_assets
     };
 
     /**
-     * @enum kCommunicationStatusCodes
-     * @brief Assigns meaningful names to all status codes used by the Communication class.
+     * @enum kCoreStatusCodes
+     * @brief Assigns meaningful names to all status codes used by the Communication, Kernel and (base) Module classes.
+     *
+     * This enumeration jointly covers the core class 'triad'. Unlike other shared enumerations, these classes have
+     * relatively few unique status codes. Together with the enumerations above, this ensures that each core class
+     * status code is unique across the library, simplifying error handling.
      *
      * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 151 through 200. This is to simplify chained error handling in the Communication class
-     * of the library.
+     * values in the range of 151 through 200.
      */
-    enum class kCommunicationStatusCodes : uint8_t
+    enum class kCoreStatusCodes : uint8_t
     {
-        kStandby           = 151,  ///< Standby placeholder used to initialize the status tracker.
+        kCommunicationStandby =
+            151,               ///< Standby placeholder used to initialize the Communication class status tracker.
+        kKernelStandby = 152,  ///< Standby placeholder used to initialize the Kernel class status tracker.
+        kModuleStandby = 153,  ///< Standby placeholder used to initialize the (base) Module class status tracker.
     };
 
     /**
@@ -134,23 +134,15 @@ namespace shared_assets
      * @brief Stores global runtime parameters that are addressable through the Communication interface to broadly
      * configure Controller behavior.
      *
-     * The scope of modification realized through these parameters is very broad and affects many downstream methods and
-     * runtime behavior patterns. Additionally, since all of these parameters can be dynamically changed during runtime,
-     * this allows to change Controller behavior on-the-fly, which is in contrast to some other broad parameters that
-     * are statically defined. Primarily, this is helpful when working with precisely configured Controllers tightly
-     * embedded in an actively used experimental control system that should not be radically altered by software or
-     * physical pinout modifications.
+     * These parameters are primarily used through the Kernel and (base) Module classes, and they broadly
+     * affect the runtime of all classes derived from the base Module class.
      *
-     * @warning This structure is defined in shared_assets.h as it is used by multiple Core level classes. However,
-     * the @b only class allowed to modify this structure is the Kernel class. While each Module-derived
-     * class requires an instance of this structure to properly support runtime behavior, that instance is introduced
-     * by referencing the root instance of the Kernel class. Interfering with this declaration and use pattern may
-     * result in unexpected behavior and should be avoided if possible.
+     * @warning The @b only class allowed to instantiate and modify this structure is the Kernel class. Each
+     * Module-derived class requires an instance of this structure to properly support runtime behavior, but that
+     * instance should be automatically obtained from the Kernel class during module initialization.
      *
-     * To enforce the user-pattern described above, the only class that contains the functionality and, more
-     * importantly, the address-codes enumeration is the Kernel class. If you need to add or modify variables of
-     * this structure, be sure to properly update structure modification methods and address-codes stored inside the
-     * Kernel class.
+     * @note If you need to add or modify variables of this structure, be sure to properly update structure
+     * modification methods and address-codes stored inside the Kernel class.
      */
     struct ControllerRuntimeParameters
     {
@@ -160,45 +152,8 @@ namespace shared_assets
         bool action_lock = true;
 
         /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Currently only applies to
-        /// TTL Module commands, but, in the future, may be tied to any Module that sends a ttl pulse of any kind
-        /// using digital pins. The reason this is separate from action_lock is because action pins connected to
-        /// physical systems are often capable of damaging connected systems if the code that runs them is not properly
-        /// calibrated. Conversely, this is usually not a concern for ttl signals that convey information without
-        /// triggering any physical changes in the connected systems. As such, it is not uncommon to have a use case
-        /// where action_lock needs to be enabled without enabling the ttl_lock.
+        /// TTL Module commands, as there is no 'automatic' way of knowing if any other output pin is a TTL pin.
         bool ttl_lock = true;
-
-        /// Controls whether the controller uses simulated or real sensor readout values. To support python-driven AMC
-        /// tests, all code comes with simulation capacity where necessary. Specifically, when set to @b true, this
-        /// parameter forces all functions to return code-generated values rather than real-world derived values.
-        /// For example, instead of reading a sensor the code will return a random or predefined sensor value as if it
-        /// was obtained by reading the sensor.
-        bool simulate_responses = false;
-
-        /// If simulate_responses is set to @b true, determines whether simulated values are generated using random()
-        /// function or a predefined simulated_value. The random approach is good for longitudinal speed / pipeline
-        /// resilience testing as it is a better approximation of real world performance in certain scenarios and the
-        /// predefined approach is good for unit-testing PC-Controller interactions and logic. If random generation
-        /// (simulation) is used, the range of random generation is set to the maximum resolution of the expected output
-        /// variable type.
-        bool simulate_specific_responses = false;
-
-        /// If simulate_specific_responses is @b true, this is the value that will be returned by EVERY sensor-reading
-        /// function call. If this value does not fit into the bit-size of the variable expected from a particular
-        /// function that calls the simulation sub-routine, the returned value will actually be the maximum value
-        /// supported by the variable's bit-size. For example, if this variable is a 1000, and it is used to simulate
-        /// the response of a sensor that can only read HIGH or LOW (bool), the number 1000 will be converted to HIGH
-        /// and returned as HIGH (1).
-        uint32_t simulated_value = 1000;
-
-        /// Allows to enforce a specific @em minimum sensor-loop lock duration in @b microseconds. This variable
-        /// specifically affects the loops that lock until particular sensor value is encountered. These loops are
-        /// modified indirectly via the simulate_specific_responses variable that, if @b false, introduces a random
-        /// readout component where each call to the sensor reading function will return a random value that may or may
-        /// not satisfy the loop exit requirement. This variable acts as an additional simulation step which will
-        /// prevent loop breaking until the specified number of microseconds has passed, even if the sensor value
-        /// criterion has been satisfied.
-        uint32_t minimum_lock_duration = 20000;
     };
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
@@ -254,7 +209,179 @@ namespace shared_assets
      */
     template <typename T, typename U>
     constexpr bool is_same_v = is_same<T, U>::value;  // NOLINT(*-dynamic-static-initializers)
-
 }  // namespace shared_assets
+
+/**
+ * @namespace communication_assets
+ * @brief Provides all assets (structures, enumerations, variables) necessary to interface with and support the
+ * runtime of the Communication class.
+ *
+ * @attention These assets are designed to be used exclusively by the core classes: Communication, Kernel and (base)
+ * Module. Do not modify or access these assets from any class derived from the base Module class or any other custom
+ * class.
+ */
+namespace communication_assets
+{
+    /**
+     * @enum kProtocols
+     * @brief Stores protocol codes used by the Communication class to specify incoming and outgoing message structures.
+     *
+     * The Protocol byte-code instructs message parsers on how to process the incoming message. Each message has a
+     * unique payload structure which cannot be parsed unless the underlying protocol is known.
+     *
+     * @attention The protocol code, derived from this enumeration, should be the first 'payload' byte of each message.
+     * This enumeration should only be used by the Communication and Kernel classes. Protocol codes are designed to
+     * be unique across the entire Ataraxis project.
+     */
+    enum class kProtocols : uint8_t
+    {
+        /// Undefined protocol. This value is used as the default initializer and is not a valid protocol code.
+        /// Messages with this protocol code will be interpreted as communication errors.
+        kUndefined = 0,
+
+        /// Command message protocol.
+        kCommand = 1,
+
+        /// Parameters message protocol.
+        kParameters = 2,
+
+        /// Data message protocol. This protocol is used for all types of data messages, including error messages.
+        kData = 3,
+
+        /// Reception acknowledgement protocol. This is a minimalistic protocol used to notify the sender that the
+        /// controller received the Command or Parameters message.
+        kReceptionCode = 4,
+
+        /// Idle protocol. This protocol is used by controllers in the 'standby' mode. It serves as a sign that
+        /// the controller is not currently used by other Ataraxis systems.
+        kIdle = 5,
+    };
+
+    /**
+     * @struct CommandMessage
+     * @brief The payload structure used by the incoming Command messages.
+     *
+     * When Communication class encounters a message with the first value (assumed to be the protocol ID) set to
+     * 1, it parses the message using this structure. Command messages are designed to trigger specific module runtimes.
+     * These runtimes may be further configured by setting module parameters via the Parameters message.
+     *
+     * @notes Currently, controllers can only receive Command messages, but they cannot send them.
+     */
+    struct CommandMessage
+    {
+        /// The type-code of the module to which the command is addressed.
+        uint8_t module_type = 0;
+
+        /// The specific module ID within the broader module family specified by module_type.
+        uint8_t module_id = 0;
+
+        /// When this field is set to a value other than 0, the Communication class will send this code back to the
+        /// sender upon successfully processing the received command. This is to notify the sender that the command was
+        /// received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+        uint8_t return_code = 0;
+
+        /// The unique code of the command to execute.
+        uint8_t command = 0;
+
+        /// Determines whether the command is executed once or repeatedly cycled with a certain periodicity.
+        /// Together with cycle_duration, this allows triggering both one-shot and cyclic command runtimes.
+        bool cycle = false;
+
+        /// The period of time, in milliseconds, to delay before repeating (cycling) the command. This is only used if
+        /// the cycle flag is True.
+        uint32_t cycle_duration = 0;
+    } __attribute__((packed));
+
+    /**
+     * @struct ParameterMessage
+     * @brief The payload structure used by the incoming Parameter messages.
+     *
+     * When Communication class encounters a message with the first value (assumed to be the protocol ID) set to
+     * 2, it parses the message using this structure. Parameter messages are used to flexibly configure the addressed
+     * module by overwriting its parameter structure with the object provided in the message.
+     *
+     * @notes Parameter messages are expected to contain this ID structure as the header, with remaining payload
+     * space occupied by the parameter structure object. The structure should exactly match the configured module
+     * 'runtime_parameters' structure. During parsing, the Kernel will first use the information from this structure
+     * to find the addressed module and then use that module's runtime_parameters structure as the prototype to parse
+     * the rest of the message payload. See Kernel class ParseParameters() method for more details.
+     */
+    struct ParameterMessage
+    {
+        /// The type-code of the module to which the parameter configuration is addressed.
+        uint8_t module_type = 0;
+
+        /// The specific module ID within the broader module family specified by module_type.
+        uint8_t module_id = 0;
+
+        /// When this field is set to a value other than 0, the Communication class will send this code back to the
+        /// sender upon successfully processing the received command. This is to notify the sender that the command was
+        /// received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+        uint8_t return_code = 0;
+    } __attribute__((packed));
+
+    /**
+     * @struct DataMessage
+     * @brief The payload structure used by the outgoing Data messages.
+     *
+     * When the Communication class sends the Data message, it uses this message structure, preceded by
+     * protocol value 3. Data messages are used to communicate all controller-originating information, such as
+     * runtime data and error messages to other Ataraxis systems.
+     *
+     * @tparam ObjectType The type of object to be sent with the message. The object can be of any supported type,
+     * including arrays and structures.
+     */
+    template <typename ObjectType>
+    struct DataMessage
+    {
+        /// The type-code of the module which sent the data message.
+        uint8_t module_type = 0;
+
+        /// The specific module ID within the broader module family specified by module_type.
+        uint8_t module_id = 0;
+
+        /// The unique code of the command the module was executing when it sent the data message.
+        uint8_t command = 0;
+
+        /// The unique code of the event within the command runtime that prompted the data transmission.
+        uint8_t event = 0;
+
+        /// The transmitted data object. This can be any valid object type, as long as it fits the
+        /// specification imposed by the maximum message payload size.
+        ObjectType object = 0;
+    } __attribute__((packed));
+
+    /**
+     * @struct ReceptionMessage
+     * @brief The payload structure used by the outgoing Reception messages.
+     *
+     * When the Communication class receives a message that contains a non-zero return_code field, it sends a response
+     * using this message structure, preceded by protocol value 4. This is a one-variable protocol that returns the
+     * reception code to the sender, to indicate that the message was received intact.
+     */
+    struct ReceptionMessage
+    {
+        /// The return code from the received message that requested the reception acknowledgement service.
+        uint8_t return_code = 0;
+    } __attribute__((packed));
+
+    /**
+     * @struct IdleMessage
+     * @brief The payload structure used by the outgoing Idle messages.
+     *
+     * When the Communication class sends the Idle message, it uses this message structure, preceded by
+     * protocol value 5. Idle messages are periodically sent to signal that the controller is not currently in use by
+     * other Ataraxis systems. Additionally, it contains controller ID code.
+     *
+     * @notes Idle message periodicity is configured using kStaticRuntimeParameters structure inside the main.cpp
+     * file.
+     */
+    struct IdleMessage
+    {
+        /// The user-defined ID-code of the controller.
+        uint8_t controller_id = 0;
+    } __attribute__((packed));
+
+}  // namespace communication_assets
 
 #endif  //AXMC_SHARED_ASSETS_H

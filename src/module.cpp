@@ -12,7 +12,7 @@
  * @see amc_module.h for method documentation.
  */
 
-#include "module.h"
+#include "module/module.h"
 
 // Class Constructor implementation. Takes in the reference to the ControllerRuntimeParameters structure instantiated
 // by the AMCKernel class as a constant reference and a non-constant reference to the SerialPCCommunication class
