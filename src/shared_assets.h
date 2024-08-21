@@ -127,6 +127,27 @@ namespace shared_assets
             151,               ///< Standby placeholder used to initialize the Communication class status tracker.
         kKernelStandby = 152,  ///< Standby placeholder used to initialize the Kernel class status tracker.
         kModuleStandby = 153,  ///< Standby placeholder used to initialize the (base) Module class status tracker.
+        kCommunicationReceptionError = 154,  ///< Communication class ran into an error when receiving a message.
+        kCommunicationParsingError = 155,  ///< Communication class ran into an error when parsing (reading) a message.
+    };
+
+    /**
+     * @brief Aggregates all byte-codes used by Core classes (Kernel, Communication and (base) Module) to send and
+     * receive messages.
+     *
+     * Similar to kCoreStatusCodes, aggregating the codes for all classes in one enumeration simplifies working with
+     * Core classes. This enumeration stores values that can be used for module_type and module_id fields of incoming
+     * and outgoing messages.
+     *
+     * @attention The codes available through this enumeration have to be unique! Classes derived from the base Module
+     * class and other custom classes should not use or overwrite the module_type and module_id codes available through
+     * this library.
+     */
+    enum class kCoreMessageCodes : uint8_t
+    {
+        kCommunicationType = 1,  ///< Communication class should always be type 1
+        kKernelType        = 2,  ///< Kernel class should always be type 3
+        kCoreID            = 0,  ///< Core classes only exist as singular entities and, as such, do not make use if IDs
     };
 
     /**
@@ -146,14 +167,14 @@ namespace shared_assets
      */
     struct ControllerRuntimeParameters
     {
-        /// Enables running the controller logic without physically issuing commands. This is helpful for testing and
-        /// debugging microcontroller systems. Specifically, blocks @b action pins from writing. Sensor and TTL pins are
-        /// unaffected by this variable's state.
-        bool action_lock = true;
+            /// Enables running the controller logic without physically issuing commands. This is helpful for testing
+            /// and debugging microcontroller systems. Specifically, blocks @b action pins from writing. Sensor and TTL
+            /// pins are unaffected by this variable's state.
+            bool action_lock = true;
 
-        /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Currently only applies to
-        /// TTL Module commands, as there is no 'automatic' way of knowing if any other output pin is a TTL pin.
-        bool ttl_lock = true;
+            /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Currently only applies
+            /// to TTL Module commands, as there is no 'automatic' way of knowing if any other output pin is a TTL pin.
+            bool ttl_lock = true;
     };
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
@@ -172,8 +193,8 @@ namespace shared_assets
     template <typename T, typename U>
     struct is_same
     {
-        /// The default value used by the specification for two different input types.
-        static constexpr bool value = false;
+            /// The default value used by the specification for two different input types.
+            static constexpr bool value = false;
     };
 
     /**
@@ -187,8 +208,8 @@ namespace shared_assets
     template <typename T>
     struct is_same<T, T>
     {
-        /// The default value used by the specification for two identical types.
-        static constexpr bool value = true;
+            /// The default value used by the specification for two identical types.
+            static constexpr bool value = true;
     };
 
     /**
@@ -269,32 +290,32 @@ namespace communication_assets
      */
     struct CommandMessage
     {
-        /// The type-code of the module to which the command is addressed.
-        uint8_t module_type = 0;
+            /// The type-code of the module to which the command is addressed.
+            uint8_t module_type = 0;
 
-        /// The specific module ID within the broader module family specified by module_type.
-        uint8_t module_id = 0;
+            /// The specific module ID within the broader module family specified by module_type.
+            uint8_t module_id = 0;
 
-        /// When this field is set to a value other than 0, the Communication class will send this code back to the
-        /// sender upon successfully processing the received command. This is to notify the sender that the command was
-        /// received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
-        uint8_t return_code = 0;
+            /// When this field is set to a value other than 0, the Communication class will send this code back to the
+            /// sender upon successfully processing the received command. This is to notify the sender that the command
+            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            uint8_t return_code = 0;
 
-        /// The unique code of the command to execute.
-        uint8_t command = 0;
+            /// The unique code of the command to execute.
+            uint8_t command = 0;
 
-        /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
-        /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise, the
-        /// controller will run other commands concurrently, while waiting for the block to complete.
-        bool noblock = false;
+            /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
+            /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise,
+            /// the controller will run other commands concurrently, while waiting for the block to complete.
+            bool noblock = false;
 
-        /// Determines whether the command is executed once or repeatedly cycled with a certain periodicity.
-        /// Together with cycle_duration, this allows triggering both one-shot and cyclic command runtimes.
-        bool cycle = false;
+            /// Determines whether the command is executed once or repeatedly cycled with a certain periodicity.
+            /// Together with cycle_duration, this allows triggering both one-shot and cyclic command runtimes.
+            bool cycle = false;
 
-        /// The period of time, in milliseconds, to delay before repeating (cycling) the command. This is only used if
-        /// the cycle flag is True.
-        uint32_t cycle_duration = 0;
+            /// The period of time, in milliseconds, to delay before repeating (cycling) the command. This is only used
+            /// if the cycle flag is True.
+            uint32_t cycle_duration = 0;
     } __attribute__((packed));
 
     /**
@@ -303,29 +324,34 @@ namespace communication_assets
      *
      * When Communication class encounters a message with the first value (assumed to be the protocol ID) set to
      * 2, it parses the message using this structure. Parameter messages are used to flexibly configure the addressed
-     * module by overwriting its parameter structure with the object provided in the message.
+     * module by overwriting its parameter (RuntimeParameters) structure with the object provided in the message.
      *
-     * @notes Parameter messages are expected to contain this ID structure as the header, with remaining payload
-     * space occupied by the parameter structure object. The structure should exactly match the configured module
-     * 'runtime_parameters' structure. During parsing, the Kernel will first use the information from this structure
-     * to find the addressed module and then use that module's runtime_parameters structure as the prototype to parse
-     * the rest of the message payload. See Kernel class ParseParameters() method for more details.
+     * @note Parameters are stored in a module-type-specific structure, whose layout will not be known at the time the
+     * data is parsed. Instead, the data is parsed as raw bytes, which are then cast to the appropriate structure type
+     * by the Kernel class.
+     *
+     * @tparam ObjectSize The number of bytes used by the transmitted parameter structure. This is used to temporarily
+     * parse the parameters as a byte-array upon message reception.
      */
+    template <size_t ObjectSize>
     struct ParameterMessage
     {
-        /// The type-code of the module to which the parameter configuration is addressed.
-        uint8_t module_type = 0;
+            /// The type-code of the module to which the parameter configuration is addressed.
+            uint8_t module_type = 0;
 
-        /// The specific module ID within the broader module family specified by module_type.
-        uint8_t module_id = 0;
+            /// The specific module ID within the broader module family specified by module_type.
+            uint8_t module_id = 0;
 
-        /// When this field is set to a value other than 0, the Communication class will send this code back to the
-        /// sender upon successfully processing the received command. This is to notify the sender that the command was
-        /// received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
-        uint8_t return_code = 0;
+            /// When this field is set to a value other than 0, the Communication class will send this code back to the
+            /// sender upon successfully processing the received command. This is to notify the sender that the command
+            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            uint8_t return_code = 0;
 
-        /// Stores the number of bytes (byte-size) of the parameters structure included with the message.
-        uint8_t object_size = 0;
+            /// Stores the number of bytes (byte-size) of the parameter structure included with the message.
+            uint8_t object_size = 0;
+
+            /// The transmitted parameters data as a byte array.
+            uint8_t object_data[ObjectSize] = {};
     } __attribute__((packed));
 
     /**
@@ -342,56 +368,42 @@ namespace communication_assets
     template <typename ObjectType>
     struct DataMessage
     {
-        /// The type-code of the module which sent the data message.
-        uint8_t module_type = 0;
+            /// The type-code of the module which sent the data message.
+            uint8_t module_type = 0;
 
-        /// The specific module ID within the broader module family specified by module_type.
-        uint8_t module_id = 0;
+            /// The specific module ID within the broader module family specified by module_type.
+            uint8_t module_id = 0;
 
-        /// The unique code of the command the module was executing when it sent the data message.
-        uint8_t command = 0;
+            /// The unique code of the command the module was executing when it sent the data message.
+            uint8_t command = 0;
 
-        /// The unique code of the event within the command runtime that prompted the data transmission.
-        uint8_t event = 0;
+            /// The unique code of the event within the command runtime that prompted the data transmission.
+            uint8_t event = 0;
 
-        /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
-        /// size of the ObjectType template parameter.
-        uint8_t objectSize = static_cast<uint8_t>(sizeof(ObjectType));
+            /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
+            /// size of the ObjectType template parameter.
+            uint8_t object_size = static_cast<uint8_t>(sizeof(ObjectType));
 
-        /// The transmitted data object. This can be any valid object type, as long as it fits the
-        /// specification imposed by the maximum message payload size.
-        ObjectType object = 0;
+            /// The transmitted data object. This can be any valid object type, as long as it fits the
+            /// specification imposed by the maximum message payload size.
+            ObjectType object = 0;
     } __attribute__((packed));
 
     /**
-     * @struct ReceptionMessage
-     * @brief The payload structure used by the outgoing Reception messages.
+     * @struct ServiceMessage
+     * @brief The payload structure used by outgoing Service messages.
      *
-     * When the Communication class receives a message that contains a non-zero return_code field, it sends a response
-     * using this message structure, preceded by protocol value 4. This is a one-variable protocol that returns the
-     * reception code to the sender, to indicate that the message was received intact.
+     * Service messages are a class of messages that only include one byte-code alongside the protocol code. Typically,
+     * this is used to communicate reception acknowledgement codes or controller ID (used during Idle communication).
+     *
+     * Service messages use different protocol codes to distinguish each other, but share the same underlying message
+     * structure.
      */
-    struct ReceptionMessage
+    struct ServiceMessage
     {
-        /// The return code from the received message that requested the reception acknowledgement service.
-        uint8_t return_code = 0;
-    } __attribute__((packed));
-
-    /**
-     * @struct IdleMessage
-     * @brief The payload structure used by the outgoing Idle messages.
-     *
-     * When the Communication class sends the Idle message, it uses this message structure, preceded by
-     * protocol value 5. Idle messages are periodically sent to signal that the controller is not currently in use by
-     * other Ataraxis systems. Additionally, it contains controller ID code.
-     *
-     * @notes Idle message periodicity is configured using kStaticRuntimeParameters structure inside the main.cpp
-     * file.
-     */
-    struct IdleMessage
-    {
-        /// The user-defined ID-code of the controller.
-        uint8_t controller_id = 0;
+            /// The byte-code of the service message. This can be a reception code, controller ID or any other service
+            /// information, depending on the used Protocol code.
+            uint8_t code = 0;
     } __attribute__((packed));
 
 }  // namespace communication_assets

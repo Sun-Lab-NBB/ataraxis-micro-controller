@@ -4,7 +4,7 @@
 # format.
 ---
 BasedOnStyle: Google
-AccessModifierOffset: -2
+AccessModifierOffset: 0
 AlignAfterOpenBracket: BlockIndent
 AlignArrayOfStructures: Left
 AlignConsecutiveAssignments: Consecutive
@@ -69,7 +69,7 @@ EmptyLineAfterAccessModifier: Leave
 EmptyLineBeforeAccessModifier: Always
 FixNamespaceComments: true
 IncludeBlocks: Merge
-IndentAccessModifiers: false
+IndentAccessModifiers: true
 IndentCaseBlocks: true
 IndentCaseLabels: true
 IndentExternBlock: AfterExternBlock
