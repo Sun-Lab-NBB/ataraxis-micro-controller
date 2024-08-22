@@ -129,6 +129,17 @@ namespace shared_assets
         kModuleStandby = 153,  ///< Standby placeholder used to initialize the (base) Module class status tracker.
         kCommunicationReceptionError = 154,  ///< Communication class ran into an error when receiving a message.
         kCommunicationParsingError = 155,  ///< Communication class ran into an error when parsing (reading) a message.
+        kCommunicationPackingError = 156,  ///< Communication class ran into an error when writing a message to payload.
+        kCommunicationTransmissionError = 157,  ///< Communication class ran into an error when transmitting a message.
+        kCommunicationTransmissionSuccess = 158,  ///< Communication class successfully transmitted a message.
+        kCommunicationReceptionSuccess    = 159,  ///< Communication class successfully received a message.
+        kCommunicationInvalidProtocolError =
+            160,  ///< The received or transmitted protocol code is not valid for that type of operation.
+        kCommunicationNoBytesToReceive =
+            161,  ///< Communication class did not receive enough bytes to process the message. This is NOT an error.
+        kCommunicationParameterSizeMismatchError =
+            162,  ///< The number of extracted parameter bytes does not match the size of the input structure.
+        kCommunicationParametersExtracted = 163,  ///< Parameter data has been successfully extracted.
     };
 
     /**
@@ -326,14 +337,10 @@ namespace communication_assets
      * 2, it parses the message using this structure. Parameter messages are used to flexibly configure the addressed
      * module by overwriting its parameter (RuntimeParameters) structure with the object provided in the message.
      *
-     * @note Parameters are stored in a module-type-specific structure, whose layout will not be known at the time the
-     * data is parsed. Instead, the data is parsed as raw bytes, which are then cast to the appropriate structure type
-     * by the Kernel class.
-     *
-     * @tparam ObjectSize The number of bytes used by the transmitted parameter structure. This is used to temporarily
-     * parse the parameters as a byte-array upon message reception.
+     * @notes Parameters are stored in a module-type-specific structure, whose layout will not be known at the time the
+     * data is parsed. Instead, Kernel class will use the 'object_size' field and the module ID information from this
+     * header structure to extract and interpret the parameter data.
      */
-    template <size_t ObjectSize>
     struct ParameterMessage
     {
             /// The type-code of the module to which the parameter configuration is addressed.
@@ -349,9 +356,6 @@ namespace communication_assets
 
             /// Stores the number of bytes (byte-size) of the parameter structure included with the message.
             uint8_t object_size = 0;
-
-            /// The transmitted parameters data as a byte array.
-            uint8_t object_data[ObjectSize] = {};
     } __attribute__((packed));
 
     /**
