@@ -89,6 +89,9 @@
 template <uint16_t kSerialBufferSize>
 class Communication
 {
+    // Ensures that the minimum serial buffer size is high enough for the class to function correctly.
+    static_assert(kSerialBufferSize > 10, "Serial buffer size must be greater than 10");
+
     public:
         /// Tracks the most recent class runtime status.
         uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
@@ -131,7 +134,7 @@ class Communication
                 129,                 // Start byte value
                 0,                   // Delimiter byte value
                 20000,               // Packet reception timeout (in microseconds)
-                false                // Disables start byte detection errors
+                kStaticRuntimeParameters.enable_start_byte_detection_errors  // Generally, this should be disabled
             )
         {}
 
@@ -305,7 +308,7 @@ class Communication
             ResetTransmissionState();
 
             // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
-            if (protocol == communication_assets::kProtocols::kReceptionCode |
+            if (protocol == communication_assets::kProtocols::kReceptionCode ||
                 protocol == communication_assets::kProtocols::kIdle)
             {
                 // Writes message payload

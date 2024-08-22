@@ -40,83 +40,18 @@
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
-#include "stream_mock.h"
-/**
- * @struct StaticRuntimeParameters
- * @brief Stores global runtime variables that are unlikely to or are incapable of changing during runtime.
- *
- * These variables broadly alter controller runtime behavior such as the resolution of Analog pins or communication
- * baudrate. Manual in-code modification followed by codebase recompiling and re-uploading is necessary to change the
- * values of these variables.
- *
- * @attention This is a Core structure that is intended to be instantiated inside the main.cpp file and used strictly
- * within that file. It is declared inside the Kernel file for general organization purposes so that it is automatically
- * available to all other Core and Module classes that all import Kernel.
- */
-struct StaticRuntimeParameters
-{
-    /**
-     * @brief Bit-resolution of ADC (Analog-to-Digital) readouts.
-     *
-     * Arduino 32-bit boards support 12, 8-bit boards support 10. Teensy boards support up to 16 in hardware.
-     * It is generally advised not to exceed 12/13 bits as higher values are typically made unusable by noise.
-     */
-    uint8_t analog_resolution = 12;
 
-    /**
-     * @brief The baudrate (data transmission rate) of the Serial port used for the PC-Controller communication via
-     * SerialTransfer library.
-     *
-     * @note All Teensy boards  default to the maximum USB rate, which is most likely 480 Mbit/sec, ignoring the
-     * baudrate setting. Arduino's have much lower baudrates as they use a UART instead of the USB and the maximum
-     * baudrate will depend on the particular board.
-     *
-     * @attention For systems that actually do use baudrate, the value specified here should be the same as the value
-     * used in the python companion code or the PC and Controller will not be able to communicate to each-other.
-     */
-    uint32_t baudrate = 115200;
+shared_assets::ControllerRuntimeParameters DynamicRuntimeParameters;
 
-    /**
-     * @brief Determines whether incoming data start byte detection errors are logged (result in an error message being
-     * sent to PC) or not.
-     *
-     * Generally, it is advised to keep this option set to @b false as start byte detection failures are often a natural
-     * byproduct of the algorithm clearing out error (jitter) data that results from physical interference in the
-     * transmission environment. This option is primarily designed to assist developers debugging communication issues,
-     * generally as a last-resort when all other potential error sources have been ruled out.
-     */
-    bool log_start_byte_detection_errors = false;
-
-    uint32_t idle_message_interval = 1000000; // In microseconds
-} kStaticRuntimeParameters;
+constexpr shared_assets::StaticRuntimeParameters kStaticRuntimeParameters = {
+    .baudrate = 115200,
+    .analog_resolution = 12,
+    .enable_start_byte_detection_errors = false,
+    .controller_buffer_size = 1024,
+    .idle_message_interval = 1000000,
+};
 
 // Instantiates all classes used during runtime
-
-constexpr uint8_t maximum_tx_payload_size = 254;
-constexpr uint8_t maximum_rx_payload_size = 200;
-constexpr uint16_t polynomial             = 0x1021;
-constexpr uint16_t initial_value          = 0xFFFF;
-constexpr uint16_t final_xor_value        = 0x0000;
-constexpr uint8_t start_byte              = 129;
-constexpr uint8_t delimiter_byte          = 0;
-constexpr uint8_t minimum_payload_size    = 1;
-constexpr uint32_t timeout                = 20000; // In microseconds
-bool allow_start_byte_errors    = false;
-TransportLayer<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size, minimum_payload_size> tl_class(
-     Serial,
-     polynomial,
-     initial_value,
-     final_xor_value,
-     start_byte,
-     delimiter_byte,
-     timeout,
-     allow_start_byte_errors
-     );
-
-// Bidirectional serial connection interface to PC (Uses SerialTransfer under the hood). Note, this initializes the
-// class instances, but to support proper function it has to be started during setup() loop by calling
-// BeginCommunication() method.
-SerialPCCommunication uplink(false, Serial);
 
 //KERNEL
 AMCKernel kernel(uplink);

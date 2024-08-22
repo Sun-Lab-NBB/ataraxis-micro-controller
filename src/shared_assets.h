@@ -163,29 +163,118 @@ namespace shared_assets
 
     /**
      * @struct ControllerRuntimeParameters
-     * @brief Stores global runtime parameters that are addressable through the Communication interface to broadly
-     * configure Controller behavior.
+     * @brief Stores global runtime parameters addressable through the Communication interface.
      *
-     * These parameters are primarily used through the Kernel and (base) Module classes, and they broadly
-     * affect the runtime of all classes derived from the base Module class.
+     * These parameters broadly affect the runtime of all classes derived from the base Module class. They are
+     * addressable through the Kernel class using the Communication interface.
      *
-     * @warning The @b only class allowed to instantiate and modify this structure is the Kernel class. Each
-     * Module-derived class requires an instance of this structure to properly support runtime behavior, but that
-     * instance should be automatically obtained from the Kernel class during module initialization.
-     *
-     * @note If you need to add or modify variables of this structure, be sure to properly update structure
-     * modification methods and address-codes stored inside the Kernel class.
+     * @warning The @b only class allowed to modify this structure is the Kernel class. Each (base) Module-derived
+     * class requires an instance of this structure to properly support runtime behavior, but they should not modify the
+     * instance.
      */
     struct ControllerRuntimeParameters
     {
             /// Enables running the controller logic without physically issuing commands. This is helpful for testing
-            /// and debugging microcontroller systems. Specifically, blocks @b action pins from writing. Sensor and TTL
-            /// pins are unaffected by this variable's state.
+            /// and debugging Microcontroller code. Specifically, blocks @b action pins from writing. Sensor and TTL
+            /// pins are unaffected by this variable's state. Note, this only works for digital and analog writing
+            /// methods inherited from the base Module class.
             bool action_lock = true;
 
-            /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Currently only applies
-            /// to TTL Module commands, as there is no 'automatic' way of knowing if any other output pin is a TTL pin.
+            /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Same as action_lock,
+            /// this only works for digital and analog writing methods inherited from the base Module class.
             bool ttl_lock = true;
+    };
+
+    /**
+     * @struct StaticRuntimeParameters
+     * @brief Stores global runtime parameters that should be defined at compile time.
+     *
+     * These parameters broadly affect the runtime of all library classes. Critically, this includes the Communication
+     * class that provides the bidirectional communication interface between the Controller and other Ataraxis
+     * infrastructures. To enable this use-pattern, the structure has to be fully resolved at compile time.
+     *
+     * @attention This structure has to be instantiated inside the main.cpp file, using sensible values. If this
+     * structure is not configured appropriately, the controller will likely not be usable at all. Codebase
+     * re-upload is required ot alter the fields of this structure after instantiation.
+     */
+    struct StaticRuntimeParameters
+    {
+            /**
+             * @brief The baudrate (data transmission rate) of the Serial port used for the bidirectional serial
+             * communication with other Ataraxis systems.
+             *
+             * @note All Teensy boards default to the maximum USB rate, which is most likely 480 Mbit/sec, ignoring the
+             * baudrate setting. Most Arduinos have much lower baud rates as they use a UART interface instead of the
+             * USB and the maximum baudrate will depend on the particular board.
+             *
+             * @attention For systems that actually do use baudrate, the value specified here should be the same as
+             * used by communication recipient. Additionally, the appropriate controller baudrate depends on the
+             * Controller's CPU clock speed. Selecting an incompatible baudrate is likely to result in transmission
+             * errors!
+             *
+             * To select the baudrate compatible with your Controller hardware, you can use this helpful calculator:
+             * @a https://wormfood.net/avrbaudcalc.php.
+             */
+            uint32_t baudrate = 115200;
+
+            /**
+             * @brief Bit-resolution of ADC (Analog-to-Digital) readouts.
+             *
+             * Arduino 32-bit boards support 12, 8-bit boards support 10. Teensy boards support up to 16 in hardware.
+             * It is generally advised not to exceed 12/13 bits as higher values are typically made unusable by noise.
+             *
+             * This parameter is used during the main setup() method runtime to statically set the resolution of each
+             * analog pin used by Core and Module-derived custom classes.
+             */
+            uint8_t analog_resolution = 12;
+
+            /**
+             * @brief Determines whether the Communication class treats receiving error bytes before start byte as
+             * errors.
+             *
+             * Generally, it is advised to keep this option set to @b false as start byte detection failures are
+             * common and expected. Noise bytes will typically accumulate in the serial interface reception
+             * buffer due to environment interference. When Communication class is triggered to parse a message, it
+             * first silently clears out these noise bytes, before parsing the message. If this option is set to
+             * @b true, the Communication class will abort and raise an error upon encountering a non-start noise byte.
+             *
+             * @note The only case where this option may need to be set to @b true is when debugging the communication
+             * interface. Even then, this way of testing is usually the last-resort effort.
+             */
+            bool enable_start_byte_detection_errors = false;
+
+            /**
+             * @brief The size of the Microcontroller's Serial interface buffer (hardware buffer).
+             *
+             * @attention This value is used to initialize the Communication class and, if invalid, may make it
+             * impossible to interact with the controller through the communication interface. The minimum allowed
+             * buffer size is 10 bytes. The maximum usable buffer size is ~265 bytes.
+             *
+             * The Communication class reserves between ~7 and 254 bytes of memory for its reception and transmission
+             * buffers. This determines the size of message payloads that can be sent and received by the controller.
+             * To enable communication in the most efficient way, the Communication class needs to know the maximum
+             * size of the hardware buffer used by the Microcontroller Serial communication port.
+             *
+             * This value can be used to limit the amount of memory reserved by the Communication class. For example,
+             * if communicated payloads do not exceed 20 payloads in size, you can set this value to ~26 (extra bytes
+             * are used to account for the communication metadata (non-payload) variables). Generally, unless memory
+             * use is a big concern, it is recommended to set this to the hardware limit.
+             *
+             * @note The default value of 64 bytes is only valid for Arduino Uno. Many higher-end boards have higher
+             * buffer sizes, usually >= 254 bytes. Adjust this based on your hardware to maximize Communication class
+             * performance. Communication class automatically ensures necessary buffer size constrains are met and will
+             * not use memory in excess of ~265 bytes.
+             */
+            uint16_t controller_buffer_size = 64;
+
+            /**
+             * @brief The interval, in milliseconds, with which to transmit controller ID data when in Idle mode.
+             *
+             * When not actively in use, the controllers periodically transmit the ID message over the Serial interface.
+             * This functionality is designed to help identify connected controllers from other Ataraxis systems.
+             * Primarily, it is used by Teensy boards that do not reset upon serial connection.
+             */
+            uint32_t idle_message_interval = 1000000;  // In milliseconds
     };
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
@@ -411,5 +500,21 @@ namespace communication_assets
     } __attribute__((packed));
 
 }  // namespace communication_assets
+
+// Declares shared global variables. Note, they need to be initialized inside the main.cpp or main.ino file
+// (depending on your Microcontroller)! The code below is used to tell all other library files that these objects exist,
+// so that they can access them. Since shared_assets.h is imported into all other library files, declaring global
+// assets here ensures all other files have access to these variables.
+
+/// DynamicRuntimeParameters structure is set via Kernel class, and it is used by all Module-derived classes to control
+/// their runtime behavior. The values from this structure can be changed through the Communication interface.
+extern shared_assets::ControllerRuntimeParameters DynamicRuntimeParameters;  // NOLINT(*-dynamic-static-initializers)
+
+/// StaticRuntimeParameters HAS to be initialized inside the main.cpp file. This structure is constantly configured at
+/// compile time by the user and is subsequently used by Kernel and Module-derived classes to control their runtime
+/// behavior. In essence, this structure is similar to the DynamicRuntimeParameters, but it is fixed at compile time.
+/// A codebase re-upload is required to alter variables from this structure.
+extern constexpr shared_assets::StaticRuntimeParameters
+    kStaticRuntimeParameters;  // NOLINT(*-dynamic-static-initializers)
 
 #endif  //AXMC_SHARED_ASSETS_H
