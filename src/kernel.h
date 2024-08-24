@@ -5,10 +5,8 @@
 
 // Dependencies
 #include "Arduino.h"
-#include "axmc_shared_assets.h"
+#include "shared_assets.h"
 #include "module.h"
-#include "stdbool.h"
-#include "stdint.h"
 
 /**
  * @brief The main Core level class that provides the central runtime loop and all kernel-level methods that control

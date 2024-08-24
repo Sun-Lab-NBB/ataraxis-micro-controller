@@ -34,27 +34,20 @@
 //======================================================================================================================
 
 // Dependencies
-#include <digitalWriteFast.h>
 #include "Arduino.h"
 #include "transport_layer.h"
 #include "communication.h"
-#include "kernel.h"
-#include "module.h"
 
-shared_assets::ControllerRuntimeParameters DynamicRuntimeParameters;
+shared_assets:: ControllerRuntimeParameters DynamicRuntimeParameters;
 
 constexpr shared_assets::StaticRuntimeParameters kStaticRuntimeParameters = {
     .baudrate = 115200,
     .analog_resolution = 12,
-    .enable_start_byte_detection_errors = false,
-    .controller_buffer_size = 1024,
     .idle_message_interval = 1000000,
 };
 
-// Instantiates all classes used during runtime
-
-//KERNEL
-AMCKernel kernel(uplink);
+// NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
+Communication axmc_communication(Serial);
 
 void setup()
 {

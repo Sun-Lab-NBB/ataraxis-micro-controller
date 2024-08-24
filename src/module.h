@@ -1,51 +1,36 @@
 /**
  * @file
- * @brief The header file for the Core AMCModule Core class, which is used as a parent for all custom Module classes to
- * automatically integrate them with the AMCKernel runtime control system.
+ * @brief The header file for the base Module class, which is used as a parent for all custom module classes.
  *
- * @subsection description Description:
+ * @subsection mod_description Description:
  *
- * @note Every custom Module class should inherit from this class. This class is used to provide a static
- * interface that AMCKernel can use to integrate any class with the rest of the runtime code. Additionally, it shares
- * a number of utility functions that can be used to simplify custom Module development via the use of safe,
- * well-integrated methods that abstract away from low-level functionality like direct pin manipulation or time / sensor
- * threshold waiting.
+ * @note Every custom module class should inherit from this class. This class serves two major purposes. First, it
+ * provides a static interface used by Kernel and Communicaztion classes. This enables Core classes from this library to
+ * reliably interface with any custom module. Additionally, this class provides utility functions that abstract many
+ * routine tasks in a way that is compatible with concurrent runtime enforced by the Kernel module.
  *
- * @attention It is highly advised to check one of the test_classes available through AMCKernel library (@em not
- * amc_kernel file!). These classes showcase the principles of constructing custom classes using the available base
- * class methods. Furthermore, it may be beneficial to check the test_AMC_code.cpp file to see the expected and
- * error-triggering class usage patters.
+ * @attention It is highly advised to check one of the 'default' custom classes shipped with this library. These classes
+ * showcase the principles of constructing custom classes using the available base Module class methods.
  *
- * This file contains the following items:
- * - The definition of the AMCModule base class with three broad kinds of methods. Utility methods which are designed to
- * be used by the custom commands of children classes to simplify command code writing. Integration methods that are
- * reserved for AMCKernel class usage, as they provide the static interface through which AMCKernel can use static
- * Core resources implemented inside the AMCModule class and inherited by all children classes. Virtual methods, which
- * are used for the same purpose as Integration methods, but provide an interface for the AMCKernel class to access
- * and manage custom commands and assets individually written by each Module-level class developer for that specific
- * Module.
- * - The definition of the kExecutionRuntimeParameters structure, which is a runtime-critical Core structure used to
- * queue and execute commands. It supports running commands in blocking and non-blocking modes and executing them
- * instantaneously (once) or recurrently. That structure should only be modified by AMCKernel developers, if ever and
- * any call to the structure has been abstracted using utility method, so module developers can use utility methods
- * without worrying about the functioning of the core structure.
- * - The definition of the kExecutionRuntimeParameterCodes enumeration, which stores the id_codes for the PC-addressable
- * fields of the kExecutionRuntimeParameters structure. This is a critical enumeration that is used to control the
- * proper modification of PC-addressable parameters in the kExecutionRuntimeParameters structure. Again, this structure
- * should only be modified by Kernel developers.
- * - kReturnedUtilityCodes, an enumeration that lists all byte-codes returned by Utility methods, so that custom
- * commands can interpret and handle each returned code appropriately. This provides an alternative interface to using
- * 'magic numbers', improving ht maintainability fo the codebase.
- * - Other internal trackers and variables used to integrate any class that inherits from the AMCModule base class with
- * the AMCKernel runtime control system.
+ * The Module class available through this file is broadly divided into three sections:
+ * - Utility methods. Provides utility functions that implement routinely used features, such as waiting for time or
+ * sensor activation. Methods from this section will be inherited when subclassing this class and should be used when
+ * writing custom class methods where appropriate.
+ * - Integration methods. These methods are also inherited from the parent class, but they should be used exclusively by
+ * the Kernel and Communication classes. These methods form the static interface that natively integrates any custom
+ * module with the Kernel and Communication classes.
+ * - Virtual Methods. These methods serve the same purpose as the Core methods, but they provide an interface between
+ * the custom logic of each module and the Kernel class. These methods are implemented as pure virtual methods and have
+ * to be defined by developers for each custom module. Due to their consistent signature, the Kernel can use these
+ * methods regardless of the specific implementation of each method.
  *
- * @subsection developer_notes Developer Notes:
+ * @subsection mod_developer_notes Developer Notes:
  * This is one of the key Core level classes that is critically important for the functioning of the whole AMC codebase.
- * Generally, only AMC Kernel developers with a good grasp of the codebase should be modifying this class and any such
- * modifications should come with ample deprecation warnings and versioning. This is especially relevant for class
- * versions that modify existing functionality and, as such, are likely to be incompatible with existent custom Modules.
+ * Generally, only Kernel developers with a good grasp of the codebase should be modifying this base class. This is
+ * especially relevant for class versions that modify existing functionality and, as such, are likely to be incompatible
+ * with existent custom modules.
  *
- * There are two main ways of using this class to develop custom Modules. The preferred way is to rely on the available
+ * There are two main ways of using this class to develop custom modules. The preferred way is to rely on the available
  * utility methods provided by this class to abstract all interactions with the inherited Core methods and variables.
  * Specifically, any class inheriting from this base class should use the methods in the utility sections inside all
  * custom commands and overridden virtual methods where appropriate. The current set of utility methods should be
@@ -55,59 +40,44 @@
  * developers.
  *
  * The second way, which may be useful if specific required functionality is not available through the utility methods,
- * is to directly use the included core structures and variables, such as the ExecutionControlParameters. This requires
- * a good understanding of how the base class and it's method function, as well as an understanding of how AMCKernel
- * works and interacts with AMCModule-derived classes. With sufficient care, this method cab provide more control over
- * the behavior of any custom Module, at the expense of being more verbose and less safe.
+ * is to directly use the included core structures and variables, such as the ExecutionControlParameters structure.
+ * This requires a good understanding of how the base class, and it's method function, as well as an understanding of
+ * how Kernel works and interacts with Module-derived classes. With sufficient care, this method can provide more
+ * control over the behavior of any custom module, at the expense of being harder to master and less safe.
  *
- * Regardless of the use method, any custom Module inheriting from the AMCModule class has to implement the following
- * purely virtual methods to become fully compatible with AMCKernel-mediated runtime control system:
- * - SetCustomParameters: For the kernel to properly write any Parameter structures received from the PC to the target
- * custom (class-specific) parameter structures or variables.
- * - RunActiveCommand: For the module to actually execute the custom command using the unique command byte-code stored
- * in the 'command' field of the ExecutionControlParameters structure (active command).
- * - SetupModule: For the module to be able to properly set up its pins, default values and otherwise prepare for the
- * runtime cycle.
- * ResetCustomAssets: For the kernel to properly reset all custom (class-specific) assets, such as parameters, variables
- * and states, before starting a new runtime cycle.
+ * Regardless of the use method, any custom Module inheriting from the Module class has to implement ALL purely virtual
+ * method to make the resultant class usable by the Kernel class.
  *
- * @subsection dependencies Dependencies:
+ * @subsection mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - shared_assets.h for globally shared static message byte-codes and the ControllerRuntimeParameter structure.
  * - communication.h for Communication class, which is used to send module runtime data to the connected system.
  * - digitalWriteFast.h for fast digital pin manipulation methods.
- * - elapsedMillis.h for the
- *
- * @see amc_module.cpp for method implementation.
+ * - elapsedMillis.h for millisecond and microsecond timers.
  */
 
-#ifndef AMC_MODULE_H
-#define AMC_MODULE_H
+#ifndef AXMC_MODULE_H
+#define AXMC_MODULE_H
 
-#include "Arduino.h"
+#include <Arduino.h>
 #include "communication.h"
-#include "digitalWriteFast.h"
-#include "elapsedMillis.h"
 #include "shared_assets.h"
 
 /**
- * @brief A major Core-level class that serves as the parent for all Module- level classes and provides them with a set
- * of core utilities and methods necessary to automatically integrate with the rest of the AMC codebase.
+ * @brief Serves as the parent for all custom module classes, providing methods for other Core classes to interface with
+ * any custom module.
  *
- * This class serves as the shared (via inheritance) repository of utility and runtime-control methods that allow to
- * automatically integrate any custom Module into the existing AMC codebase. Specifically, by inheriting from this
- * class, any Module automatically gains access to the methods that queue and execute Module commands based on the
- * input from the PC. Additionally, this allows the AMCKernel to interact with any custom module using the virtual and
- * non-virtual methods inherited from the AMCModule class, effectively embedding any correctly constructed module into
- * the AMC runtime flow control structure.
+ * This class serves as the shared (via inheritance) repository of utility and runtime-control methods that
+ * automatically integrate any custom module into the existing AMC codebase. Specifically, by inheriting from this
+ * class, any module gains an interface making it possible for the Kernel and Communication classes to work with the
+ * module. This way, developers can focus on specific module logic, as Core classes handle runtime flow control and
+ * communication.
  *
- * @note This class offers a collection of utility methods that should preferentially be used when writing custom
- * functions. These method abstract the interactions with Core structures that are used to enable many of the distinct
- * AMC codebase functions such as concurrent (non-blocking) execution of many different commands at the same time and
- * error handling. Be sure to check the documentation for all Utility (in contrast to Integration or Virtual) and the
- * examples available through test classes of AMCKernel library prior to writing custom functions.
+ * @note This class offers a collection of utility methods that should be used when writing custom functions. These
+ * methods abstract the interactions with Core module structures and enable functions such as concurrent (non-blocking)
+ * command execution and error-handling.
  *
- * @warning Every Module class @b has to inherit from this base class to be compatible with the rest of the AMC
+ * @warning Every custom module class @b has to inherit from this base class to be compatible with the rest of the AMC
  * codebase. Moreover, the base class itself uses pure virtual methods and, as such, cannot be instantiated. Only a
  * child class that properly overrides all pure virtual methods of the base class can be instantiated.
  */
@@ -116,180 +86,228 @@ class Module
     public:
         /**
          * @struct ExecutionControlParameters
-         * @brief Stores parameters that are used to dynamically queue, execute and control the execution flow of commands
-         * for each Module-level class instance.
+         * @brief Stores parameters that are used to dynamically queue, execute and control the execution flow of
+         * module commands.
          *
-         * An instance of this structure is used by the base AMCModule Core class instance from which all custom modules are
-         * expected to inherit. All runtime control manipulations that involve changing the variables inside this structure
-         * should be carried out via the methods available through the base AMCModule Core class via inheritance.
+         * All runtime control manipulations that involve changing the variables inside this structure
+         * should be carried out either by the Kernel class or via Core methods inherited from the base Module class.
          *
-         * @attention Generally, any modification to this structure or code that makes use of this structure should be
-         * reserved for developers with a good grasp of the existing codebase and, if possible, avoided (especially
-         * deletions or refactoring of existing variables). More specifically, this should be handed off to AMC project
-         * kernel developers when possible.
+         * @attention Any modification to this structure or code that makes use of this structure should be reserved
+         * for developers with a good grasp of the existing codebase. If possible, modifying this structure should be
+         * avoided, especially deletions or refactoring of existing variables.
          */
         struct ExecutionControlParameters
         {
-                uint8_t command      = 0;      ///< Currently active (in-progress) command
-                uint8_t stage        = 0;      ///< Stage of the currently active command
-                bool noblock         = false;  ///< Specifies if the currently active command is blocking
-                uint8_t next_command = 0;      ///< A buffer that allows to queue the next command to be executed
-                bool next_noblock    = false;  ///< A buffer to store the next noblock flag value
-                bool new_command     = false;  ///< Tracks whether next_command is a new or recurrent command
-                bool run_recurrently = false;  ///< Specifies whether the queued command runs once and clears or recurs
-                uint32_t recurrent_delay = 0;  ///< The minimum amount of microseconds between recurrent command calls
+                uint8_t command      = 0;      ///< Currently executed (in-progress) command.
+                uint8_t stage        = 0;      ///< Stage of the currently executed command.
+                bool noblock         = false;  ///< Specifies if the currently executed command is blocking.
+                uint8_t next_command = 0;      ///< A buffer that allows queuing the next command to be executed.
+                bool next_noblock    = false;  ///< A buffer that stores the noblock flag for the queued command.
+                bool new_command     = false;  ///< Tracks whether next_command is a new or recurrent command.
+                bool run_recurrently = false;  ///< Specifies whether the queued command runs once and clears or recurs.
+                uint32_t recurrent_delay = 0;  ///< The minimum number of microseconds between recurrent command calls.
                 elapsedMicros recurrent_timer =
-                    0;                          ///< A timer class instance to time recurrent command activation delays
-                elapsedMicros delay_timer = 0;  ///< A timer class instance to time delays between active command stages
-        } execution_parameters;
-
-        // Stores the most recent module status code. This variable is used to communicate the runtime status of the Module,
-        // which is used by the Kernel to more effectively communicate any Module errors to the PC and to interface with
-        // the Module.
-        uint8_t module_status = 0;
+                    0;  ///< A timer class instance to time recurrent command activation delays.
+                elapsedMicros delay_timer =
+                    0;           ///< A timer class instance to time delays between active command stages.
+        } execution_parameters;  ///< Stores module-specific runtime flow control parameters.
 
         /**
-         * @brief Instantiates a new AMCModule Core class objects.
+         * @enum kCoreStatusCodes
+         * @brief Assigns meaningful names to status codes used by the module class.
          *
-         * @param module_type_id This ID is used to identify module types (classes) during data communication. Each class
-         * has a custom set of parameters and commands, but is very likely to use the same parameter and command byte-codes
-         * as other classes. Module type IDs solve the issue that would otherwise arise when the same byte-codes are used by
-         * different classes with radically different implications, by ensuring any communicated byte-codes are interpreted
-         * according to class-specific code enumerations. The IDs are assigned dynamically by the user when configuring the
-         * Controller (and PC, they have to match!) runtime layout. This allows to solve the problem that would eventually
-         * arise for custom modules, where different developers might have reused the same IDs for different modules.
-         * @param module_instance_id This ID is used to identify the specific instance of the module_type_id-specified
-         * class. This allows to address specific class instances, which are often mapped to particular physical system.
-         * Eg: If module_type_id of 1 corresponds to the 'Door' class, module_instance_id of 1 would mean "Kitchen Door" and
-         * 2 would mean "Bathroom Door".
-         * @param controller_runtime_parameters A constant reference to the ControllerRuntimeParameters structure instance
-         * provided by the AMCKernel class. There should only be one such instance and the only class allowed to modify that
-         * instance is the AMCKernel class itself. All Module classes take this instance by reference as runtime parameters
-         * control many aspects of Module runtime behavior.
-         * @param serial_communication_port A reference to the SerialPCCommunication class instance shared by all AMC
-         * codebase classes that receive (AMCKernel only!) or send (AMCKernel and all Modules) data over the serial port.
-         * Modules use this class instance to send event (and error) data over to the PC.
+         * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
+         * Module class. All custom modules should use a separate enumeration to define status codes specific to the
+         * custom logic of the module.
+         * @note To support unified status code reporting, this enumeration reserves values 0 through 100. All custom
+         * status codes should use values from 101 through 255. This way, status codes derived from this enumeration
+         * will never clash with 'custom' status codes.
+         */
+        enum class kCoreStatusCodes : uint8_t
+        {
+            kStandBy                  = 0,  ///< The code used to initialize the module_status variable.
+            kWaitForMicrosStageEscape = 1,  ///< Microsecond timer check aborted due to mismatching command stage.
+            kWaitForMicrosSuccess     = 2,  ///< Microsecond timer reached requested delay duration.
+            kWaitForMicrosFailure     = 3,  ///< Microsecond timer did not reach requested delay duration.
+
+            kInvalidModuleParameterIDError  = 1,   ///< Unable to recognize incoming Kernel parameter id
+            kModuleParameterSet             = 2,   ///< Module parameter has been successfully set to input value
+            kModuleCommandQueued            = 3,   ///< The next command to execute has been successfully queued
+            kWaitForAnalogThresholdFailure  = 50,  ///< Analog threshold check failed
+            kWaitForAnalogThresholdPass     = 51,  ///< Analog threshold check passed
+            kWaitForAnalogThresholdTimeout  = 52,  ///< Analog threshold check aborted due to timeout
+            kWaitForDigitalThresholdFailure = 53,  ///< Digital threshold check failed
+            kWaitForDigitalThresholdPass    = 54,  ///< Digital threshold check passed
+            kWaitForDigitalThresholdTimeout = 56   ///< Digital threshold check aborted due to timeout
+        };
+
+        /// Stores the most recent module status code.
+        uint8_t module_status = static_cast<uint8_t>(kCoreStatusCodes::kStandBy);
+
+        /**
+         * @brief Instantiates a new Module class object.
+         *
+         * @param module_type The ID that identifies the type family) of the module. All instances of the same custom
+         * module class should share this ID. Has to use a value not reserved by Core classes
+         * (check shared_assets::kCoreMessageCodes) or other Module-derived classes.
+         * @param module_id This ID is used to identify the specific instance of the module. It can use any value
+         * supported by uint8_t range, as long as no other module in the type (family) uses the same value-.
+         * @param communication A reference to the Communication class instance that will be used to send module runtime
+         * data to the connected system. Usually, a single Communication class instance is shared by all classes of the
+         * AMC codebase during runtime.
+         * @param dynamic_parameters A reference to the ControllerRuntimeParameters structure that stores
+         * dynamically addressable runtime parameters that broadly alter the behavior of all modules used by the
+         * controller. This structure is modified via Kernel class, modules only read the data from the structure.
+         *
+         * @attention Follow the following instantiation order when writing the main .cpp / .ino file for the
+         * controller: Communication → Module(s) → Kernel. See the main.cpp included with the library for details.
          */
         Module(
-            uint8_t module_type_id,
-            uint8_t module_instance_id,
-            Communication<shared_assets::kStaticRuntimeParameters.controller_buffer_size>& serial_communication_port
+            const uint8_t module_type,
+            const uint8_t module_id,
+            Communication& communication,
+            const shared_assets::ControllerRuntimeParameters& dynamic_parameters
         ) :
-            module_type(module_type_id),
-            module_id(module_instance_id),
-            runtime_parameters(controller_runtime_parameters),
-            communication_port(serial_communication_port)
+            _module_type(module_type),
+            _module_id(module_id),
+            _communication(communication),
+            _dynamic_parameters(dynamic_parameters)
         {}
 
-        // Declares non-virtual utility methods. These methods should not be overwritten by derived classes, and they are
-        // primarily designed to help developers write custom module commands by providing standardized high-level access to
-        // the underlying Core structures derived from the AMCModule class.
+        // Non-virtual utility methods:
 
         /**
-         * @brief Polls and (optionally) averages the value(s) of the requested analog sensor pin and returns the resultant
-         * raw analog readout value to the caller.
+         * @brief Advances the execution stage of the active (running) command.
          *
-         * This is a non-virtual utility method that is available to all derived classes.
-         *
-         * @note This method should be used for all analog pin reading tasks as it automatically supports the use of
-         * value simulation subroutines, which is considered a standard property for all AMC sensors.
-         *
-         * @param pin The number of the Analog pin to be polled (in simulation mode will be ignored internally).
-         * @param pool_size The number of pin readout values to average to produce the final readout (also ignored in
-         * simulation mode). Setting to 0 or 1 means no averaging is performed, 2+ means averaging is performed.
-         *
-         * @returns uint16_t value of the analog sensor. Currently uses 16-bit resolution as the maximum supported by analog
-         * pin hardware.
+         * This method should be used by noblock-compatible commands to properly advance the command execution stage
+         * where necessary. It modifies the stage tracker field inside the Module's execution_parameters structure by
+         * 1 each time this method is called.
          */
-        static uint16_t GetRawAnalogReadout(
-            const uint8_t pin,        // The analog pin to be polled
-            const uint16_t pool_size  // The number of pin poll values to average to produce the final readout
-        )
+        void AdvanceCommandStage()
         {
-            uint16_t average_readout;  // Pre-declares the final output readout as an unit16_t
+            execution_parameters.stage++;
+        }
 
-            // Pool size 0 and 1 mean essentially the same: no averaging, so lumps the check into < 2
+        /**
+         * @brief Returns the execution stage of the active (running) command.
+         *
+         * This method should be used by noblock-compatible commands to retrieve the current execution stage of the
+         * active command.
+         *
+         * @warning This method returns 0 if there is no actively executed command. 0 is not a valid stage number!
+         */
+        [[nodiscard]]
+        uint8_t GetCommandStage() const
+        {
+            // If there is an actively executed command, returns its stage
+            if (execution_parameters.command != 0)
+            {
+                return execution_parameters.stage;
+            }
+
+            // Otherwise returns 0 to indicate there is no actively running command
+            return 0;
+        }
+
+        /**
+         * @brief Terminates (ends) active (running) command execution.
+         *
+         * Using a dedicated terminator call is essential to support non-blocking concurrent execution of multiple
+         * commands.
+         *
+         * This method should only be called when the command completes everything it sets out to do. For noblock
+         * commands, the Controller may need to loop through the command code multiple times before it reaches the
+         * algorithmic endpoint. In this case, the call to this method should be protected by an 'if' statement that
+         * ensures it is only called when the command has finished it's work.
+         *
+         * @warning It is essential that this method is called at the end of every command function to allow executing
+         * other commands. Failure to do so can completely deadlock the Module and, in severe cases, the whole
+         * Microcontroller.
+         */
+        void CompleteCommand()
+        {
+            execution_parameters.command = 0;
+            execution_parameters.stage   = 0;
+        }
+
+        /**
+         * @brief Polls and (optionally) averages the value(s) of the requested analog pin.
+         *
+         * @note This method will use the global analog readout resolution set during the setup() method runtime.
+         *
+         * @param pin The number of the Analog pin to be interfaced with.
+         * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
+         * disable averaging.
+         *
+         * @returns uint16_t value of the analog sensor. Currently, uses 16-bit resolution as the maximum supported by
+         * analog pin hardware.
+         */
+        static uint16_t GetRawAnalogReadout(const uint8_t pin, const uint16_t pool_size = 0)
+        {
+            uint16_t average_readout;  // Pre-declares the final output readout
+
+            // Pool size 0 and 1 essentially mean the same: no averaging
             if (pool_size < 2)
             {
-                // If averaging is disabled, simply reads and outputs the acquired value. An optimization for teensies can
-                // be disabling software averaging and relying on hardware averaging instead of using this execution path
+                // If averaging is disabled, reads and outputs the acquired value.
                 average_readout = analogRead(pin);
             }
             else
             {
                 uint32_t accumulated_readouts = 0;  // Aggregates polled values by self-addition
 
-                // If averaging is enabled, repeatedly polls the pin the requested number of times.
-                // Note, while this can be further optimized on teensies by manipulating pin averaging, this is not
-                // available for Arduino's, so a more cross-platform-friendly, but less optimal procedure is used here.
-                // NOTE, i's type always has to be the same as pool size (currently uint16_t), hence why the auto and
-                // decltype check below.
+                // If averaging is enabled, repeatedly polls the pin the requested number of times. 'i' always uses
+                // the same type as pool_size.
                 for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
                 {
-                    accumulated_readouts += analogRead(pin);  // Aggregates readouts via self-addition
+                    accumulated_readouts += analogRead(pin);  // Aggregates readouts
                 }
 
-                // Here the averaging and rounding is performed to obtain an integer value rather than dealing with floating
-                // point arithmetic. This is another Arduino-favoring optimization as teensy boards come with a hardware FP
-                // module that removes a lot of the speed loss associated with FP arithmetic on Arduino boards.
-                // Note, adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
-                // Also, explicitly ensures that the final value is cast to uint16_t.
+                // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
+                // boards without an FP module, Teensies technically can handle floating point arithmetic just as
+                // efficiently. Adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
                 average_readout = static_cast<uint16_t>((accumulated_readouts + pool_size / 2) / pool_size);
             }
 
-            return average_readout;
+            return average_readout;  // Returns the final averaged or raw readout
         }
 
         /**
-         * @brief Polls and (optionally) averages the value(s) of the requested digital sensor pin and returns the resultant
-         * pin state (HIGH or LOW) to caller.
+         * @brief Polls and (optionally) averages the value(s) of the requested digital pin.
          *
-         * This is a non-virtual utility method that is available to all derived classes.
+         * @note Digital readout averaging is primarily helpful for controlling jitter and backlash noise.
          *
-         * @note This method should be used for all digital pin reading tasks as it automatically supports the use of
-         * value simulation subroutines, which is considered a standard property for all AMC sensors.
+         * @param pin The number of the Digital pin to be interfaced with.
+         * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
+         * disable averaging.
          *
-         * @param pin The number of the Digital pin to be polled (in simulation mode will be ignored internally).
-         * @param pool_size The number of pin readout values to average to produce the final readout (also ignored in
-         * simulation mode). Setting to 0 or 1 means no averaging is performed, 2+ means averaging is performed.
-         *
-         * @returns bool @b true (HIGH) or @b false (LOW), depending on the state of the input pin.
+         * @returns @b true (HIGH) or @b false (LOW).
          */
-        static bool GetRawDigitalReadout(
-            const uint8_t
-                pin,  // The digital pin to read. Has to be constant and set to read for the fast reading to work
-            const uint16_t pool_size  // The number of pin poll values to average to produce the final readout
-        )
+        static bool GetRawDigitalReadout(const uint8_t pin, const uint16_t pool_size = 0)
         {
-            bool digital_readout;  // Pre-declares the final output readout as a boolean
+            bool digital_readout;  // Pre-declares the final output readout
 
-            // Otherwise reads the physical sensor value. Uses pooling as an easy way to implement custom debouncing logic,
-            // which often relies on averaging multiple digital readouts to confirm that the pin is stably active or inactive.
-            // Generally, this is a built-in hardware feature for many boards, but the logic is maintained here for backward
-            // compatibility reasons.
-            // Pool size 0 and 1 mean essentially the same: no averaging, so lumps the check into < 2
+            // Reads the physical sensor value. Optionally uses averaging as a means of debouncing the digital signal.
+            // Generally, this is a built-in hardware feature for many boards, but the logic is maintained here for
+            // backward compatibility. Pool size 0 and 1 essentially mean no averaging.
             if (pool_size < 2)
             {
-                // If averaging is disabled, simply reads and outputs the acquired value
                 digital_readout = digitalReadFast(pin);
             }
             else
             {
                 uint32_t accumulated_readouts = 0;  // Aggregates polled values by self-addition
 
-                // If averaging is enabled, repeatedly polls the pin the requested number of times.
-                // NOTE, i's type always has to be the same as pool size (currently uint16_t), hence why the auto and
-                // decltype check below.
+                // If averaging is enabled, repeatedly polls the pin the requested number of times. 'i' always uses
+                // the same type as pool_size.
                 for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
                 {
                     accumulated_readouts += digitalReadFast(pin);  // Aggregates readouts via self-addition
                 }
 
-                // Here the averaging and rounding is performed to obtain an integer value rather than dealing with floating
-                // point arithmetic. This is another Arduino-favoring optimization as teensy boards come with a hardware FP
-                // module that removes a lot of the speed loss associated with FP arithmetic on Arduino boards.
-                // Note, adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
-                // Also, explicitly ensures that the final value is cast to boolean true or false.
+                // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
+                // boards without an FP module, Teensies technically can handle floating point arithmetic just as
+                // efficiently. Adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
                 digital_readout = static_cast<bool>((accumulated_readouts + pool_size / 2) / pool_size);
             }
 
@@ -297,41 +315,63 @@ class Module
         }
 
         /**
-         * @brief Checks if the delay_duration of microseconds has passed since the module's ExecutionControlParameters
-         * structure's delay_timer field has been reset.
+         * @brief Checks if the delay_duration of microseconds has passed since the module's delay_timer has been reset.
          *
-         * Depending on execution configuration, the function can block in-place until the escape duration has passed or be
-         * used as a simple check of whether the required duration of microseconds has passed.
+         * Depending on execution configuration, the function can block in-place until the escape duration has passed or
+         * function as a check for whether the required duration of microseconds has passed. This function can be used
+         * standalone or together with a stage-based execution control scheme (if stage and advance_stage are provided).
          *
-         * This is a non-virtual utility method that is available to all derived classes.
+         * @note To properly integrate with the concurrent 'noblock' execution mode provided by the Kernel class, custom
+         * methods should use this delay method together with a stage-based method design. See one of the default
+         * module classes for examples.
          *
-         * @note It is encouraged to use this method for all delay-related tasks (and implement a noblock method design to
-         * support concurrent task execution if required). This is because this method properly handles the use of value
-         * simulation subroutines, which are considered a standard property for all AMC delay methods.
+         * @attention Remember to reset the delay_timer by calling ResetDelayTimer() before calling this method. When
+         * using stage-based execution control, do this at the end of the stage preceding this method's stage.
          *
-         * @param delay_duration The duration, in @em microseconds the function should delay / check for.
+         * @param delay_duration The duration, in @em microseconds the method should delay / check for.
+         * @param stage The command execution stage associated with this method's runtime. Providing this method with a
+         * stage is equivalent to running it inside an 'if' statement that checks for a specific stage. Set to 0 to
+         * disable stage-based execution.
+         * @param advance_stage If @b true, the method will advance the command execution stage if the delay_duration
+         * has passed.
          *
-         * @returns bool @b true if the delay has been successfully enforced (either via blocking or checking) and @b false
-         * otherwise. If the elapsed duration equals to the delay, this is considered a passing condition.
+         * @returns bool @b true if the delay has been successfully enforced (either via blocking or checking). If the
+         * elapsed duration equals to the delay_duration, this is considered a passing condition. If the method is
+         * configured to only execute during a certain stage, it will return without delaying for any other stage.
+         * The method can be configured to optionally advance execution stage upon successful runtime.
          */
-        [[nodiscard]]
-        bool WaitForMicros(
-            const uint32_t delay_duration  // The duration that this function should check for, in microseconds
-        ) const
+        bool WaitForMicros(const uint32_t delay_duration, const uint8_t stage = 0, const bool advance_stage = true)
         {
-            // If the caller command is executed in blocking mode, blocks in-place (inferred from the noblock flag)
+            // If stage control is enabled (stage is not 0) and the current command stage does not match the stage
+            // this method instance is meant to be executed at, statically returns true. This allows using the method in
+            // custom classes via a one-line call.
+            if (stage != 0 && stage != GetCommandStage())
+            {
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kWaitForMicrosStageEscape);
+                return true;
+            }
+
+            // If the caller command is executed in blocking mode, blocks in-place until the requested duration has
+            // passed
             if (!execution_parameters.noblock)
             {
                 // Blocks until delay_duration has passed
                 while (execution_parameters.delay_timer <= delay_duration)
                     ;
-
-                return true;  // Returns true, the duration has been enforced
             }
 
-            // Otherwise, if the caller function is executed in non-blocking mode, checks if the minimum duration has passed
-            // and returns the check condition
-            return (execution_parameters.delay_timer >= delay_duration);
+            // Evaluates whether the requested number of microseconds has passed. If the duration was enforced above,
+            // this check will always be true.
+            if (execution_parameters.delay_timer >= delay_duration)
+            {
+                if (advance_stage) AdvanceCommandStage();  // Advances the command stage, if requested
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kWaitForMicrosSuccess);
+                return true;  // Returns true
+            }
+
+            // If the requested duration has not passed, returns false
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kWaitForMicrosFailure);
+            return false;
         }
 
         /**
@@ -373,11 +413,14 @@ class Module
          * enumeration.
          */
         uint8_t WaitForAnalogThreshold(
-            const uint8_t sensor_pin,     // The input pin (number) of the sensor to be evaluatedsensor to be evaluated
-            const bool invert_condition,  // Allows inverting the default >= comparison to use <= operator instead
-            const uint16_t threshold,     // The value of the sensor that is considered 'passing', depending on operator
-            const uint32_t timeout,       // The number of microseconds after which method returns code 13 (times-out)
-            const uint16_t pool_size      // The number of sensor readouts to average to give the final readout
+            const uint8_t sensor_pin,
+            const uint16_t threshold,
+            const uint32_t timeout,
+            const bool invert_condition = false,
+            const uint16_t pool_size    = 0,
+            const uint8_t stage         = 0,
+            const bool advance_stage    = true,
+            const bool abort_on_timeout = true
         )
         {
             uint16_t value;  // Precreates the variable to store the sensor value
@@ -420,38 +463,35 @@ class Module
                     value = GetRawAnalogReadout(sensor_pin, pool_size);
                     if (!invert_condition)
                     {
-                        passed = (value >= threshold);
+                        passed = value >= threshold;
                     }
                     else
                     {
-                        passed = (value <= threshold);
+                        passed = value <= threshold;
                     }
 
                     // If the delay timer exceeds timeout value, interrupts and returns kWaitForAnalogThresholdTimeout (13),
                     // which is a special timeout-quit code
                     if (execution_parameters.delay_timer > timeout)
                     {
-                        return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForAnalogThresholdTimeout);
+                        return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdTimeout);
                     }
                 }
 
                 // Returns kWaitForAnalogThresholdPass (12) to indicate that the check has passed
-                return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForAnalogThresholdPass);
+                return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdPass);
             }
 
             // Otherwise, if the caller function is executed in non-blocking mode, determines what code to return
-            else
-            {
-                // If the delay timer exceeds timeout, returns kWaitForAnalogThresholdTimeout (13) to indicate timeout condition
-                if (execution_parameters.delay_timer > timeout)
-                    return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForAnalogThresholdTimeout);
+            // If the delay timer exceeds timeout, returns kWaitForAnalogThresholdTimeout (13) to indicate timeout condition
+            if (execution_parameters.delay_timer > timeout)
+                return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdTimeout);
 
-                // Otherwise, if check passed, returns kWaitForAnalogThresholdPass (12)
-                else if (passed) return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForAnalogThresholdPass);
+            // Otherwise, if check passed, returns kWaitForAnalogThresholdPass (12)
+            if (passed) return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdPass);
 
-                // Otherwise, returns kWaitForAnalogThresholdFailure (11)
-                else return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForAnalogThresholdFailure);
-            }
+            // Otherwise, returns kWaitForAnalogThresholdFailure (11)
+            return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdFailure);
         }
 
         /**
@@ -490,10 +530,13 @@ class Module
          * enumeration.
          */
         uint8_t WaitForDigitalThreshold(
-            const uint8_t sensor_pin,  // The input pin (number) of the digital sensor to be evaluated
-            const bool threshold,      // The value of the sensor that is considered 'passing'
-            const uint32_t timeout,    // The number of microseconds after which function returns code 13 (times-out)
-            const uint16_t pool_size   // The number of sensor readouts to average to give the final readout
+            const uint8_t sensor_pin,
+            const bool threshold,
+            const uint32_t timeout,
+            const uint16_t pool_size    = 0,
+            const uint8_t stage         = 0,
+            const bool advance_stage    = true,
+            const bool abort_on_timeout = true
         )
         {
             bool value;  // Precreates the variable to store the sensor value
@@ -523,12 +566,12 @@ class Module
                     // which is a special timeout-quit code
                     if (execution_parameters.delay_timer > timeout)
                     {
-                        return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForDigitalThresholdTimeout);
+                        return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdTimeout);
                     }
                 }
 
                 // Returns kWaitForDigitalThresholdPass (15) to indicate that the check has passed
-                return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForDigitalThresholdPass);
+                return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdPass);
             }
 
             // Otherwise, if the caller function is executed in non-blocking mode, determines what code to return
@@ -537,89 +580,17 @@ class Module
                 // If the delay timer exceeds timeout, returns kWaitForDigitalThresholdTimeout (16) to indicate timeout
                 // condition
                 if (execution_parameters.delay_timer > timeout)
-                    return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForDigitalThresholdTimeout);
+                    return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdTimeout);
 
                 // Otherwise, if check passed, returns kWaitForDigitalThresholdPass (15)
                 // Note, factors in the minimum delay to ensure it is properly assessed when the method runs in non-blocking
                 // mode
                 else if (value == threshold && execution_parameters.delay_timer >= min_delay)
-                    return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForDigitalThresholdPass);
+                    return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdPass);
 
                 // Otherwise, returns kWaitForDigitalThresholdFailure (14)
-                else return static_cast<uint8_t>(kReturnedUtilityCodes::kWaitForDigitalThresholdFailure);
+                else return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdFailure);
             }
-        }
-
-        /**
-         * @brief Advances the stage of the currently running Module command.
-         *
-         * This is a simple wrapper interface that helps writing noblock-compatible commands by modifying the stage tracker
-         * inside the ExecutionControlParameters structure by 1 each time this method is called. Use it to properly advance
-         * noblock execution command stages
-         *
-         * @note See one of the test_class_1 from AMCKernel library for examples.
-         */
-        void AdvanceActiveCommandStage()
-        {
-            execution_parameters.stage++;
-        }
-
-        /**
-         * @brief Extracts and returns the stage of the currently running Module command.
-         *
-         * This is a simple wrapper interface that helps writing noblock-compatible commands by providing convenient access
-         * to the stage tracker field of the ExecutionControlParameters structure. Use it to extract and evaluate the stage
-         * number to execute the proper portion of each noblock-compatible command.
-         *
-         * @returns uint8_t The stage number of the currently active command. The returned number is necessarily greater
-         * than 0 for any active command and 0 if there is currently noa active command.
-         */
-        [[nodiscard]]
-        uint8_t GetActiveCommandStage() const
-        {
-            // If there is an actively executed command, returns its stage
-            if (execution_parameters.command != 0)
-            {
-                return execution_parameters.stage;
-            }
-
-            // Otherwise returns 0 to indicate there is no actively running command
-            return 0;
-        }
-
-        /**
-         * @brief Sets the command and stage fields of the ExecutionControlParameters structure to 0, indicating that the
-         * command has been completed.
-         *
-         * @warning It is essential that this method is called at the end of every command execution to allow the Module to
-         * execute other commands. Failure to do so can completely deadlock the Module and, if command is blocking, the
-         * whole Controller.
-         *
-         * @note The 'end' here means the algorithmic end: when the command completes everything it sets out to do. For
-         * noblock commands, the Controller may need to loop through the command code multiple times, so this methods call
-         * should be protected by an 'if' statement that ensures it is only called when the command has finished it's work.
-         */
-        void CompleteCommand()
-        {
-            execution_parameters.command = 0;
-            execution_parameters.stage   = 0;
-        }
-
-        /**
-         * @brief Extracts and returns the byte-code of the currently active command stored in ExecutionControlParameters
-         * structure.
-         *
-         * This is a simple wrapper interface primarily designed to assist writing RunActiveCommand() virtual method
-         * implementation by providing easy access to the command-code that needs to be verified and executed by that
-         * method.
-         *
-         * @returns uint8_t The byte-code of the currently active command. The returned number is necessarily greater than
-         * 0 if a command is active and 0 if there is currently no active command.
-         */
-        [[nodiscard]]
-        uint8_t GetActiveCommand() const
-        {
-            return execution_parameters.command;
         }
 
         /**
@@ -693,21 +664,21 @@ class Module
             return value;
         }
 
-        // Declares integration methods and variables to be used by AMCKernel class to manage every class instance that
-        // inherits from the AMCModule class (In other words: every module class instance).
+        // Core metods
 
-        /// The ID byte-code for the class (module type) to be shared by all class instances. Used as the 'module' field
-        /// of the incoming and outgoing data payload header structures. Intended to be used by the AMCKernel class to
-        /// properly address incoming commands and internally to properly address the outgoing event data. This ID is
-        /// crucial as it changes the interpretation of the rest of the byte-codes used during communication.
-        uint8_t module_type = 0;
-
-        /// The ID byte-code for the specific instance of the class (module_type). Used as the 'system' field of the
-        /// incoming and outgoing data payload header structures. Intended to be used by the AMCKernel class to
-        /// properly address incoming commands and internally to properly address the outgoing event data. This ID is
-        /// dependent on the module_id and has to be unique for every class instance (every instance that shares the same
-        /// module_id).
-        uint8_t module_id = 0;
+        /**
+         * @brief Returns the code of the currently active (running) command.
+         *
+         * If there are no active commands, this will return 0.
+         *
+         * The Kernel class uses this accessor method to infer when the Module is ready to execute the next
+         * queued command (if available).
+         */
+        [[nodiscard]]
+        uint8_t GetActiveCommand() const
+        {
+            return execution_parameters.command;
+        }
 
         /**
          * @brief Saves the input command to the appropriate field inside the local ExecutionControlParameters structure, so
@@ -835,7 +806,7 @@ class Module
                 // Error message to indicate the method was not able to match the input id_code to any known code. Uses
                 // NoCommand code to indicate that the message originates from a non-command method.
                 const uint8_t error_values[1] = {id_code};
-                communication_port.SendErrorMessage(
+                communication.SendErrorMessage(
                     module_id,
                     system_id,
                     static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
@@ -852,14 +823,14 @@ class Module
 
                 // Success message to indicate that the parameter targeted by the ID code has been set to a new value (also
                 // includes the value). Uses NoCommand code to indicate that the message originates from a non-command method.
-                communication_port.CreateEventHeader(
+                communication.CreateEventHeader(
                     module_id,
                     system_id,
                     static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
                     module_status
                 );
-                communication_port.PackValue(id_code, value);
-                communication_port.SendData();
+                communication.PackValue(id_code, value);
+                communication.SendData();
                 return true;
             }
         }
@@ -1051,95 +1022,21 @@ class Module
         virtual ~Module() = default;
 
     protected:
-        /// This is a reference to the global ControllerRuntimeParameters structure instantiated and controlled by the
-        /// AMCKernel class. Many methods of the base AMCModule and (expectedly) derived classes require the information
-        /// from this structure to function properly. However, the only class that is allowed to modify the instance is the
-        /// AMCKernel class itself. To protect the base instance from modification, this reference is provided as a
-        /// constant member.
-        const shared_assets::ControllerRuntimeParameters& runtime_parameters = shared_assets::DynamicRuntimeParameters;
+        /// Represents the type (family) of the module. All modules in the family share the same type code.
+        uint8_t _module_type = 0;
 
-        /// This is a reference to the shared instance of the SerialPCCommunication class that handles the bidirectional
-        /// Controller-PC communication via the serial UART or USB interface. While any data reception methods of the
-        /// class are intended to be used solely by the AMCKernel class, all data transmission methods should be used
-        /// in-place by the modules that need to send data to the PC. As such, this reference is not constant and any Module
-        /// that inherits from the base class is allowed to use the internal methods that modify the local variables of the
-        /// referenced class (this is required fro the proper functioning of the communication protocols).
-        SerialPCCommunication& communication_port;
+        /// The specific ID of the module. This code has to be unique within the module family, as it identifies
+        /// specific module instance.
+        uint8_t _module_id = 0;
 
-        /**
-         * @enum kExecutionControlParameterCodes
-         * @brief Provides the id byte-codes for the variables inside the ExecutionControlParameters structure that are
-         * addressable by the PC.
-         *
-         * This enumeration is used to address and set specific execution parameters when the PC sends values, such as a
-         * new command to execute, for any of these variables. Fields that are by design @b not PC-addressable do not have
-         * an id-code assigned to them in an effort to discourage accidental overwriting. If a particular field is not
-         * PC-addressable, that does not mean it is constant. Many of the local methods use non-PC-addressable fields to
-         * correctly control module command execution flow.
-         *
-         * @warning To support correct command handling behavior by the AMCKernel class, this enumeration should @b only
-         * use codes 1 through 10. Since no other enumeration uses these codes to target specific parameter values, this
-         * ensures that critical execution control parameters can be precisely addressed in all Modules derived from the
-         * AMCModule base class.
-         *
-         * @attention All variables inside this enumeration should @b not use code 0.
-         */
-        enum class kExecutionControlParameterCodes : uint8_t
-        {
-            kNextNoblock    = 1,  ///< Allows to adjust execution mode between blocking and non-blocking
-            kRunRecurrently = 2,  ///< Allows to select whether the queued command runs once and clears or recurs
-            kRecurrentDelay =
-                3,  ///< Allows to specify the minimum amount of microseconds between recurrent command calls
-        };
+        /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
+        /// the connected Ataraxis system.
+        Communication& _communication;
 
-        /**
-         * @enum kReturnedUtilityCodes
-         * @brief Codifies byte-codes that are returned by certain utility methods available through the base AMCModule
-         * class via inheritance.
-         *
-         * Use the enumerators inside this enumeration when writing result-handling code for the derived class methods that
-         * make use of base AMCModule class utility methods that return byte-codes to correctly interpret the resultant
-         * codes. Each variable inside this enumeration is prefixed the name of the method whose' return byte-code it
-         * describes.
-         *
-         * @attention This enumeration only covers the base class utility function return codes. You need to provide a
-         * custom enumeration when writing your own classes that are derived from the base class to function as the source
-         * of the status byte-codes (if you intend to support that functionality).
-         *
-         * @note All variables inside this enumeration should NOT use codes 0 through 10 (inclusive) and 250 through 255.
-         * These codes are reserved for system-use.
-         */
-        enum class kReturnedUtilityCodes : uint8_t
-        {
-            kWaitForAnalogThresholdFailure  = 11,  ///< Analog threshold check failed
-            kWaitForAnalogThresholdPass     = 12,  ///< Analog threshold check passed
-            kWaitForAnalogThresholdTimeout  = 13,  ///< Analog threshold check aborted due to timeout
-            kWaitForDigitalThresholdFailure = 14,  ///< Digital threshold check failed
-            kWaitForDigitalThresholdPass    = 15,  ///< Digital threshold check passed
-            kWaitForDigitalThresholdTimeout = 16   ///< Digital threshold check aborted due to timeout
-        };
-
-        /**
-         * @enum kCoreModuleStatusCodes
-         * @brief Stores byte-codes used to communicate the status of the Module runtime which is communicated to other
-         * classes (AMCKernel) and to the PC.
-         *
-         * @attention These codes only apply to Core methods inherited from the base AMCModule class and it is expected that
-         * a separate enumeration is defined and used to communicate the status codes related to custom commands and
-         * methods of each class inheriting from the AMCModule class. In this case, the custom code enumeration should use
-         * complimentary codes with this enumeration to avoid code overlap. Having the two enumerations overlap will likely
-         * result in unexpect4ed behavior and inability of the PC / other classes to correctly process status codes.
-         *
-         * @note This enumerator should use codes 0 through 10 where applicable to make critical system statuses stand out
-         * from the more generic codes. Only developers with a good grasp of the codebase should be changing / introducing
-         * these codes as they can lead to broad runtime failures if used incorrectly.
-         */
-        enum class kCoreModuleStatusCodes : uint8_t
-        {
-            kInvalidModuleParameterIDError = 11,  ///< Unable to recognize incoming Kernel parameter id
-            kModuleParameterSet            = 12,  ///< Module parameter has been successfully set to input value
-            kModuleCommandQueued           = 13   ///< The next command to execute has been successfully queued
-        };
+        /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
+        /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
+        /// structure dynamically enables or disables output pin activity.
+        const shared_assets::ControllerRuntimeParameters& _dynamic_parameters;
 };
 
-#endif  //AMC_MODULE_H
+#endif  //AXMC_MODULE_H

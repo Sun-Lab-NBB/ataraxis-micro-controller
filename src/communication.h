@@ -49,8 +49,6 @@
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
  * - shared_assets.h for globally shared assets, including communication_assets namespace.
- *
- * @see serial_pc_communication.cpp for method implementation.
  */
 
 #ifndef AXMC_COMMUNICATION_H
@@ -60,6 +58,48 @@
 #include <Arduino.h>
 #include "shared_assets.h"
 #include "transport_layer.h"
+
+// Statically defines the size of the Serial class reception buffer associated with different Arduino and Teensy board
+// architectures. This is required to ensure the Communication class is configured appropriately. If you need to adjust
+// the TransportLayer class buffers (for example, because you manually increased the buffer size used by the Serial
+// class of your board), do it by editing or specifying a new preprocessor directive below. It is HIGHLY advised not to
+// tamper with these settings, however, and to always have the kSerialBufferSize set exactly to the size of the Serial
+// class reception buffer.
+#if defined(ARDUINO_ARCH_SAM)
+// Arduino Due (USB serial) maximum reception buffer size in bytes.
+static constexpr uint16_t kSerialBufferSize = 256;
+
+#elif defined(ARDUINO_ARCH_SAMD)
+// Arduino Zero, MKR series (USB serial) maximum reception buffer size in bytes.
+static constexpr uint16_t kSerialBufferSize = 256;
+
+#elif defined(ARDUINO_ARCH_NRF52)
+// Arduino Nano 33 BLE (USB serial) maximum reception buffer size in bytes.
+static constexpr uint16_t kSerialBufferSize = 256;
+
+// Note, teensies are identified based on the processor model. This WILL need to be updated for future versions of
+// Teensy boards.
+#elif defined(CORE_TEENSY)
+#if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__) || \
+    defined(__IMXRT1062__)
+// Teensy 3.x, 4.x (USB serial) maximum reception buffer size in bytes.
+static constexpr uint16_t kSerialBufferSize = 1024;
+#else
+// Teensy 2.0, Teensy++ 2.0 (USB serial) maximum reception buffer size in bytes.
+static constexpr uint16_t kSerialBufferSize = 256;
+#endif
+
+#elif defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_MEGA) ||  \
+    defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
+    defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__)
+// Arduino Uno, Mega, and other AVR-based boards (UART serial) maximum reception buffer size in bytes.
+static constexpr uint16_t kSerialBufferSize = 64;
+
+#else
+// Default fallback for unsupported boards is the reasonable minimum buffer size
+static constexpr uint16_t kSerialBufferSize = 64;
+
+#endif
 
 /**
  * @class Communication
@@ -78,20 +118,9 @@
  * @warning This class is explicitly designed to hide most of the configuration parameters used to control the
  * communication interface from the user. Do not modify any internal parameters or subclasses of this class,
  * unless you know what you are doing.
- *
- * Example instantiation:
- * @code
- * constexpr uint16_t kSerialBufferSize = 256;  // Controller port buffer size.
- * Communication<kSerialBufferSize> comm_class(Serial);  // Instantiates the Communication class.
- * Serial.begin(9600);  // Initializes serial interface. This has to be done before calling any other class method.
- * @endcode
  */
-template <uint16_t kSerialBufferSize>
 class Communication
 {
-    // Ensures that the minimum serial buffer size is high enough for the class to function correctly.
-    static_assert(kSerialBufferSize > 10, "Serial buffer size must be greater than 10");
-
     public:
         /// Tracks the most recent class runtime status.
         uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
@@ -112,7 +141,7 @@ class Communication
          * Critically, the constructor also initializes the TransportLayer class as part of its runtime, which is
          * essential for the correct functioning of the communication interface.
          *
-         * @notes Make sure that the referenced Stream interface is initialized via its 'begin' method before calling
+         * @note Make sure that the referenced Stream interface is initialized via its 'begin' method before calling
          * Communication class methods.
          *
          * @param communication_port A reference to a Stream interface class, such as Serial or USBSerial. This class
@@ -134,7 +163,7 @@ class Communication
                 129,                 // Start byte value
                 0,                   // Delimiter byte value
                 20000,               // Packet reception timeout (in microseconds)
-                kStaticRuntimeParameters.enable_start_byte_detection_errors  // Generally, this should be disabled
+                false                // Disables start byte detection errors
             )
         {}
 
@@ -359,10 +388,17 @@ class Communication
          * @attention If the received message is a Parameters message, call ExtractParameters()c method to finalize
          * message parsing. This method DOES NOT extract parameter data from the received message.
          *
-         * @return True if a message was successfully received and parsed, false otherwise. Note, if this method returns
-         * false, this does not necessarily indicate runtime error. Use communication_status attribute to determine the
-         * cause of the failure. kCommunicationNoBytesToReceive status code from shared_assets::kCoreStatusCodes
-         * indicates a non-error failure.
+         * @returns True if a message was successfully received and parsed, false otherwise. Note, if this method
+         * returns false, this does not necessarily indicate runtime error. Use communication_status attribute to
+         * determine the  cause of the failure. kCommunicationNoBytesToReceive status code from
+         * shared_assets::kCoreStatusCodes indicates a non-error failure.
+         *
+         * @code
+         * Communication comm_class(Serial);  // Instantiates the Communication class.
+         * Serial.begin(9600);  // Initializes serial interface.
+         *
+         * bool success = comm_class.ReceiveMessage();  // Attempts to receive the message
+         * @endcode
          */
         bool ReceiveMessage()
         {
@@ -450,6 +486,20 @@ class Communication
          * structure.
          *
          * @returns True if the parameter data was successfully extracted and set, false otherwise.
+         *
+         * @code
+         * Communication comm_class(Serial);  // Instantiates the Communication class.
+         * Serial.begin(9600);  // Initializes serial interface.
+         *
+         * // Initializes a test structure
+         * struct DataMessage
+         * {
+         *     uint8_t id = 1;
+         *     uint8_t data = 10;
+         * } data_message;
+         *
+         * bool success = comm_class.ExtractParameters(data_message);  // Attempts to receive the message
+         * @endcode
          */
         template <typename ObjectType>
         bool ExtractParameters(const ObjectType& structure, const uint16_t& bytes_to_read = sizeof(ObjectType))

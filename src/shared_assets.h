@@ -229,45 +229,6 @@ namespace shared_assets
             uint8_t analog_resolution = 12;
 
             /**
-             * @brief Determines whether the Communication class treats receiving error bytes before start byte as
-             * errors.
-             *
-             * Generally, it is advised to keep this option set to @b false as start byte detection failures are
-             * common and expected. Noise bytes will typically accumulate in the serial interface reception
-             * buffer due to environment interference. When Communication class is triggered to parse a message, it
-             * first silently clears out these noise bytes, before parsing the message. If this option is set to
-             * @b true, the Communication class will abort and raise an error upon encountering a non-start noise byte.
-             *
-             * @note The only case where this option may need to be set to @b true is when debugging the communication
-             * interface. Even then, this way of testing is usually the last-resort effort.
-             */
-            bool enable_start_byte_detection_errors = false;
-
-            /**
-             * @brief The size of the Microcontroller's Serial interface buffer (hardware buffer).
-             *
-             * @attention This value is used to initialize the Communication class and, if invalid, may make it
-             * impossible to interact with the controller through the communication interface. The minimum allowed
-             * buffer size is 10 bytes. The maximum usable buffer size is ~265 bytes.
-             *
-             * The Communication class reserves between ~7 and 254 bytes of memory for its reception and transmission
-             * buffers. This determines the size of message payloads that can be sent and received by the controller.
-             * To enable communication in the most efficient way, the Communication class needs to know the maximum
-             * size of the hardware buffer used by the Microcontroller Serial communication port.
-             *
-             * This value can be used to limit the amount of memory reserved by the Communication class. For example,
-             * if communicated payloads do not exceed 20 payloads in size, you can set this value to ~26 (extra bytes
-             * are used to account for the communication metadata (non-payload) variables). Generally, unless memory
-             * use is a big concern, it is recommended to set this to the hardware limit.
-             *
-             * @note The default value of 64 bytes is only valid for Arduino Uno. Many higher-end boards have higher
-             * buffer sizes, usually >= 254 bytes. Adjust this based on your hardware to maximize Communication class
-             * performance. Communication class automatically ensures necessary buffer size constrains are met and will
-             * not use memory in excess of ~265 bytes.
-             */
-            uint16_t controller_buffer_size = 64;
-
-            /**
              * @brief The interval, in milliseconds, with which to transmit controller ID data when in Idle mode.
              *
              * When not actively in use, the controllers periodically transmit the ID message over the Serial interface.
@@ -500,21 +461,5 @@ namespace communication_assets
     } __attribute__((packed));
 
 }  // namespace communication_assets
-
-// Declares shared global variables. Note, they need to be initialized inside the main.cpp or main.ino file
-// (depending on your Microcontroller)! The code below is used to tell all other library files that these objects exist,
-// so that they can access them. Since shared_assets.h is imported into all other library files, declaring global
-// assets here ensures all other files have access to these variables.
-
-/// DynamicRuntimeParameters structure is set via Kernel class, and it is used by all Module-derived classes to control
-/// their runtime behavior. The values from this structure can be changed through the Communication interface.
-extern shared_assets::ControllerRuntimeParameters DynamicRuntimeParameters;  // NOLINT(*-dynamic-static-initializers)
-
-/// StaticRuntimeParameters HAS to be initialized inside the main.cpp file. This structure is constantly configured at
-/// compile time by the user and is subsequently used by Kernel and Module-derived classes to control their runtime
-/// behavior. In essence, this structure is similar to the DynamicRuntimeParameters, but it is fixed at compile time.
-/// A codebase re-upload is required to alter variables from this structure.
-extern constexpr shared_assets::StaticRuntimeParameters
-    kStaticRuntimeParameters;  // NOLINT(*-dynamic-static-initializers)
 
 #endif  //AXMC_SHARED_ASSETS_H

@@ -1,6 +1,6 @@
 //Implementation of Kernel functions
 
-#include "kernel/kernel.h"
+#include "kernel.h"
 
 // The constructor accepts and sets the internal communication_port reference to the input SerialPCCommunication class
 // instance (by reference) and also initializes internal modules array and module_count counter to 0. These two

@@ -428,7 +428,7 @@ class CRCProcessor
 
             // Determines the Most Significant Bit (MSB) mask based on the CRC type
             static constexpr PolynomialType msb_mask =  // NOLINT(*-dynamic-static-initializers)
-                static_cast<PolynomialType>(1) << crc_bits - 1;
+                static_cast<PolynomialType>(1) << (crc_bits - 1);  // Keep the parentheses to avoid compiler warnings
 
             // Iterates over each possible value of a byte variable
             for (uint16_t byte = 0; byte < 256; ++byte)
