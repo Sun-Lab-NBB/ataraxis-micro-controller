@@ -125,20 +125,12 @@ class Module
          */
         enum class kCoreStatusCodes : uint8_t
         {
-            kStandBy                  = 0,  ///< The code used to initialize the module_status variable.
-            kWaitForMicrosStageEscape = 1,  ///< Microsecond timer check aborted due to mismatching command stage.
-            kWaitForMicrosSuccess     = 2,  ///< Microsecond timer reached requested delay duration.
-            kWaitForMicrosFailure     = 3,  ///< Microsecond timer did not reach requested delay duration.
+            kStandBy = 0,  ///< The code used to initialize the module_status variable.
 
-            kInvalidModuleParameterIDError  = 1,   ///< Unable to recognize incoming Kernel parameter id
-            kModuleParameterSet             = 2,   ///< Module parameter has been successfully set to input value
-            kModuleCommandQueued            = 3,   ///< The next command to execute has been successfully queued
-            kWaitForAnalogThresholdFailure  = 50,  ///< Analog threshold check failed
-            kWaitForAnalogThresholdPass     = 51,  ///< Analog threshold check passed
-            kWaitForAnalogThresholdTimeout  = 52,  ///< Analog threshold check aborted due to timeout
-            kWaitForDigitalThresholdFailure = 53,  ///< Digital threshold check failed
-            kWaitForDigitalThresholdPass    = 54,  ///< Digital threshold check passed
-            kWaitForDigitalThresholdTimeout = 56   ///< Digital threshold check aborted due to timeout
+            kInvalidModuleParameterIDError = 1,  ///< Unable to recognize incoming Kernel parameter id
+            kModuleParameterSet            = 2,  ///< Module parameter has been successfully set to input value
+            kModuleCommandQueued           = 3,  ///< The next command to execute has been successfully queued
+
         };
 
         /// Stores the most recent module status code.
@@ -182,10 +174,15 @@ class Module
          * This method should be used by noblock-compatible commands to properly advance the command execution stage
          * where necessary. It modifies the stage tracker field inside the Module's execution_parameters structure by
          * 1 each time this method is called.
+         *
+         * @note Calling this method also resets the stage timer to 0. Therefore, this method aggregates all steps
+         * necessary to properly advance executed command stage and should be used over manually changing command flow
+         * trackers where possible.
          */
         void AdvanceCommandStage()
         {
             execution_parameters.stage++;
+            ResetStageTimer();  // Also resets the stage delay timer
         }
 
         /**
@@ -231,11 +228,27 @@ class Module
         }
 
         /**
+         * @brief Resets the timer that tracks the delay between active command stages.
+         *
+         * This timer is primarily used by methods that block for external inputs, such as sensor values. All such
+         * methods have a threshold, in microseconds, after which they forcibly end the loop, to prevent deadlocking
+         * the controller. This method resets the timer to 0.
+         *
+         * @warning This method should be called each time before advancing the command stage. Calling
+         * AdvanceCommandStage() method automatically calls this method. If this method is not called when advancing
+         * command stage, it is very likely that the controller will behave unexpectedly!
+         */
+        void ResetStageTimer()
+        {
+            execution_parameters.delay_timer = 0;
+        }
+
+        /**
          * @brief Polls and (optionally) averages the value(s) of the requested analog pin.
          *
          * @note This method will use the global analog readout resolution set during the setup() method runtime.
          *
-         * @param pin The number of the Analog pin to be interfaced with.
+         * @param pin The number of the analog pin to be interfaced with.
          * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
          * disable averaging.
          *
@@ -277,7 +290,7 @@ class Module
          *
          * @note Digital readout averaging is primarily helpful for controlling jitter and backlash noise.
          *
-         * @param pin The number of the Digital pin to be interfaced with.
+         * @param pin The number of the digital pin to be interfaced with.
          * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
          * disable averaging.
          *
@@ -317,40 +330,22 @@ class Module
         /**
          * @brief Checks if the delay_duration of microseconds has passed since the module's delay_timer has been reset.
          *
-         * Depending on execution configuration, the function can block in-place until the escape duration has passed or
-         * function as a check for whether the required duration of microseconds has passed. This function can be used
-         * standalone or together with a stage-based execution control scheme (if stage and advance_stage are provided).
+         * Depending on execution configuration, the method can block in-place until the escape duration has passed or
+         * function as a check for whether the required duration of microseconds has passed.
          *
-         * @note To properly integrate with the concurrent 'noblock' execution mode provided by the Kernel class, custom
-         * methods should use this delay method together with a stage-based method design. See one of the default
-         * module classes for examples.
-         *
-         * @attention Remember to reset the delay_timer by calling ResetDelayTimer() before calling this method. When
-         * using stage-based execution control, do this at the end of the stage preceding this method's stage.
+         * @note The delay_timer can be reset by calling ResetStageTimer() method. The timer is also reset whenever
+         * AdvanceCommandStage() method is called. Overall, the delay is intended to be relative to the onset of the
+         * current command execution stage.
          *
          * @param delay_duration The duration, in @em microseconds the method should delay / check for.
-         * @param stage The command execution stage associated with this method's runtime. Providing this method with a
-         * stage is equivalent to running it inside an 'if' statement that checks for a specific stage. Set to 0 to
-         * disable stage-based execution.
-         * @param advance_stage If @b true, the method will advance the command execution stage if the delay_duration
-         * has passed.
          *
-         * @returns bool @b true if the delay has been successfully enforced (either via blocking or checking). If the
-         * elapsed duration equals to the delay_duration, this is considered a passing condition. If the method is
-         * configured to only execute during a certain stage, it will return without delaying for any other stage.
-         * The method can be configured to optionally advance execution stage upon successful runtime.
+         * @returns bool @b true if the delay has been successfully enforced (either via blocking or checking) and
+         * @b false in all other cases. If the elapsed duration equals to the delay_duration, this is considered a
+         * passing condition.
          */
-        bool WaitForMicros(const uint32_t delay_duration, const uint8_t stage = 0, const bool advance_stage = true)
+        [[nodiscard]]
+        bool WaitForMicros(const uint32_t delay_duration) const
         {
-            // If stage control is enabled (stage is not 0) and the current command stage does not match the stage
-            // this method instance is meant to be executed at, statically returns true. This allows using the method in
-            // custom classes via a one-line call.
-            if (stage != 0 && stage != GetCommandStage())
-            {
-                module_status = static_cast<uint8_t>(kCoreStatusCodes::kWaitForMicrosStageEscape);
-                return true;
-            }
-
             // If the caller command is executed in blocking mode, blocks in-place until the requested duration has
             // passed
             if (!execution_parameters.noblock)
@@ -364,263 +359,162 @@ class Module
             // this check will always be true.
             if (execution_parameters.delay_timer >= delay_duration)
             {
-                if (advance_stage) AdvanceCommandStage();  // Advances the command stage, if requested
-                module_status = static_cast<uint8_t>(kCoreStatusCodes::kWaitForMicrosSuccess);
                 return true;  // Returns true
             }
 
             // If the requested duration has not passed, returns false
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kWaitForMicrosFailure);
             return false;
         }
 
         /**
-         * @brief Checks if the evaluated @b Analog sensor pin detects a value that is equal to or exceeds the trigger
-         * threshold.
+         * @brief Checks if the evaluated @b analog sensor pin detects a value that is within the specified boundaries.
          *
-         * @note Trigger threshold is specified using a concrete threshold value and the comparison is carried out either
-         * using the >= (default) or <= operator. As such, the value can exceed the threshold by being greater than or equal
-         * to the threshold or less than or equal to the threshold, which is specified via the invert_condition flag.
+         * Both lower and upper boundaries are inclusive: if the sensor value matches either boundary, it is considered
+         * a passing condition. Depending on configuration, the method can block in-place until the escape condition is
+         * met or be used as a simple check of whether the condition is met.
          *
-         * Depending on configuration, the function can block in-place until the escape condition is met or be used as a
-         * simple check of whether the condition is met.
+         * @note It is highly advised to use this method with a range of acceptable inputs. While it is possible to
+         * set the lower_boundary and upper_boundary to the same number, this will likely not work as expected. This is
+         * because analog sensor readouts tend to naturally fluctuate within a certain range.
          *
-         * This is a non-virtual utility method that is available to all derived classes.
+         * @param sensor_pin The number of the analog pin connected to the sensor.
+         * @param lower_boundary The lower boundary for the sensor value. If sensor readout is at or above this value,
+         * the method returns with a success code (provided upper_boundary condition is met). Minimum valid boundary
+         * is 0.
+         * @param upper_boundary The upper boundary for the sensor value. If sensor readout is at or below this value,
+         * the method returns with a success code (provided lower_boundary condition is met). Maximum valid boundary
+         * is 65535.
+         * @param timeout The number of microseconds since the last reset of the delay_timer, to wait before forcibly
+         * terminating method runtime. Typically, delay_timer is reset when advancing command execution stage. This
+         * prevents controller deadlocks.
+         * @param pool_size The number of sensor readouts to average before comparing the value to the boundaries.
          *
-         * @note It is encouraged to use this method for all analog sensor-threshold related tasks (and implement a noblock
-         * method design to support concurrent task execution if required). This is because this method properly handles the
-         * use of value simulation subroutines, which are considered a standard property for all AMC sensor
-         * threshold-related methods.
-         *
-         * @attention Currently only supports open-ended threshold. The rationale here is that even with the best analog
-         * resolution analog sensors will fluctuate a little and having a concrete (==) threshold comparison would very
-         * likely not work as intended. Having a one-side open-ended threshold offers the best of both worlds, where the
-         * value still has to be within threshold boundaries, but also can be fluctuate above or below it and still
-         * register.
-         *
-         * @param sensor_pin The number of the analog pin whose' readout value will be evaluated against the threshold.
-         * @param threshold The concrete threshold value against which the parameter will be evaluated. Regardless of the
-         * operator, if pin readout equals to threshold, the function will return @b true.
-         * @param timeout The number of microseconds after the function breaks and returns kWaitForAnalogThresholdTimeout,
-         * this is necessary to prevent soft-blocking.
-         * @param pool_size The number of sensor readouts to average into the final value.
-         *
-         * @returns uint8_t kWaitForAnalogThresholdFailure byte-code if the condition was not met and
-         * kWaitForAnalogThresholdPass if it was met. Returns kWaitForAnalogThresholdTimeout if timeout duration has
-         * been exceeded (to avoid soft-blocking). All byte-codes should be interpreted using the kReturnedUtilityCodes
-         * enumeration.
+         * @returns @b 1 if the analog sensor readout is within the specified boundaries and @b 0 otherwise. If timeout
+         * number of microseconds has passed since the module's delay_timer has been reset, returns @b 2 to indicate
+         * timeout condition.
          */
-        uint8_t WaitForAnalogThreshold(
+        [[nodiscard]] uint8_t WaitForAnalogThreshold(
             const uint8_t sensor_pin,
+            const uint16_t lower_boundary,
+            const uint16_t upper_boundary,
             const uint32_t timeout,
-            const uint16_t upper_boundary = 65535,
-            const uint16_t lower_boundary = 0,
-            const uint16_t pool_size    = 0,
-            const uint8_t stage         = 0,
-            const bool advance_stage    = true,
-            const bool abort_on_timeout = true
-        )
+            const uint16_t pool_size = 0
+        ) const
         {
-            uint16_t value;  // Precreates the variable to store the sensor value
-            bool passed;     // Tracks whether the threshold check is passed
+            // Gets the analog sensor value
+            uint16_t value = GetRawAnalogReadout(sensor_pin, pool_size);
 
-            uint32_t min_delay = 0;  // Pre-initializes to 0, which disables the minimum delay if simulation is not used
-            if (runtime_parameters.simulate_responses)
+            // If the analog value is within the boundaries, returns with a success code
+            if (value >= lower_boundary && value <= upper_boundary) return 1;
+
+            // If the command that called this method runs in non-blocking mode, returns with the failure code based on
+            // whether timeout has been exceeded or not.
+            if (execution_parameters.noblock)
             {
-                // If simulate_responses flag is true, uses minimum_lock_duration to enforce the preset minimum delay
-                // duration
-                min_delay = runtime_parameters.minimum_lock_duration;
+                // If the delay timer exceeds timeout, returns with code 2 to indicate timeout condition
+                if (execution_parameters.delay_timer > timeout) return 2;
+
+                // Otherwise, returns 0 to indicate threshold check failure
+                return 0;
             }
 
-            // Obtains the real or simulated sensor value (the function comes with built-in simulation resolution)
-            value = GetRawAnalogReadout(sensor_pin, pool_size);
-
-            if (!invert_condition)
+            // If the command that calls this method runs in blocking mode, blocks until the sensor readout satisfies
+            // the conditions or timeout is reached.
+            while (execution_parameters.delay_timer < timeout)
             {
-                // If inversion is disabled, passing condition is value being equal to or greater than the threshold
-                // Also factors in the minimum delay as otherwise it is not properly assessed when the method runs in non-blocking
-                // mode
-                passed = (value >= threshold) && (execution_parameters.delay_timer > min_delay);
-            }
-            else
-            {
-                // If inversion is enabled, passing condition is value being less than or equal to the threshold
-                // Also factors in the minimum delay as otherwise it is not properly assessed when the method runs in non-blocking
-                // mode
-                passed = (value <= threshold) && (execution_parameters.delay_timer > min_delay);
+                // Repeatedly evaluates the sensor readout. If it matches escape conditions, returns with code 1.
+                value = GetRawAnalogReadout(sensor_pin, pool_size);
+                if (value >= lower_boundary && value <= upper_boundary) return 1;
             }
 
-            // If the caller command is executed in blocking mode, blocks in-place until either a timeout duration of
-            // microseconds passes or the sensor value exceeds the threshold
-            if (!execution_parameters.noblock)
-            {
-                // This blocks until BOTH the min_delay has passed AND the sensor value exceeds the threshold
-                while (execution_parameters.delay_timer <= min_delay || !passed)
-                {
-                    // Obtains the sensor readout and checks it against the threshold on every iteration of the while loop
-                    value = GetRawAnalogReadout(sensor_pin, pool_size);
-                    if (!invert_condition)
-                    {
-                        passed = value >= threshold;
-                    }
-                    else
-                    {
-                        passed = value <= threshold;
-                    }
-
-                    // If the delay timer exceeds timeout value, interrupts and returns kWaitForAnalogThresholdTimeout (13),
-                    // which is a special timeout-quit code
-                    if (execution_parameters.delay_timer > timeout)
-                    {
-                        return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdTimeout);
-                    }
-                }
-
-                // Returns kWaitForAnalogThresholdPass (12) to indicate that the check has passed
-                return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdPass);
-            }
-
-            // Otherwise, if the caller function is executed in non-blocking mode, determines what code to return
-            // If the delay timer exceeds timeout, returns kWaitForAnalogThresholdTimeout (13) to indicate timeout condition
-            if (execution_parameters.delay_timer > timeout)
-                return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdTimeout);
-
-            // Otherwise, if check passed, returns kWaitForAnalogThresholdPass (12)
-            if (passed) return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdPass);
-
-            // Otherwise, returns kWaitForAnalogThresholdFailure (11)
-            return static_cast<uint8_t>(kCoreStatusCodes::kWaitForAnalogThresholdFailure);
+            // The only way to escape the loop above is to encounter the timeout condition. Blocking calls do not
+            // return code 0.
+            return 2;
         }
 
         /**
-         * @brief Checks if the evaluated @b Digital sensor pin detects a value that matches the trigger threshold.
+         * @brief Checks if the evaluated @b digital sensor pin detects a value that matches the specified threshold.
          *
-         * This is an equivalent of the WaitForAnalogThreshold with considerably streamlined logic due to the binary nature
-         * of digital pin threshold checking.
-         *
-         * @note Unlike WaitForAnalogThreshold() method, this method uses exact thresholds. This is because it works with
-         * digital sensors that generally do not fluctuate (bouncing noise aside) and, therefore, are a lot more reliable
-         * for using them with a concrete threshold.
-         *
-         * Depending on configuration, the function can block in-place until the escape condition is met or be used as a
+         * Depending on configuration, the method can block in-place until the escape condition is met or be used as a
          * simple check of whether the condition is met.
          *
-         * This is a non-virtual utility method that is available to all derived classes.
+         * @param sensor_pin The number of the digital pin connected to the sensor.
+         * @param threshold A boolean @b true or @b false which is used as a threshold for the pin value.
+         * @param timeout The number of microseconds since the last reset of the delay_timer, to wait before forcibly
+         * terminating method runtime. Typically, delay_timer is reset when advancing command execution stage. This
+         * prevents controller deadlocks.
+         * @param pool_size The number of sensor readouts to average before comparing the value to the threshold.
          *
-         * @note It is encouraged to use this method for all digital sensor-threshold related tasks (and implement a noblock
-         * method design to support concurrent task execution if required). This is because this method properly handles the
-         * use of value simulation subroutines, which are considered a standard property for all AMC sensor
-         * threshold-related methods.
-         *
-         * @param sensor_pin The number of the pin whose' readout value will be evaluated against the threshold.
-         * @param threshold A boolean @b true or @b false which is used as a threshold for the pin value. Passing condition
-         * is evaluated using == operator, so the readout value has to match the threshold for the function to return @b
-         * true.
-         * @param timeout The number of microseconds after the function breaks and returns kWaitForDigitalThresholdTimeout,
-         * this is necessary to prevent soft-blocking.
-         * @param pool_size The number of sensor readouts to average into the final value. While not strictly necessary for
-         * digital pins, the option is maintained to allow for custom debouncing logic (which is often conducted through
-         * averaging).
-         *
-         * @returns uint8_t kWaitForDigitalThresholdFailure byte-code if the condition was not met and
-         * kWaitForDigitalThresholdPass if it was met. Returns kWaitForDigitalThresholdTimeout if timeout duration has
-         * been exceeded (to avoid soft-blocking). All byte-codes should be interpreted using the kReturnedUtilityCodes
-         * enumeration.
+         * @returns @b 1 if the digital sensor readout matches the threshold and @b 0 otherwise. If timeout
+         * number of microseconds has passed since the module's delay_timer has been reset, returns @b 2 to indicate
+         * timeout condition.
          */
-        uint8_t WaitForDigitalThreshold(
+        [[nodiscard]] uint8_t WaitForDigitalThreshold(
             const uint8_t sensor_pin,
             const bool threshold,
             const uint32_t timeout,
-            const uint16_t pool_size    = 0,
-            const uint8_t stage         = 0,
-            const bool advance_stage    = true,
-            const bool abort_on_timeout = true
-        )
+            const uint16_t pool_size = 0
+        ) const
         {
-            bool value;  // Precreates the variable to store the sensor value
+            // Gets the digital sensor value
+            bool value = GetRawDigitalReadout(sensor_pin, pool_size);
 
-            uint32_t min_delay = 0;  // Pre-initializes to 0, which disables the minimum delay if simulation is not used
-            if (runtime_parameters.simulate_responses)
+            // If the digital value matches target state (HIGH or LOW), returns with success code
+            if (value == threshold) return 1;
+
+            // If the command that called this method runs in non-blocking mode, returns with the failure code based on
+            // whether timeout has been exceeded or not.
+            if (execution_parameters.noblock)
             {
-                // If simulate_responses flag is true, uses minimum_lock_duration to enforce the preset minimum delay
-                // duration
-                min_delay = runtime_parameters.minimum_lock_duration;
+                // If the delay timer exceeds timeout, returns with code 2 to indicate timeout condition
+                if (execution_parameters.delay_timer > timeout) return 2;
+
+                // Otherwise, returns 0 to indicate threshold check failure
+                return 0;
             }
 
-            // Obtains the real or simulated sensor value (the function comes with built-in simulation resolution)
-            value = GetRawDigitalReadout(sensor_pin, pool_size);
-
-            // If the caller command is executed in blocking mode, blocks in-place until either a timeout duration of
-            // microseconds passes or the sensor value matches the threshold
-            if (!execution_parameters.noblock)
+            // If the command that calls this method runs in blocking mode, blocks until the sensor readout satisfies
+            // the conditions or timeout is reached.
+            while (execution_parameters.delay_timer < timeout)
             {
-                // This blocks until BOTH the min_delay has passed AND the sensor value exceeds the threshold
-                while (execution_parameters.delay_timer <= min_delay || value != threshold)
-                {
-                    // Obtains the sensor readout and checks it against the threshold on every iteration of the while loop
-                    value = GetRawDigitalReadout(sensor_pin, pool_size);
-
-                    // If the delay timer exceeds timeout value, interrupts and returns kWaitForDigitalThresholdTimeout (16),
-                    // which is a special timeout-quit code
-                    if (execution_parameters.delay_timer > timeout)
-                    {
-                        return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdTimeout);
-                    }
-                }
-
-                // Returns kWaitForDigitalThresholdPass (15) to indicate that the check has passed
-                return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdPass);
+                // Repeatedly evaluates the sensor readout. If it matches escape conditions, returns with code 1.
+                value = GetRawDigitalReadout(sensor_pin, pool_size);
+                if (value == threshold) return 1;
             }
 
-            // Otherwise, if the caller function is executed in non-blocking mode, determines what code to return
-            else
-            {
-                // If the delay timer exceeds timeout, returns kWaitForDigitalThresholdTimeout (16) to indicate timeout
-                // condition
-                if (execution_parameters.delay_timer > timeout)
-                    return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdTimeout);
-
-                // Otherwise, if check passed, returns kWaitForDigitalThresholdPass (15)
-                // Note, factors in the minimum delay to ensure it is properly assessed when the method runs in non-blocking
-                // mode
-                else if (value == threshold && execution_parameters.delay_timer >= min_delay)
-                    return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdPass);
-
-                // Otherwise, returns kWaitForDigitalThresholdFailure (14)
-                else return static_cast<uint8_t>(kCoreStatusCodes::kWaitForDigitalThresholdFailure);
-            }
+            // The only way to escape the loop above is to encounter the timeout condition. Blocking calls do not
+            // return code 0.
+            return 2;
         }
 
         /**
          * @brief Sets the input digital pin to the specified value (High or Low).
          *
          * This utility method is used to control the value of a digital pin configured to output a constant High or Low
-         * level signal. Internally, the method handles the correct use of global runtime parameters that control whether
-         * action and ttl pin activity is allowed.
+         * level signal. Internally, the method checks for appropriate output locks, based on the pin type, before
+         * setting it's value.
          *
-         * @note It is recommend to use this method for all digital pin control takes.
-         *
-         * @param pin The value of the digital pin to be set to the input value.
+         * @param pin The number of the digital pin to interface with.
          * @param value The boolean value to set the pin to.
-         * @param ttl_pin The boolean flag that determines whether the pin is used to drive active systems or for TTL
-         * communication. This is necessary to properly comply with action_lock and ttl_lock field settings of the global
-         * ControllerRuntimeParameters structure.
+         * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
+         * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
+         * applicable, either of these parameters prevents setting the pin to HIGH and, instead, ensures the pin is set
+         * to LOW.
          *
-         * @returns bool Current value of the pin (the value the pin has actually been set to).
+         * @returns Current output level (HIGH or LOW) the pin has been set to.
          */
         [[nodiscard]]
         bool DigitalWrite(const uint8_t pin, const bool value, const bool ttl_pin) const
         {
             // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to LOW and returns
-            // false to indicate that the pin is currently set to low
-            if ((ttl_pin && runtime_parameters.ttl_lock) || (!ttl_pin && runtime_parameters.action_lock))
+            // the current value of the pin (LOW).
+            if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
             {
                 digitalWriteFast(pin, LOW);
                 return false;
             }
 
-            // If the pin is not locked, sets it to the appropriate value and returns the value to indicate that the pin has
-            // been set to the target value
+            // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
             digitalWriteFast(pin, value);
             return value;
         }
@@ -628,41 +522,41 @@ class Module
         /**
          * @brief Sets the input analog pin to the specified duty-cycle value (from 0 to 255).
          *
-         * This utility method is used to control the value of aan analog pin configured to output a PWM-pulse with the
-         * defined duty cycle from 0 (off) to 255 (always on). Internally, the method handles the correct use of global
-         * runtime parameters that control whether action and ttl pin activity is allowed.
+         * This utility method is used to control the value of an analog pin configured to output a PWM-pulse with the
+         * defined duty cycle from 0 (off) to 255 (always on). Internally, the method checks for appropriate output
+         * locks, based on the pin type, before setting it's value.
          *
-         * @note Currently, the method only supports standard 8-bit resolution to maintain backward-compatibility with AVR
-         * boards. In the future, this may be adjusted.
+         * @note Currently, the method only supports standard 8-bit resolution to maintain backward-compatibility with
+         * AVR boards. In the future, this may be adjusted.
          *
-         * @param pin The value of the analog pin to be set to the input value.
-         * @param value A uint8_t duty cycle value from 0 to 255 that controls the proportion of time during which the pin
-         * is On. Note, the exact meaning of each duty-cycle step depends on the clock that is used to control the analog
-         * pin cycling behavior.
-         * @param ttl_pin The boolean flag that determines whether the pin is used to drive active systems or for TTL
-         * communication. This is necessary to properly comply with action_lock and ttl_lock field settings of the global
-         * ControllerRuntimeParameters structure.
+         * @param pin The number of the analog pin to interface with.
+         * @param value The duty cycle value from 0 to 255 that controls the proportion of time during which the pin
+         * is HIGH. Note, the exact meaning of each duty-cycle step depends on the clock that is used to control the
+         * analog pin cycling behavior.
+         * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
+         * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
+         * applicable, either of these parameters prevents setting the pin to any positive value and, instead, ensures
+         * the pin is set to 0.
          *
-         * @returns uint8_t Current value (duty cycle) of the pin (the value the pin has actually been set to).
+         * @returns Current duty cycle (0 to 255) the pin has been set to.
          */
         [[nodiscard]]
         uint8_t AnalogWrite(const uint8_t pin, const uint8_t value, const bool ttl_pin) const
         {
-            // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to 0 (permanently off) and
-            // returns 0 to indicate that the pin is currently switched off (locked)
-            if ((ttl_pin && runtime_parameters.ttl_lock) || (!ttl_pin && runtime_parameters.action_lock))
+            // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to 0
+            // (constantly off) and returns the current value of the pin (0).
+            if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
             {
                 analogWrite(pin, 0);
                 return 0;
             }
 
-            // If the pin is not locked, sets it to the appropriate value and returns the value to indicate that the pin has
-            // been set to the target value
+            // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
             analogWrite(pin, value);
             return value;
         }
 
-        // Core metods
+        // Core methods
 
         /**
          * @brief Returns the code of the currently active (running) command.
@@ -697,140 +591,6 @@ class Module
 
             // Sets the module status appropriately
             module_status = static_cast<uint8_t>(kCoreModuleStatusCodes::kModuleCommandQueued);
-        }
-
-        /**
-         * @brief Overwrites the value specified by the input id_code of the PC-addressable field inside the module-specific
-         * ExecutionControlParameters structure instance with the input value.
-         *
-         * Casts the input value to the appropriate type before modifying the value. Can only target PC-addressable fields
-         * of the structure, as not fields are by-design PC-addressable.
-         *
-         * @note This is a non-virtual method that is primarily designed to be used by the AMCKernel runtime scheduler
-         * method to set execution parameters when they are received from the PC. This method is intended to be used via the
-         * SetParameter() method of this class to properly unify Custom and non-Custom parameter setting logic (and error /
-         * success handling).
-         *
-         * @param id_code The unique byte-code for the specific field inside the ExecutionControlParameters structure to be
-         * modified. These codes are defined in the kExecutionControlParameterCodes private enumeration of this class and
-         * the id-code of the parameter structure has to match one of these codes to properly target an execution parameter
-         * value.
-         * @param value The specific value to set the target parameter variable to. Uses 32-bit format to support the entire
-         * range of possible input values.
-         *
-         * @returns bool @b true if the value was successfully set, @b false otherwise. The only realistic reason for
-         * returning false is if the input id_code does not match any of the id_codes available through the
-         * kExecutionControlParameterCodes enumeration. SetParameter() class method uses the returned values to determine
-         * whether to issue a success or failure message to the PC and handles PC messaging.
-         */
-        bool SetAddressableExecutionParameter(
-            const uint8_t id_code,  // The ID of the parameter to overwrite
-            const uint32_t value    // The value to overwrite the parameter with
-        )
-        {
-            // Selects and overwrites the appropriate execution parameter, based on the input id_code
-            switch (static_cast<kExecutionControlParameterCodes>(id_code))
-            {
-                // Noblock mode toggle
-                case kExecutionControlParameterCodes::kNextNoblock:
-                    execution_parameters.next_noblock = static_cast<bool>(value);
-                    return true;
-
-                // Recurrent execution mode toggle
-                case kExecutionControlParameterCodes::kRunRecurrently:
-                    execution_parameters.run_recurrently = static_cast<bool>(value);
-                    return true;
-
-                // Recurrent delay time (microseconds)
-                case kExecutionControlParameterCodes::kRecurrentDelay:
-                    execution_parameters.recurrent_delay = static_cast<uint32_t>(value);
-                    return true;
-
-                // If the input code did not match any of the (addressable) execution parameter byte-codes, returns 'false'
-                // to indicate that value assignment has failed
-                default: return false;
-            }
-        }
-
-        /**
-         * @brief An integration method that allows the AMCKernel to handle parameter assignments regardless of whether they
-         * are intended for the kExecutionControlParameters or a Custom parameters structure.
-         *
-         * @note This is a non-virtual method that is used by the AMCKernel to assign new parameter values received from
-         * PC to appropriate parameter structure fields. This method handles generating the necessary success or error
-         * messages that are sent to the PC to indicate method performance.
-         *
-         * This method is called both when setting kExecutionControlParameters and any custom parameters. The method uses
-         * the same success and failure codes for 'System' execution parameter and custom parameters, derived from the
-         * kCoreModuleStatusCodes structure. This allows to seamlessly unify Core and Custom parameter setting status and
-         * handled them identically regardless of the source on the PC side.
-         *
-         * @attention The only method that every developer should write themselves for this entire aggregation of methods
-         * (SetParameter, SetAddressableExecutionParameter and SetCustomParameter) to function as expected is the
-         * SetCustomParameter(), which overwrites custom parameters. The rest of the structure would integrate
-         * automatically, provided that the SetCustomParameter() is written correctly.
-         *
-         * @param id_code The byte-code that points to a specific parameter to be overwritten inside either the Core
-         * kExecutionControlParameters or any Custom parameters structure of the Module.
-         * @param value The new value to set the target parameter to.
-         *
-         * @returns bool @b true if the method succeeds and @b false otherwise. Handles any required PC messaging in-place and
-         * only returns the status to assist the caller AMCKernel method in deciding how to proceed with its own runtime.
-         */
-        bool SetParameter(const uint8_t id_code, const uint32_t value)
-        {
-            bool success;  // Tracks the assignment status
-
-            if (id_code < 11)
-            {
-                // If the id code is below 11, this indicates that the targeted parameter is se Execution parameter (only these
-                // parameters can be addressed using system-reserved codes).
-                success = SetAddressableExecutionParameter(id_code, value);
-            }
-            else
-            {
-                // Otherwise, uses the developer-provided virtual interface to override the requested custom parameter with the
-                // input value
-                success = SetCustomParameter(id_code, value);
-            }
-
-            // Handles the parameter setting result status. If parameter writing fails, sends an error message to the PC and
-            // returns 'false' so that the AMCKernel method that called this method can resolve its runtime too.
-            if (!success)
-            {
-                // Sets the module_status appropriately
-                module_status = static_cast<uint8_t>(kCoreModuleStatusCodes::kInvalidModuleParameterIDError);
-
-                // Error message to indicate the method was not able to match the input id_code to any known code. Uses
-                // NoCommand code to indicate that the message originates from a non-command method.
-                const uint8_t error_values[1] = {id_code};
-                communication.SendErrorMessage(
-                    module_id,
-                    system_id,
-                    static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                    module_status,
-                    error_values
-                );
-                return false;
-            }
-            // Otherwise, sends the success message to the PC to communicate the new value of the overwritten parameter.
-            else
-            {
-                // Sets the module_status appropriately
-                module_status = static_cast<uint8_t>(kCoreModuleStatusCodes::kModuleParameterSet);
-
-                // Success message to indicate that the parameter targeted by the ID code has been set to a new value (also
-                // includes the value). Uses NoCommand code to indicate that the message originates from a non-command method.
-                communication.CreateEventHeader(
-                    module_id,
-                    system_id,
-                    static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                    module_status
-                );
-                communication.PackValue(id_code, value);
-                communication.SendData();
-                return true;
-            }
         }
 
         /**
@@ -1014,8 +774,8 @@ class Module
         /**
          * @brief A pure virtual destructor method to ensure proper cleanup.
          *
-         * No extra cleanup steps other than class deletion itself (which also does not happen as everything in the
-         * codebase so far is static)
+         * Currently, there are no extra cleanup steps other than class deletion itself, which also does not happen
+         * as everything in the codebase so far is static. Generally safe to reimplement without additional logic.
          */
         virtual ~Module() = default;
 
