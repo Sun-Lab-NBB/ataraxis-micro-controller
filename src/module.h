@@ -399,8 +399,6 @@ class Module
          * register.
          *
          * @param sensor_pin The number of the analog pin whose' readout value will be evaluated against the threshold.
-         * @param invert_condition A boolean flag that determines whether the default comparison operator (>=, false) is
-         * inverted to (<=, true).
          * @param threshold The concrete threshold value against which the parameter will be evaluated. Regardless of the
          * operator, if pin readout equals to threshold, the function will return @b true.
          * @param timeout The number of microseconds after the function breaks and returns kWaitForAnalogThresholdTimeout,
@@ -414,9 +412,9 @@ class Module
          */
         uint8_t WaitForAnalogThreshold(
             const uint8_t sensor_pin,
-            const uint16_t threshold,
             const uint32_t timeout,
-            const bool invert_condition = false,
+            const uint16_t upper_boundary = 65535,
+            const uint16_t lower_boundary = 0,
             const uint16_t pool_size    = 0,
             const uint8_t stage         = 0,
             const bool advance_stage    = true,
