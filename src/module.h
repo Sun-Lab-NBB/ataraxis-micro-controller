@@ -5,7 +5,7 @@
  * @subsection mod_description Description:
  *
  * @note Every custom module class should inherit from this class. This class serves two major purposes. First, it
- * provides a static interface used by Kernel and Communicaztion classes. This enables Core classes from this library to
+ * provides a static interface used by Kernel and Communication classes. This enables Core classes from this library to
  * reliably interface with any custom module. Additionally, this class provides utility functions that abstract many
  * routine tasks in a way that is compatible with concurrent runtime enforced by the Kernel module.
  *

@@ -1080,7 +1080,7 @@ class TransportLayer
             // The timer that disengages the loop if the packet stales at any stage
             // Tracks the number of bytes read from the transmission interface buffer minus preamble bytes
             uint16_t bytes_read =
-                kOverheadByteIndex;  // Initialized to the preamble size, as preamble does not use this
+                kOverheadByteIndex;  // Initializes to the size of the preamble. See below for details.
 
             // First, attempts to find the start byte of the packet. The start byte is used to tell the receiver that
             // the following data belongs to a supposedly well-formed packet and should be retained
@@ -1156,43 +1156,92 @@ class TransportLayer
                 return 0;
             }
 
-            // Calculates how many bytes are expected to be received. This is dependent on the received payload_size and
-            // is modified to account for the CRC postamble and the metadata bytes (preamble size is given by
-            // kOverheadByteIndex, static '+2' accounts for the overhead and delimiter bytes)
-            const uint16_t remaining_size =
-                _reception_buffer[kPayloadSizeIndex] + kOverheadByteIndex + kPostambleSize + 2;
-            timeout_timer = 0;  // Resets the timer to 0 before entering the loop below
+            // Calculates how many additional 'packet' bytes are expected to be received. This is dependent on the
+            // received payload_size and is modified to account for the additional COBS metadata bytes
+            // ('+2,' accounts for the overhead and delimiter bytes).
+            const uint16_t remaining_size = _reception_buffer[kPayloadSizeIndex] + kOverheadByteIndex + 2;
+            timeout_timer                 = 0;  // Resets the timer to 0 before entering the loop below
 
-            // Enters the packet reception loop. Loops either until the timeout (packet stales) or the requested number
-            // of bytes is received. This step receives all remaining data, including the CRC checksum postamble.
+            // Enters the packet reception loop. Loops either until the timeout (packet stales), an unencoded
+            // delimiter byte value is encountered or the payload is fully received.
+            bool delimiter_found = false;  // Tracks whether the loop below is able to find the unencoded delimiter
             while (timeout_timer < kTimeout && bytes_read < remaining_size)
             {
-                // Uses a separate 'if' to check whether bytes to parse are available to enable waiting for the packet
-                // bytes to become available if at some point the entire reception buffer becomes consumed. In this
-                // case, 'while' loop will block in-place until more bytes are received or the timeout is reached.
+                // Checks whether bytes to parse are available to enable waiting for the packet bytes to be received.
+                // In this case, 'while' loop will block in-place until more bytes are received or the timeout is
+                // reached.
+                if (_port.available())
+                {
+                    // Saves the byte to the appropriate buffer position
+                    const uint8_t byte_value      = _port.read();
+                    _reception_buffer[bytes_read] = byte_value;
+                    // Increments the bytes_read to iteratively move along the buffer and add new data
+                    bytes_read++;
+                    timeout_timer = 0;  // Resets the timer whenever a byte is successfully read and the loop is active
+
+                    if (byte_value == kDelimiterByte)
+                    {
+                        delimiter_found = true;  // Sets the flag to indicate that the delimiter byte was found
+                        break;                   // Breaks out of the loop
+                    }
+                }
+            }
+
+            // Issues an error status if the loop above escaped due to a timeout
+            if (timeout_timer >= kTimeout)
+            {
+                transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError);
+                return 0;  // Returns 0 to indicate that the packet staled at the packet reception stage
+            }
+
+            // Issues an error status if the loop above did not find a delimiter (after receiving all packet bytes).
+            if (!delimiter_found)
+            {
+                transfer_status =
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kDelimiterNotFoundError);
+                return 0;
+            }
+
+            // Issues an error status if the loop above escaped early due to finding a delimiter before reaching the end
+            // of the packet.
+            if (bytes_read != remaining_size)
+            {
+                transfer_status =
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kDelimiterFoundTooEarlyError);
+                return 0;
+            }
+
+            // If the packet parsing loop completed successfully, attempts to parse the CRC postamble. The CRC bytes
+            // should be received immediately after receiving the packet delimiter byte.
+            timeout_timer                 = 0;  // Resets the timer to 0 before entering the loop below
+            const uint16_t postamble_size = remaining_size + static_cast<uint16_t>(kPostambleSize);
+            while (timeout_timer < kTimeout && bytes_read < postamble_size)
+            {
                 if (_port.available())
                 {
                     // Saves the byte to the appropriate buffer position
                     _reception_buffer[bytes_read] = _port.read();
+
                     // Increments the bytes_read to iteratively move along the buffer and add new data
                     bytes_read++;
                     timeout_timer = 0;  // Resets the timer whenever a byte is successfully read and the loop is active
                 }
             }
 
-            // If the value of read_bytes matches the packet_size, this means that the packet was successfully parsed.
-            // In this case, sets the status appropriately and returns the number of bytes read into the buffer.
-            if (bytes_read == remaining_size)
+            // Issues an error status if the loop above escaped due to a timeout.
+            if (timeout_timer >= kTimeout)
             {
-                transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketParsed);
-
-                // Since bytes_read directly corresponds to the packet size, returns this to the caller
-                return bytes_read - kOverheadByteIndex;  // Note, excludes the start and payload_size bytes
+                transfer_status =
+                    static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPostambleTimeoutError);
+                return 0;  // Returns 0 to indicate that the packet staled at the packet reception stage
             }
 
-            // Otherwise, issues the packet staling error status and returns 0 to indicate that no data was parsed.
-            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError);
-            return 0;
+            // Otherwise, if the loop above successfully resolved the necessary number of postamble bytes, sets the
+            // success status and returns to caller
+            transfer_status = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketParsed);
+
+            // Since bytes_read directly corresponds to the packet size, returns this to the caller
+            return bytes_read - kOverheadByteIndex;  // Note, excludes the start and payload_size bytes
         }
 
         /**

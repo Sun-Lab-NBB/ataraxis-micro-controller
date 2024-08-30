@@ -108,6 +108,9 @@ namespace shared_assets
         kObjectWrittenToBuffer        = 116,  ///< The object has been written to the buffer
         kReadObjectBufferError        = 117,  ///< Not enough bytes in the buffer payload region to read the object from
         kObjectReadFromBuffer         = 118,  ///< The object has been read from the buffer
+        kDelimiterNotFoundError       = 119,  ///< Delimiter byte not found at the end of the packet
+        kDelimiterFoundTooEarlyError  = 120,  ///< Delimiter byte was found before reaching the end of the packet
+        kPostambleTimeoutError        = 121,  ///< The Postamble was not received within the specified time frame
     };
 
     /**
