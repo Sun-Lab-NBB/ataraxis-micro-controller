@@ -40,7 +40,7 @@
  * This is a rough outline of how the Rx and Tx data streams look. Each |block| represents a structure either provided
  * by this class or TransportLayer class. Only the datastructures defined inside this class are relevant for data
  * serialization and deserialization, TransportLayer handles processing the preamble and postamble structures of
- * each stream prior to deserializing the custom datastructures of this project. Note, only the Protocol Code and
+ * each stream before deserializing the custom datastructures of this project. Note, only the Protocol Code and
  * Message Payload count towards the 254-byte limit for message payload.
  *
  * - **Protocol**: |Start Byte| |Header Preamble| |Protocol Code| |Message Payload| |Delimiter Byte| |CRC Postamble|.
@@ -291,7 +291,7 @@ class Communication
             {
                 // If write operation succeeds, returns with a success code
                 communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmissionSuccess);
+                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmitted);
                 return true;
             }
 
@@ -358,7 +358,7 @@ class Communication
                 {
                     // If write operation succeeds, returns with a success code
                     communication_status =
-                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmissionSuccess);
+                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmitted);
                     return true;
                 }
 
@@ -446,7 +446,7 @@ class Communication
 
                     // Otherwise, if the message was parsed, returns with a success status.
                     communication_status =
-                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationReceptionSuccess);
+                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationReceived);
                     return true;
                 }
             }

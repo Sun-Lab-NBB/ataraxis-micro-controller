@@ -16,7 +16,7 @@
  * - Utility methods. Provides utility functions that implement routinely used features, such as waiting for time or
  * sensor activation. Methods from this section will be inherited when subclassing this class and should be used when
  * writing custom class methods where appropriate.
- * - Integration methods. These methods are also inherited from the parent class, but they should be used exclusively by
+ * - Core methods. These methods are also inherited from the parent class, but they should be used exclusively by
  * the Kernel and Communication classes. These methods form the static interface that natively integrates any custom
  * module with the Kernel and Communication classes.
  * - Virtual Methods. These methods serve the same purpose as the Core methods, but they provide an interface between
@@ -116,21 +116,28 @@ class Module
          * @enum kCoreStatusCodes
          * @brief Assigns meaningful names to status codes used by the module class.
          *
+         * These codes are used by the Core class methods (Methods expected to be accessed by the Kernel class).
+         * Utility methods are not accessed by the Kernel class and, therefore, do not use the module status field.
+         *
          * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
          * Module class. All custom modules should use a separate enumeration to define status codes specific to the
          * custom logic of the module.
+         *
          * @note To support unified status code reporting, this enumeration reserves values 0 through 100. All custom
          * status codes should use values from 101 through 255. This way, status codes derived from this enumeration
          * will never clash with 'custom' status codes.
          */
         enum class kCoreStatusCodes : uint8_t
         {
-            kStandBy = 0,  ///< The code used to initialize the module_status variable.
-
-            kInvalidModuleParameterIDError = 1,  ///< Unable to recognize incoming Kernel parameter id
-            kModuleParameterSet            = 2,  ///< Module parameter has been successfully set to input value
-            kModuleCommandQueued           = 3,  ///< The next command to execute has been successfully queued
-
+            kStandBy                   = 0,  ///< The code used to initialize the module_status variable.
+            kCommandQueued             = 1,  ///< The next command to execute has been successfully queued.
+            kCommandAlreadyRunning     = 2,  ///< The module cannot activate new commands as one is already running.
+            kNewCommandActivated       = 3,  ///< The module has successfully activated a new command.
+            kRecurrentCommandActivated = 4,  ///< The module has successfully activated a recurrent command.
+            kCommandNotActivated =
+                5,  ///< The module does not have a command to activate, or the recurrent timeout has not expired yet
+            kExecutionParametersReset = 6,  ///< The execution_parameters structure of the module has been reset.
+            kActiveCommandAborted     = 7,  ///< The active (running) module command has been forcibly terminated.
         };
 
         /// Stores the most recent module status code.
@@ -151,8 +158,8 @@ class Module
          * dynamically addressable runtime parameters that broadly alter the behavior of all modules used by the
          * controller. This structure is modified via Kernel class, modules only read the data from the structure.
          *
-         * @attention Follow the following instantiation order when writing the main .cpp / .ino file for the
-         * controller: Communication → Module(s) → Kernel. See the main.cpp included with the library for details.
+         * @attention Follow this instantiation order when writing the main .cpp / .ino file for the controller:
+         * Communication → Module(s) → Kernel. See the main.cpp included with the library for details.
          */
         Module(
             const uint8_t module_type,
@@ -223,8 +230,8 @@ class Module
          */
         void CompleteCommand()
         {
-            execution_parameters.command = 0;
-            execution_parameters.stage   = 0;
+            execution_parameters.command = 0;  // Removes active command code
+            execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
         }
 
         /**
@@ -389,11 +396,12 @@ class Module
          * prevents controller deadlocks.
          * @param pool_size The number of sensor readouts to average before comparing the value to the boundaries.
          *
-         * @returns @b 1 if the analog sensor readout is within the specified boundaries and @b 0 otherwise. If timeout
-         * number of microseconds has passed since the module's delay_timer has been reset, returns @b 2 to indicate
-         * timeout condition.
+         * @returns integer code @b 1 if the analog sensor readout is within the specified boundaries and integer code
+         * @b 0 otherwise. If timeout number of microseconds has passed since the module's delay_timer has been reset,
+         * returns integer code @b 2 to indicate timeout condition.
          */
-        [[nodiscard]] uint8_t WaitForAnalogThreshold(
+        [[nodiscard]]
+        uint8_t WaitForAnalogThreshold(
             const uint8_t sensor_pin,
             const uint16_t lower_boundary,
             const uint16_t upper_boundary,
@@ -445,11 +453,12 @@ class Module
          * prevents controller deadlocks.
          * @param pool_size The number of sensor readouts to average before comparing the value to the threshold.
          *
-         * @returns @b 1 if the digital sensor readout matches the threshold and @b 0 otherwise. If timeout
-         * number of microseconds has passed since the module's delay_timer has been reset, returns @b 2 to indicate
-         * timeout condition.
+         * @returns integer code @b 1 if the digital sensor readout matches the threshold and integer code @b 0
+         * otherwise. If timeout number of microseconds has passed since the module's delay_timer has been reset,
+         * returns integer code @b 2 to indicate timeout condition.
          */
-        [[nodiscard]] uint8_t WaitForDigitalThreshold(
+        [[nodiscard]]
+        uint8_t WaitForDigitalThreshold(
             const uint8_t sensor_pin,
             const bool threshold,
             const uint32_t timeout,
@@ -492,7 +501,7 @@ class Module
          *
          * This utility method is used to control the value of a digital pin configured to output a constant High or Low
          * level signal. Internally, the method checks for appropriate output locks, based on the pin type, before
-         * setting it's value.
+         * setting its value.
          *
          * @param pin The number of the digital pin to interface with.
          * @param value The boolean value to set the pin to.
@@ -524,7 +533,7 @@ class Module
          *
          * This utility method is used to control the value of an analog pin configured to output a PWM-pulse with the
          * defined duty cycle from 0 (off) to 255 (always on). Internally, the method checks for appropriate output
-         * locks, based on the pin type, before setting it's value.
+         * locks, based on the pin type, before setting its value.
          *
          * @note Currently, the method only supports standard 8-bit resolution to maintain backward-compatibility with
          * AVR boards. In the future, this may be adjusted.
@@ -573,58 +582,70 @@ class Module
         }
 
         /**
-         * @brief Saves the input command to the appropriate field inside the local ExecutionControlParameters structure, so
-         * that it can be executed during as soon as the Module is done with the currently running command (if any).
+         * @brief Queues the input command to be executed once the Module completes any currently running command.
          *
-         * @note This is a non-virtual method that is primarily designed to be used by the AMCKernel runtime scheduler
-         * method to queue Module commands for execution when they are received from the PC. This method is primarily
-         * designed to abstract away direct structure manipulation.
+         * This method queues the command code to be executed and sets the runtime parameters for the command.
+         * The Kernel class uses this method to queue commands received from the connected system for execution.
          *
-         * @attention This method does not check whether the input command code is valid, it simply saves it to the
-         * appropriate field. The validity check is carried out by the virtual RunActiveCommand() method.
+         * @note This method is explicitly written in a way to allow replacing any already queued command. Since the
+         * Module buffer is designed to only hold 1 command in queue, this allows rapidly changing the queued command
+         * in response to external events.
          *
-         * @param command The id byte-code for the command to execute.
+         * @attention This method does not check whether the input command code is valid. It only saves it to the
+         * appropriate field of the execution_parameters structure. The validity check should be carried out by the
+         * virtual RunActiveCommand() method.
+         *
+         * @param command The byte-code of the command to execute.
+         * @param noblock Determines whether the queued command will be executed in blocking or non-blocking mode.
+         * Non-blocking execution requires the command to make use of the class utility functions that allow
+         * non-blocking delays.
+         * @param cycle Determines whether to execute the command once or run it recurrently (cyclically).
          */
-        void QueueCommand(const uint8_t command)
+        void QueueCommand(const uint8_t command, const bool noblock, const bool cycle)
         {
-            execution_parameters.next_command = command;
+            execution_parameters.next_command    = command;  // Sets the command to be executed
+            execution_parameters.next_noblock    = noblock;  // Sets the noblock flag for the command
+            execution_parameters.run_recurrently = cycle;    // Sets the recurrent runtime flag for the command
+            execution_parameters.new_command     = true;     // Notifies other class methods this is a new command
 
             // Sets the module status appropriately
-            module_status = static_cast<uint8_t>(kCoreModuleStatusCodes::kModuleCommandQueued);
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandQueued);
         }
 
         /**
-         * @brief If the module is not already executing a command, sets a new command to be executed.
+         * @brief If the module is not executing a command, executes the next available command.
          *
-         * Specifically, first checks whether the module is currently executing a command. If the module is not executing a
-         * command and a new command is available, transfers command data from queue (buffer) into the active directory. If
-         * no new command is available, but run_recursively ExecutionControlParameters flag is @b true, transfers (the same
-         * command as presumably has just finished running) into the active directory to re-run it, provided that the
-         * specified recurrent_delay of microseconds has passed since the last command activation.
+         * If the module is not already executing a command and a new command is queued, activates that command. If
+         * new command is not available, but recursive command execution is enabled, repeats the previous command. When
+         * repeating previous commands, the method checks whether the specified 'recurrent_delay' of microseconds has
+         * passed since the last command activation, before (re)activating the command. The Kernel uses this method to
+         * set up command execution.
          *
-         * @note This is a non-virtual method that is primarily designed to be used by the AMCKernel runtime scheduler
-         * method to set execution parameters when they are received from the PC. It is expected that the AMCKernel handles
-         * any error / success messaging for this method internally, using Kernel-specific event codes where necessary.
+         * @notes Any queued command is considered new until this method activates that command. All following
+         * reactivations of the command are considered recurrent.
          *
-         * @returns bool @b true if a new command was successfully set and @b false otherwise.
+         * @returns bool @b true if a new command was successfully set and @b false otherwise. Additional information
+         * regarding method runtime status can be obtained from the module_status attribute.
          */
         bool SetActiveCommand()
         {
-            // If the command field is not 0, this means there is already an active command being executed and no further action
-            // is needed (returns false to indicate no new command was set). Placing this check at the top of the loop
-            // minimizes delays when there is an active command in-progress.
-            if (execution_parameters.command != 0) return false;
+            // If the command field is not 0, this means there is already an active command being executed and no
+            // further action is necessary. Returns false to indicate no new command was set.
+            if (execution_parameters.command != 0)
+            {
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandAlreadyRunning);
+                return false;
+            }
 
-            // If the new_command flag is set to true and there is no active command (checked above), immediately activates the
-            // next_command
+            // If the new_command flag is set to true and there is no active command, activates the next_command
             if (execution_parameters.new_command)
             {
                 // Transfers the command and the noblock flag from buffer fields to active fields
                 execution_parameters.command = execution_parameters.next_command;
                 execution_parameters.noblock = execution_parameters.next_noblock;
 
-                // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage functions start
-                // with stage 1 and will be deadlocked if the stage is kept at 0 (default reset state)
+                // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
+                // should start with stage 1 and deadlock if the stage is kept at 0 (default reset state)
                 execution_parameters.stage = 1;
 
                 // Removes the new_command flag to indicate that the new command has been consumed
@@ -634,50 +655,57 @@ class Module
                 execution_parameters.recurrent_timer = 0;
 
                 // Returns 'true' to indicate that a new command was activated
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kNewCommandActivated);
                 return true;
             }
 
-            // There is no good reason for extracting this into a variable other than to make the 'if' check below not exceed
-            // the column-width boundaries. Otherwise, the auto-formatter unwinds it to be beyond limits. So purely a cosmetic
-            // step.
-            bool recurrent = execution_parameters.run_recurrently;
-
-            // If no new command is available, but recurrent activation is enabled, re-queues a command (if any is available)
-            // from the buffer, if recurrent_delay of microseconds has passed since the last reset of the recurrent_timer
-            if (recurrent && execution_parameters.recurrent_timer > execution_parameters.recurrent_delay)
+            // If previous command is available, recurrent activation is enabled, and the requested recurrent_delay
+            // number of microseconds has passed, re-queues the command to be executed again.
+            if (execution_parameters.run_recurrently &&
+                execution_parameters.recurrent_timer > execution_parameters.recurrent_delay &&
+                execution_parameters.next_command != 0)
             {
-                // Repeats the activation steps from above, minus the new_command flag modification, if next_command is not 0
-                if (execution_parameters.next_command != 0)
-                {
-                    execution_parameters.command         = execution_parameters.next_command;
-                    execution_parameters.noblock         = execution_parameters.next_noblock;
-                    execution_parameters.stage           = 1;
-                    execution_parameters.recurrent_timer = 0;
-                    return true;
-                }
-                else return false;  // If next_command buffer is 0, returns false to indicate there is no command to set
+                // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
+                execution_parameters.command         = execution_parameters.next_command;
+                execution_parameters.noblock         = execution_parameters.next_noblock;
+                execution_parameters.stage           = 1;
+                execution_parameters.recurrent_timer = 0;
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentCommandActivated);
+                return true;
             }
 
-            // Returns 'false' if to indicate no command was set if the case is not handled by the conditionals above
+            // Returns 'false' to indicate no command was set. This usually is due to no commands being available or
+            // the recurrent activation timeout.
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandNotActivated);
             return false;
         }
 
         /**
-         * @brief Resets the local instance of the ExecutionControlParameters structure to default values.
+         * @brief Resets the class execution_parameters instance to default values.
          *
-         * This method is designed primarily for Teensy boards that do not reset on UART / USB cycling. As such, this method
-         * is designed to reset the Controller between runtimes to support proper runtime setup and execution.
-         *
-         * Has no returns as there is no way this method can fail if it compiles.
-         *
-         * @note This is a non-virtual method that is primarily designed to be used by the AMCKernel runtime scheduler
-         * method to set execution parameters when they are received from the PC. It is expected that the AMCKernel handles
-         * any error / success messaging for this method internally, using Kernel-specific event codes where necessary.
+         * This method is designed for Teensy boards that do not reset on UART / USB cycling. The Kernel uses this
+         * method to reset the Module between runtimes.
          */
         void ResetExecutionParameters()
         {
             // Sets execution_parameters to a default instance of ExecutionControlParameters structure
             execution_parameters = ExecutionControlParameters();
+            module_status        = static_cast<uint8_t>(kCoreStatusCodes::kExecutionParametersReset);
+        }
+
+        /**
+         * @brief Aborts the active command by forcibly terminating its concurrent runtime.
+         *
+         * This method is used to cancel an actively running command, provided it is executed in non-blocking mode.
+         * Kernel class uses this command to 'soft' reset the Module in certain circumstances.
+         *
+         * @warning This method will not be able to abort blocking commands! Aborting blocking commands requires
+         * software or hardware interrupt functionality and needs to be introduced at the Kernel level.
+         */
+        void AbortCommandExecution()
+        {
+            CompleteCommand();
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kActiveCommandAborted);
         }
 
         // Declares virtual methods to be overwritten by each child class. Virtual methods are critical for integrating
@@ -692,9 +720,9 @@ class Module
          *
          * Specifically, use this method to provide an interface the AMCKernel class can use to translate incoming
          * Parameter data-structures (See SerialPCCommunication implementation) into overwriting the target parameter
-         * values. The exact realization (codes, parameters, how many parameter structures and how to name them, etc.) is
-         * entirely up to you, as long as the interface behaves in a way identical to the SetAddressableExecutionParameter()
-         * method of the AMCModule base class.
+         * values. The exact realization (codes, parameters, number of parameter structures and how to name them, etc.)
+         * is entirely up to you, as long as the interface behaves in a way identical to the
+         * SetAddressableExecutionParameter() method of the AMCModule base class.
          *
          * @warning This is a pure-virtual method that @b has to be implemented separately for each child class derived
          * from base AMCModule class. This method is intended to be used via the inherited SetParameter() method of this

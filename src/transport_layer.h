@@ -629,7 +629,7 @@ class TransportLayer
         bool ReceiveData()
         {
             // Returns 'false' if not enough bytes are available to justify the parsing attempt. Specifically, if the
-            // available number of bytes is less than the minimum expected packet size.
+            // available number of bytes is lower than the minimum expected packet size.
             if (!Available())
             {
                 // Also sets the status appropriately

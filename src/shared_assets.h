@@ -134,8 +134,8 @@ namespace shared_assets
         kCommunicationParsingError = 155,  ///< Communication class ran into an error when parsing (reading) a message.
         kCommunicationPackingError = 156,  ///< Communication class ran into an error when writing a message to payload.
         kCommunicationTransmissionError = 157,  ///< Communication class ran into an error when transmitting a message.
-        kCommunicationTransmissionSuccess = 158,  ///< Communication class successfully transmitted a message.
-        kCommunicationReceptionSuccess    = 159,  ///< Communication class successfully received a message.
+        kCommunicationTransmitted = 158,  ///< Communication class successfully transmitted a message.
+        kCommunicationReceived    = 159,  ///< Communication class successfully received a message.
         kCommunicationInvalidProtocolError =
             160,  ///< The received or transmitted protocol code is not valid for that type of operation.
         kCommunicationNoBytesToReceive =
@@ -143,6 +143,7 @@ namespace shared_assets
         kCommunicationParameterSizeMismatchError =
             162,  ///< The number of extracted parameter bytes does not match the size of the input structure.
         kCommunicationParametersExtracted = 163,  ///< Parameter data has been successfully extracted.
+
     };
 
     /**
