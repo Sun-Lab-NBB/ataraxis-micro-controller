@@ -115,11 +115,10 @@ namespace shared_assets
 
     /**
      * @enum kCoreStatusCodes
-     * @brief Assigns meaningful names to all status codes used by the Communication, Kernel and (base) Module classes.
+     * @brief Assigns meaningful names to all status codes used by the Communication and Kernel classes.
      *
-     * This enumeration jointly covers the core class 'triad'. Unlike other shared enumerations, these classes have
-     * relatively few unique status codes. Together with the enumerations above, this ensures that each core class
-     * status code is unique across the library, simplifying error handling.
+     * This enumeration covers two classes: Kernel and Communication. Both classes work on top of the existing
+     * TransportLayer infrastructure and participate in the unified status-code system used by TransportLayer classes.
      *
      * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
      * values in the range of 151 through 200.
@@ -129,44 +128,24 @@ namespace shared_assets
         kCommunicationStandby =
             151,               ///< Standby placeholder used to initialize the Communication class status tracker.
         kKernelStandby = 152,  ///< Standby placeholder used to initialize the Kernel class status tracker.
-        kModuleStandby = 153,  ///< Standby placeholder used to initialize the (base) Module class status tracker.
-        kCommunicationReceptionError = 154,  ///< Communication class ran into an error when receiving a message.
-        kCommunicationParsingError = 155,  ///< Communication class ran into an error when parsing (reading) a message.
-        kCommunicationPackingError = 156,  ///< Communication class ran into an error when writing a message to payload.
-        kCommunicationTransmissionError = 157,  ///< Communication class ran into an error when transmitting a message.
-        kCommunicationTransmitted = 158,  ///< Communication class successfully transmitted a message.
-        kCommunicationReceived    = 159,  ///< Communication class successfully received a message.
+        kCommunicationReceptionError = 153,  ///< Communication class ran into an error when receiving a message.
+        kCommunicationParsingError = 154,  ///< Communication class ran into an error when parsing (reading) a message.
+        kCommunicationPackingError = 155,  ///< Communication class ran into an error when writing a message to payload.
+        kCommunicationTransmissionError = 156,  ///< Communication class ran into an error when transmitting a message.
+        kCommunicationTransmitted = 157,  ///< Communication class successfully transmitted a message.
+        kCommunicationReceived    = 158,  ///< Communication class successfully received a message.
         kCommunicationInvalidProtocolError =
-            160,  ///< The received or transmitted protocol code is not valid for that type of operation.
+            159,  ///< The received or transmitted protocol code is not valid for that type of operation.
         kCommunicationNoBytesToReceive =
-            161,  ///< Communication class did not receive enough bytes to process the message. This is NOT an error.
+            160,  ///< Communication class did not receive enough bytes to process the message. This is NOT an error.
         kCommunicationParameterSizeMismatchError =
-            162,  ///< The number of extracted parameter bytes does not match the size of the input structure.
-        kCommunicationParametersExtracted = 163,  ///< Parameter data has been successfully extracted.
+            161,  ///< The number of extracted parameter bytes does not match the size of the input structure.
+        kCommunicationParametersExtracted = 162,  ///< Parameter data has been successfully extracted.
 
     };
 
     /**
-     * @brief Aggregates all byte-codes used by Core classes (Kernel, Communication and (base) Module) to send and
-     * receive messages.
-     *
-     * Similar to kCoreStatusCodes, aggregating the codes for all classes in one enumeration simplifies working with
-     * Core classes. This enumeration stores values that can be used for module_type and module_id fields of incoming
-     * and outgoing messages.
-     *
-     * @attention The codes available through this enumeration have to be unique! Classes derived from the base Module
-     * class and other custom classes should not use or overwrite the module_type and module_id codes available through
-     * this library.
-     */
-    enum class kCoreMessageCodes : uint8_t
-    {
-        kCommunicationType = 1,  ///< Communication class should always be type 1
-        kKernelType        = 2,  ///< Kernel class should always be type 3
-        kCoreID            = 0,  ///< Core classes only exist as singular entities and, as such, do not make use if IDs
-    };
-
-    /**
-     * @struct ControllerRuntimeParameters
+     * @struct DynamicRuntimeParameters
      * @brief Stores global runtime parameters addressable through the Communication interface.
      *
      * These parameters broadly affect the runtime of all classes derived from the base Module class. They are
@@ -176,7 +155,7 @@ namespace shared_assets
      * class requires an instance of this structure to properly support runtime behavior, but they should not modify the
      * instance.
      */
-    struct ControllerRuntimeParameters
+    struct DynamicRuntimeParameters
     {
             /// Enables running the controller logic without physically issuing commands. This is helpful for testing
             /// and debugging Microcontroller code. Specifically, blocks @b action pins from writing. Sensor and TTL
@@ -208,8 +187,8 @@ namespace shared_assets
              * communication with other Ataraxis systems.
              *
              * @note All Teensy boards default to the maximum USB rate, which is most likely 480 Mbit/sec, ignoring the
-             * baudrate setting. Most Arduinos have much lower baud rates as they use a UART interface instead of the
-             * USB and the maximum baudrate will depend on the particular board.
+             * baudrate setting. Most Arduino boards have much lower baud rates as they use a UART interface instead
+             * of the USB and the maximum baudrate will depend on the particular board.
              *
              * @attention For systems that actually do use baudrate, the value specified here should be the same as
              * used by communication recipient. Additionally, the appropriate controller baudrate depends on the
@@ -420,6 +399,10 @@ namespace communication_assets
      * protocol value 3. Data messages are used to communicate all controller-originating information, such as
      * runtime data and error messages to other Ataraxis systems.
      *
+     * @notes Data message parameters are expected to be known at compile time (constexpr). Unlike command and
+     * parameter messages that are not known ahead of time, each data message originates from the Microcontroller and
+     * will, therefore, be known to the compiler.
+     *
      * @tparam ObjectType The type of object to be sent with the message. The object can be of any supported type,
      * including arrays and structures.
      */
@@ -427,41 +410,24 @@ namespace communication_assets
     struct DataMessage
     {
             /// The type-code of the module which sent the data message.
-            uint8_t module_type = 0;
+            constexpr uint8_t module_type;
 
             /// The specific module ID within the broader module family specified by module_type.
-            uint8_t module_id = 0;
+            constexpr uint8_t module_id;
 
             /// The unique code of the command the module was executing when it sent the data message.
-            uint8_t command = 0;
+            constexpr uint8_t command;
 
             /// The unique code of the event within the command runtime that prompted the data transmission.
-            uint8_t event = 0;
+            constexpr uint8_t event;
 
             /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
             /// size of the ObjectType template parameter.
-            uint8_t object_size = static_cast<uint8_t>(sizeof(ObjectType));
+            constexpr uint8_t object_size;
 
             /// The transmitted data object. This can be any valid object type, as long as it fits the
             /// specification imposed by the maximum message payload size.
-            ObjectType object = 0;
-    } __attribute__((packed));
-
-    /**
-     * @struct ServiceMessage
-     * @brief The payload structure used by outgoing Service messages.
-     *
-     * Service messages are a class of messages that only include one byte-code alongside the protocol code. Typically,
-     * this is used to communicate reception acknowledgement codes or controller ID (used during Idle communication).
-     *
-     * Service messages use different protocol codes to distinguish each other, but share the same underlying message
-     * structure.
-     */
-    struct ServiceMessage
-    {
-            /// The byte-code of the service message. This can be a reception code, controller ID or any other service
-            /// information, depending on the used Protocol code.
-            uint8_t code = 0;
+            constexpr ObjectType object;
     } __attribute__((packed));
 
 }  // namespace communication_assets

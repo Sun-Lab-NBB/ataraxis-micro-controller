@@ -38,7 +38,7 @@
 #include "transport_layer.h"
 #include "communication.h"
 
-shared_assets:: ControllerRuntimeParameters DynamicRuntimeParameters;
+shared_assets:: DynamicRuntimeParameters DynamicRuntimeParameters;
 
 constexpr shared_assets::StaticRuntimeParameters kStaticRuntimeParameters = {
     .baudrate = 115200,

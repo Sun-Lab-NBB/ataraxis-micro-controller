@@ -122,16 +122,24 @@ static constexpr uint16_t kSerialBufferSize = 64;
 class Communication
 {
     public:
+        /// Statically reserves '1' as type id of the class. No other Core or (base) Module-derived class should use
+        /// this type id.
+        static constexpr uint8_t kModuleType = 1;
+
+        /// There should always be a single Communication class shared by all other classes. Therefore, the ID for the
+        /// class instance is always 0 (not used).
+        static constexpr uint8_t kModuleId = 0;
+
         /// Tracks the most recent class runtime status.
         uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
 
         /// Stores the protocol code of the last received message.
-        uint8_t _protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
+        uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
 
         /// Stores parsed command data from the last received Command message.
         communication_assets::CommandMessage command_message;
 
-        /// Stores parsed header data from the last received Parameter message. Note, this is not the complete message!
+        /// Stores parsed header data from the last received Parameter message. This is not the complete message!
         /// The parameter object has to be parsed separately by calling ExtractParameters() method.
         communication_assets::ParameterMessage parameter_header;
 
@@ -218,13 +226,13 @@ class Communication
          *
          * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
          * automatically by the template constructor.
-         * @param event_code The byte-code specifying the error event.
-         * @param module_type The byte-code specifying the type of the module that encountered the error.
+         * @param event_code The byte-code specifying the event that triggered the data message.
+         * @param module_type The byte-code specifying the type of the module that sent the data message.
          * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * encountered the error.
-         * @param command The byte-code specifying the command that triggered the error.
-         * @param object Additional error data object to be sent along with the message. Currently, every error message
-         * has to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
+         * sent the data.
+         * @param command The byte-code specifying the command executed by the module that sent the data message.
+         * @param object Additional data object to be sent along with the message. Currently, all data messages
+         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
          * object to include.
          * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
          * the object type. Do not overwrite this argument.
@@ -257,13 +265,8 @@ class Communication
             ResetTransmissionState();
 
             // Packages data into the message structure
-            communication_assets::DataMessage<ObjectType> message;
-            message.module_type = module_type;
-            message.module_id   = module_id;
-            message.command     = command;
-            message.event       = event_code;
-            message.object_size = static_cast<uint8_t>(object_size);
-            message.object      = object;
+            communication_assets::DataMessage<ObjectType>
+                message(module_type, module_id, command, event_code, static_cast<uint8_t>(object_size), object);
 
             // Constructs the payload by writing the protocol code, followed by the message structure generated above
             uint16_t next_index = _transport_layer.WriteData(
@@ -290,8 +293,7 @@ class Communication
             if (_transport_layer.SendData())
             {
                 // If write operation succeeds, returns with a success code
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmitted);
+                communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmitted);
                 return true;
             }
 
@@ -327,11 +329,7 @@ class Communication
         bool SendServiceMessage(const uint8_t protocol_code, const uint8_t service_code)
         {
             // Casts protocol code to the kProtocols enumeration to simplify the 'if' check below
-            auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
-
-            // Instantiates and packages the code to transmit into a ServiceMessage structure
-            communication_assets::ServiceMessage message;
-            message.code = service_code;
+            const auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
 
             // Resets transmission buffer to prepare it for sending the message
             ResetTransmissionState();
@@ -340,9 +338,11 @@ class Communication
             if (protocol == communication_assets::kProtocols::kReceptionCode ||
                 protocol == communication_assets::kProtocols::kIdle)
             {
-                // Writes message payload
+                // Writes message payload. Note, unlike other messages, the bytes are written directly to the buffer,
+                // without using the structure system. Structure would only unnecessarily complicate the procedure
+                // here.
                 uint16_t next_index = _transport_layer.WriteData(protocol, kProtocolIndex);
-                if (next_index != 0) next_index = _transport_layer.WriteData(message, next_index);
+                if (next_index != 0) next_index = _transport_layer.WriteData(service_code, next_index);
 
                 // If write operation fails, breaks the runtime with an error status. This will be executed regardless
                 // of which of the two writing calls failed.
@@ -402,20 +402,18 @@ class Communication
          */
         bool ReceiveMessage()
         {
+            ResetReceptionState();  // Resets the reception buffer before reading a new message.
+
             // Attempts to receive the next available message
             if (_transport_layer.ReceiveData())
             {
-                ResetReceptionState();  // Resets the reception buffer before reading a new message.
-
-                // If the message is received and decoded, parses the protocol code of the received message
-                uint16_t next_index = _transport_layer.ReadData(_protocol_code, kProtocolIndex);
-
-                // If protocol code was parsed, uses it to read message ID data into an appropriate structure
-                if (next_index != 0)
+                // If the message is received and decoded, parses the protocol code of the received message. If
+                // protocol code was parsed, uses it to read message ID data into an appropriate structure
+                if (uint16_t next_index = _transport_layer.ReadData(protocol_code, kProtocolIndex); next_index != 0)
                 {
                     // For command messages, reads the whole message into a CommandMessage structure. After this, ALL
                     // message data is available for further processing by the Kernel class.
-                    if (const auto protocol = static_cast<communication_assets::kProtocols>(_protocol_code);
+                    if (const auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
                         protocol == communication_assets::kProtocols::kCommand)
                     {
                         next_index = _transport_layer.ReadData(command_message, next_index);

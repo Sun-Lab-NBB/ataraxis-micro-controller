@@ -117,14 +117,15 @@ class Module
          * @brief Assigns meaningful names to status codes used by the module class.
          *
          * These codes are used by the Core class methods (Methods expected to be accessed by the Kernel class).
-         * Utility methods are not accessed by the Kernel class and, therefore, do not use the module status field.
+         * Utility methods are not accessed by the Kernel class and, therefore, do not need a system for communicating
+         * nuanced runtime details to upstream callers.
          *
          * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
          * Module class. All custom modules should use a separate enumeration to define status codes specific to the
          * custom logic of the module.
          *
-         * @note To support unified status code reporting, this enumeration reserves values 0 through 100. All custom
-         * status codes should use values from 101 through 255. This way, status codes derived from this enumeration
+         * @note To support unified status code reporting, this enumeration reserves values 0 through 50. All custom
+         * status codes should use values from 51 through 250. This way, status codes derived from this enumeration
          * will never clash with 'custom' status codes.
          */
         enum class kCoreStatusCodes : uint8_t
@@ -165,7 +166,7 @@ class Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::ControllerRuntimeParameters& dynamic_parameters
+            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             _module_type(module_type),
             _module_id(module_id),
@@ -173,7 +174,9 @@ class Module
             _dynamic_parameters(dynamic_parameters)
         {}
 
-        // Non-virtual utility methods:
+        // Non-virtual utility methods. These methods are designed to help developers with writing custom modules. They
+        // are not accessed by the Kernel class and, consequently, do not interface with the Module's runtime status
+        // tracker.
 
         /**
          * @brief Advances the execution stage of the active (running) command.
@@ -565,6 +568,44 @@ class Module
             return value;
         }
 
+        /**
+         * @brief Packages and sends the provided data event_code and object to the connected Ataraxis system over the
+         * local binding of the Communication class.
+         *
+         * This method simplifies sending data through the Communication class by automatically resolving most of the
+         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
+         * the necessary data. In turn, this allows custom module developers to focus on custom module code, abstracting
+         * away interaction with the Communication class. The Kernel class performs a similar role with respect to
+         * receiving and parsing command and parameters data.
+         *
+         * @note It is highly recommended to use this utility method for sending data to the connected system instead of
+         * using the Communication class directly.
+         *
+         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
+         * automatically by the template constructor.
+         * @param event_code The byte-code specifying the event that triggered the data message.
+         * @param object Additional data object to be sent along with the message. Currently, all data messages
+         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
+         * object to include.
+         * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
+         * the object type. Do not overwrite this argument.
+         */
+        template <typename ObjectType>
+        void SendData(const uint8_t event_code, const ObjectType& object, const size_t object_size = sizeof(ObjectType))
+        {
+            const bool success = _communication.SendDataMessage(
+                _module_type,
+                _module_id,
+                execution_parameters.command,
+                event_code,
+                object,
+                object_size
+            );
+
+
+            //TODO Handle errors by sending an error message :)
+        }
+
         // Core methods
 
         /**
@@ -822,7 +863,7 @@ class Module
         /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
         /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
-        const shared_assets::ControllerRuntimeParameters& _dynamic_parameters;
+        const shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 };
 
 #endif  //AXMC_MODULE_H
