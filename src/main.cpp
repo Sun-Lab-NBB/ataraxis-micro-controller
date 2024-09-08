@@ -35,8 +35,8 @@
 
 // Dependencies
 #include "Arduino.h"
-#include "transport_layer.h"
 #include "communication.h"
+#include "transport_layer.h"
 
 shared_assets:: DynamicRuntimeParameters DynamicRuntimeParameters;
 
