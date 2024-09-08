@@ -90,7 +90,8 @@ class Module
          * module commands.
          *
          * All runtime control manipulations that involve changing the variables inside this structure
-         * should be carried out either by the Kernel class or via Core methods inherited from the base Module class.
+         * should be carried out either by the Kernel class or via Core / Utility methods inherited from the base
+         * Module class.
          *
          * @attention Any modification to this structure or code that makes use of this structure should be reserved
          * for developers with a good grasp of the existing codebase. If possible, modifying this structure should be
@@ -130,15 +131,13 @@ class Module
          */
         enum class kCoreStatusCodes : uint8_t
         {
-            kStandBy                   = 0,  ///< The code used to initialize the module_status variable.
-            kCommandQueued             = 1,  ///< The next command to execute has been successfully queued.
-            kCommandAlreadyRunning     = 2,  ///< The module cannot activate new commands as one is already running.
-            kNewCommandActivated       = 3,  ///< The module has successfully activated a new command.
+            kStandBy               = 0,  ///< The code used to initialize the module_status variable.
+            kDataSendingError      = 1,  ///< An error has occurred when sending Data to the connected Ataraxis system.
+            kCommandAlreadyRunning = 2,  ///< The module cannot activate new commands as one is already running.
+            kNewCommandActivated   = 3,  ///< The module has successfully activated a new command.
             kRecurrentCommandActivated = 4,  ///< The module has successfully activated a recurrent command.
-            kCommandNotActivated =
-                5,  ///< The module does not have a command to activate, or the recurrent timeout has not expired yet
-            kExecutionParametersReset = 6,  ///< The execution_parameters structure of the module has been reset.
-            kActiveCommandAborted     = 7,  ///< The active (running) module command has been forcibly terminated.
+            kNoQueuedCommands          = 5,  ///< The module does not have any new or recurrent commands to activate.
+            kRecurrentTimerNotExpired  = 6,  ///< The module's recurrent activation timeout has not expired yet
         };
 
         /// Stores the most recent module status code.
@@ -569,8 +568,8 @@ class Module
         }
 
         /**
-         * @brief Packages and sends the provided data event_code and object to the connected Ataraxis system over the
-         * local binding of the Communication class.
+         * @brief Packages and sends the provided event_code and data object to the connected Ataraxis system via the
+         * thwCommunication class instance.
          *
          * This method simplifies sending data through the Communication class by automatically resolving most of the
          * payload metadata. This method guarantees that the formed payload follows the correct format and contains
@@ -581,6 +580,11 @@ class Module
          * @note It is highly recommended to use this utility method for sending data to the connected system instead of
          * using the Communication class directly.
          *
+         * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
+         * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
+         * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
+         * this method to avoid interference!
+         *
          * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
          * automatically by the template constructor.
          * @param event_code The byte-code specifying the event that triggered the data message.
@@ -588,11 +592,12 @@ class Module
          * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
          * object to include.
          * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
-         * the object type. Do not overwrite this argument.
+         * the type of the object. Do not overwrite this argument.
          */
         template <typename ObjectType>
         void SendData(const uint8_t event_code, const ObjectType& object, const size_t object_size = sizeof(ObjectType))
         {
+            // Packages and sends the data to the connected system via the Communication class
             const bool success = _communication.SendDataMessage(
                 _module_type,
                 _module_id,
@@ -602,16 +607,40 @@ class Module
                 object_size
             );
 
+            // If the message was sent, ends the runtime
+            if (success) return;
 
-            //TODO Handle errors by sending an error message :)
+            // If the message was not sent attempts sending an error message. For this, combines the latest status of
+            // the Communication class (likely an error code) and the TransportLayer status code into a 2-byte array.
+            // This will be the data object transmitted with the error message.
+            const uint8_t errors[2] = {_communication.communication_status, _communication.GetTransportLayerStatus()};
+
+            // Attempts sending the error message. Uses the unique DataSendingError event code and the object
+            // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
+            _communication.SendDataMessage(
+                _module_type,
+                _module_id,
+                execution_parameters.command,
+                static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError),
+                errors,
+                sizeof(errors)
+            );
+
+            // As a fallback in case the error message does not reach the connected system, sets the class status to
+            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
+            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError);
+            digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
-        // Core methods
+        // Core methods. These methods are used by the Kernel class to integrate the Module into the broader runtime
+        // flow managed by the Kernel. Some methods from this section make use of the module_status class field to
+        // provide additional information about the method runtime outcome.
 
         /**
          * @brief Returns the code of the currently active (running) command.
          *
-         * If there are no active commands, this will return 0.
+         * If there are no active commands, the returned code will be 0.
          *
          * The Kernel class uses this accessor method to infer when the Module is ready to execute the next
          * queued command (if available).
@@ -623,62 +652,72 @@ class Module
         }
 
         /**
-         * @brief Queues the input command to be executed once the Module completes any currently running command.
+         * @brief Queues the input command to be executed by the Module.
          *
-         * This method queues the command code to be executed and sets the runtime parameters for the command.
-         * The Kernel class uses this method to queue commands received from the connected system for execution.
+         * This method queues the command code to be executed and sets the runtime parameters for the command. Once
+         * a command is queued in this way, the Module will execute it as soon as it is done with any currently
+         * running command, ignoring any recursive (cyclic) flags it had before. The Kernel class uses this method to
+         * queue commands received from the connected Ataraxis system for execution.
          *
-         * @note This method is explicitly written in a way to allow replacing any already queued command. Since the
-         * Module buffer is designed to only hold 1 command in queue, this allows rapidly changing the queued command
-         * in response to external events.
+         * @note This method is explicitly written in a way that allows replacing any already queued command. Since the
+         * Module buffer is designed to only hold 1 command a time, this allows replacing the queued command in response
+         * to external events.
          *
-         * @attention This method does not check whether the input command code is valid. It only saves it to the
+         * @warning This method does not check whether the input command code is valid. It only saves it to the
          * appropriate field of the execution_parameters structure. The validity check should be carried out by the
          * virtual RunActiveCommand() method.
          *
          * @param command The byte-code of the command to execute.
          * @param noblock Determines whether the queued command will be executed in blocking or non-blocking mode.
-         * Non-blocking execution requires the command to make use of the class utility functions that allow
+         * Non-blocking execution requires the command to make use of the class utility functions that support
          * non-blocking delays.
          * @param cycle Determines whether to execute the command once or run it recurrently (cyclically).
+         * @param cycle_delay The number of microseconds to delay between command repetitions when it is executed
+         * cyclically (recurrently).
          */
-        void QueueCommand(const uint8_t command, const bool noblock, const bool cycle)
+        void QueueCommand(const uint8_t command, const bool noblock, const bool cycle, const uint32_t cycle_delay)
         {
-            execution_parameters.next_command    = command;  // Sets the command to be executed
-            execution_parameters.next_noblock    = noblock;  // Sets the noblock flag for the command
-            execution_parameters.run_recurrently = cycle;    // Sets the recurrent runtime flag for the command
-            execution_parameters.new_command     = true;     // Notifies other class methods this is a new command
-
-            // Sets the module status appropriately
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandQueued);
+            execution_parameters.next_command    = command;      // Sets the command to be executed
+            execution_parameters.next_noblock    = noblock;      // Sets the noblock flag for the command
+            execution_parameters.run_recurrently = cycle;        // Sets the recurrent runtime flag for the command
+            execution_parameters.recurrent_delay = cycle_delay;  // Sets the recurrent delay for the command
+            execution_parameters.new_command     = true;         // Notifies other class methods this is a new command
         }
 
         /**
-         * @brief If the module is not executing a command, executes the next available command.
+         * @brief If the module does not have an active command, activates the next queued command.
          *
-         * If the module is not already executing a command and a new command is queued, activates that command. If
-         * new command is not available, but recursive command execution is enabled, repeats the previous command. When
-         * repeating previous commands, the method checks whether the specified 'recurrent_delay' of microseconds has
-         * passed since the last command activation, before (re)activating the command. The Kernel uses this method to
-         * set up command execution.
+         * If a new command is available, preferentially executes that command. If new command is not available, but
+         * recursive command execution is enabled, repeats the previous command. When repeating previous commands, the
+         * method checks whether the specified 'recurrent_delay' of microseconds has passed since the last command
+         * activation, before (re)activating the command. The Kernel uses this method to set up the command to be
+         * executed when RunActiveCommand() method is called.
          *
          * @notes Any queued command is considered new until this method activates that command. All following
          * reactivations of the command are considered recurrent.
          *
-         * @returns bool @b true if a new command was successfully set and @b false otherwise. Additional information
+         * @returns bool @b true if a command has been activated and @b false otherwise. Additional information
          * regarding method runtime status can be obtained from the module_status attribute.
          */
         bool SetActiveCommand()
         {
             // If the command field is not 0, this means there is already an active command being executed and no
-            // further action is necessary. Returns false to indicate no new command was set.
+            // further action is necessary. Returns false to indicate no command was activated.
             if (execution_parameters.command != 0)
             {
                 module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandAlreadyRunning);
                 return false;
             }
 
-            // If the new_command flag is set to true and there is no active command, activates the next_command
+            // If the next_command field is set to 0, this means that the module does not have any new or recurrent
+            // commands to execute. Returns false to indicate no command was activated.
+            if (execution_parameters.next_command == 0)
+            {
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kNoQueuedCommands);
+                return false;
+            }
+
+            // If the new_command flag is set to true activates the queued command.
             if (execution_parameters.new_command)
             {
                 // Transfers the command and the noblock flag from buffer fields to active fields
@@ -700,8 +739,8 @@ class Module
                 return true;
             }
 
-            // If previous command is available, recurrent activation is enabled, and the requested recurrent_delay
-            // number of microseconds has passed, re-queues the command to be executed again.
+            // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
+            // number of microseconds has passed, re-activates the previously executed command.
             if (execution_parameters.run_recurrently &&
                 execution_parameters.recurrent_timer > execution_parameters.recurrent_delay &&
                 execution_parameters.next_command != 0)
@@ -715,14 +754,14 @@ class Module
                 return true;
             }
 
-            // Returns 'false' to indicate no command was set. This usually is due to no commands being available or
-            // the recurrent activation timeout.
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandNotActivated);
+            // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
+            // Returns false to indicate that no command was activated.
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentTimerNotExpired);
             return false;
         }
 
         /**
-         * @brief Resets the class execution_parameters instance to default values.
+         * @brief Resets the class execution_parameters structure to default values.
          *
          * This method is designed for Teensy boards that do not reset on UART / USB cycling. The Kernel uses this
          * method to reset the Module between runtimes.
@@ -731,7 +770,6 @@ class Module
         {
             // Sets execution_parameters to a default instance of ExecutionControlParameters structure
             execution_parameters = ExecutionControlParameters();
-            module_status        = static_cast<uint8_t>(kCoreStatusCodes::kExecutionParametersReset);
         }
 
         /**
@@ -741,72 +779,63 @@ class Module
          * Kernel class uses this command to 'soft' reset the Module in certain circumstances.
          *
          * @warning This method will not be able to abort blocking commands! Aborting blocking commands requires
-         * software or hardware interrupt functionality and needs to be introduced at the Kernel level.
+         * software or hardware interrupt functionality and needs to be introduced at the Kernel class level.
          */
         void AbortCommandExecution()
         {
             CompleteCommand();
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kActiveCommandAborted);
         }
 
-        // Declares virtual methods to be overwritten by each child class. Virtual methods are critical for integrating
-        // the custom logic of each child class with the centralized runtime flow control functionality realized through the
-        // AMCKernel class. Specifically, each module developer should define a custom implementation for each of these
-        // methods, which AMCKernel will call to properly handle custom class-specific commands and parameters.
-        // Uses pure virtual approach to enforce that each child overrides these methods with custom logic implementation.
+        // Virtual methods. Like Core methods, the virtual methods provide the Kernel class with the API to interface
+        // with the Module class instance. Unlike Core methods, these methods provide access to the custom portion
+        // of each Module class instance. Therefore, these methods need to be implemented separately for each class
+        // derived from the base Module class.
 
         /**
-         * @brief Sets the custom parameter specified by the input id_code to the input value. This method provides an
-         * interface for the AMCKernel class to work with custom parameters of any custom class.
+         * @brief Overwrites the object used to store custom dynamic parameters of the module with the data received
+         * from the connected Ataraxis system.
          *
-         * Specifically, use this method to provide an interface the AMCKernel class can use to translate incoming
-         * Parameter data-structures (See SerialPCCommunication implementation) into overwriting the target parameter
-         * values. The exact realization (codes, parameters, number of parameter structures and how to name them, etc.)
-         * is entirely up to you, as long as the interface behaves in a way identical to the
-         * SetAddressableExecutionParameter() method of the AMCModule base class.
+         * Kernel class calls this method when it receives a Parameters message targeted at the specific Module-derived
+         * class instance. This method is expected to call the ExtractParameters() method of the Communication() class
+         * to parse the received data into the Module's custom parameters object. Commonly, the parameter object is a
+         * Structure, but it can also be any valid C++ data object.
          *
-         * @warning This is a pure-virtual method that @b has to be implemented separately for each child class derived
-         * from base AMCModule class. This method is intended to be used via the inherited SetParameter() method of this
-         * class to properly unify Custom and non-Custom parameter setting logic (and error / success handling).
+         * @returns bool @b true if new parameters were parsed successfully and @b false otherwise.
          *
-         * @param id_code The unique byte-code that specifies the custom parameter to be modified.
-         * @param value The value to write to the target parameter variable. Should be converted to the appropriate type
-         * for each custom parameter.
-         *
-         * @returns bool @b true if the new parameter value was successfully set, @b false otherwise. SetParameter() class
-         * method uses the returned values to determine whether to issue a success or failure message to the PC and handles
-         * PC messaging. The only reason for receiving the 'false' response should be if the input id_code does not match
-         * any of the valid id_codes used to identify specific parameter values.
+         * This is an example of how to implement this method (what to put in the method's body):
+         * @code
+         * uint8_t custom_parameters_object[3] = {0, 0, 0}; // Assume this object was created at class instantiation.
+         * bool status = _communication.ExtractParameters(custom_parameters_object);  // Writes data into the object.
+         * return status;  // Kernel class resolves both error and success outcomes.
+         * @endcode
          */
-        virtual bool SetCustomParameter(uint8_t id_code, uint32_t value) = 0;
+        virtual bool SetCustomParameters();
 
         /**
-         * @brief Triggers the currently active command. This method provides the interface for the AMCKernel class to
-         * activate custom commands and verifies the module actually recognizes the command.
+         * @brief Executes the currently active command in blocking or non-blocking mode.
          *
-         * Specifically, use this method to allow AMCKernel to activate (physically run) custom commands specified by the
-         * unique byte-code written to the active_command field of the local ExecutionControlParameters structure by the
-         * non-virtual SetActiveCommand() method.
+         * Kernel class calls this method cyclically for every managed Module class instance. This method is expected to
+         * contain conditional switch-based logic to call the appropriate custom command logic based on the active
+         * command code.
          *
-         * It is highly advised to write custom commands using the utility methods available through inheritance from the
-         * AMCModule class, especially the CompleteCommand() method that has to be called at the end of each command. The
-         * available collection of utility methods offer a seamless integration with the core features of the AMCModule
-         * class and the broader Ataraxis framework (which includes the AMC system). See one of the test classes available
-         * in the AMCKernel library for an example of how to write custom functions.
+         * @returns bool @b true if active command was executed successfully and @b false otherwise.
          *
-         * @note Use GetActiveCommand() non-virtual method in your custom implementation to determine the currently active
-         * command code. 0 is not a valid active command code! The suggested use for this method is a basic switch statement
-         * that executes the requested command that matches the active_command field of the ExecutionControlParameters
-         * structure and returns 'false' if the command does not match any of the predefined custom command IDs.
-         *
-         * @warning This is a pure-virtual method that @b has to be implemented separately for each child class derived
-         * from base AMCModule class.
-         *
-         * @returns bool @b true if the command was successfully triggered, @b false otherwise. AMCKernel uses the returned
-         * value of this method to determine whether to issue an error message to the PC (if command fails verification),
-         * so it is important that the method properly handles verification failure cases and returns false.
+         * This is an example of how to implement this method (what to put in the method's body):
+         * @code
+         * uint8_t active_command = GetActiveCommand();  // Returns the code of the currently active command.
+         * switch (active_command) {
+         *  case 5:
+         *      bool success = command_5();
+         *      return true;
+         *  case 9:
+         *      bool success = command_9();
+         *      return true;
+         *  default:
+         *      return false;
+         * }
+         * @endcode
          */
-        virtual bool RunActiveCommand() = 0;
+        virtual bool RunActiveCommand();
 
         /**
          * @brief Carries out all setup operations for the current module. This method provides the interface for the
@@ -823,7 +852,7 @@ class Module
          * @attention Ideally, this should not contain any logic that can fail in any way as error handling for setup
          * methods is not implemented at this time.
          */
-        virtual void SetupModule() = 0;
+        virtual bool SetupModule();
 
         /**
          * @brief Resets all local assets that needs to be reset back to provided defaults. This method provides the
@@ -838,7 +867,7 @@ class Module
          * @warning This is a pure-virtual method that @b has to be implemented separately for each child class derived
          * from base AMCModule class.
          */
-        virtual void ResetCustomAssets() = 0;
+        virtual bool ResetCustomAssets();
 
         /**
          * @brief A pure virtual destructor method to ensure proper cleanup.

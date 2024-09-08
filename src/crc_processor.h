@@ -403,7 +403,7 @@ class CRCProcessor
          * @brief Uses the polynomial specified (as an argument) during class instantiation to compute the CRC
          * checksums for each possible uint8_t (byte) value.
          *
-         * @attention This method has to be called prior to calculating any CRC checksum via
+         * @attention This method has to be called before calculating any CRC checksum via
          * CalculatePacketCRCChecksum() method. Currently, this is enforced by calling this method inside the class
          * constructor.
          *

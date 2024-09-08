@@ -81,14 +81,14 @@ namespace shared_assets
     };
 
     /**
-     * @enum kTransportLayerStatusCodes
+     * @enum kTransportLayerCodes
      * @brief Assigns meaningful names to all status codes used by the TransportLayer class.
      *
      * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
      * values in the range of 101 through 150. This is to simplify chained error handling in the
      * TransportLayer class of the library.
      */
-    enum class kTransportLayerStatusCodes : uint8_t
+    enum class kTransportLayerCodes : uint8_t
     {
         kStandby                      = 101,  ///< The default value used to initialize the transfer_status variable
         kPacketConstructed            = 102,  ///< Packet was successfully constructed
@@ -114,34 +114,42 @@ namespace shared_assets
     };
 
     /**
-     * @enum kCoreStatusCodes
-     * @brief Assigns meaningful names to all status codes used by the Communication and Kernel classes.
-     *
-     * This enumeration covers two classes: Kernel and Communication. Both classes work on top of the existing
-     * TransportLayer infrastructure and participate in the unified status-code system used by TransportLayer classes.
+     * @enum kCommunicationCodes
+     * @brief Assigns meaningful names to all status codes used by the Communication class.
      *
      * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
      * values in the range of 151 through 200.
      */
-    enum class kCoreStatusCodes : uint8_t
+    enum class kCommunicationCodes : uint8_t
     {
         kCommunicationStandby =
-            151,               ///< Standby placeholder used to initialize the Communication class status tracker.
-        kKernelStandby = 152,  ///< Standby placeholder used to initialize the Kernel class status tracker.
-        kCommunicationReceptionError = 153,  ///< Communication class ran into an error when receiving a message.
-        kCommunicationParsingError = 154,  ///< Communication class ran into an error when parsing (reading) a message.
-        kCommunicationPackingError = 155,  ///< Communication class ran into an error when writing a message to payload.
-        kCommunicationTransmissionError = 156,  ///< Communication class ran into an error when transmitting a message.
-        kCommunicationTransmitted = 157,  ///< Communication class successfully transmitted a message.
-        kCommunicationReceived    = 158,  ///< Communication class successfully received a message.
+            151,  ///< Standby placeholder used to initialize the Communication class status tracker.
+        kCommunicationReceptionError = 152,  ///< Communication class ran into an error when receiving a message.
+        kCommunicationParsingError = 153,  ///< Communication class ran into an error when parsing (reading) a message.
+        kCommunicationPackingError = 154,  ///< Communication class ran into an error when writing a message to payload.
+        kCommunicationTransmissionError = 155,  ///< Communication class ran into an error when transmitting a message.
+        kCommunicationTransmitted       = 156,  ///< Communication class successfully transmitted a message.
+        kCommunicationReceived          = 157,  ///< Communication class successfully received a message.
         kCommunicationInvalidProtocolError =
-            159,  ///< The received or transmitted protocol code is not valid for that type of operation.
+            158,  ///< The received or transmitted protocol code is not valid for that type of operation.
         kCommunicationNoBytesToReceive =
-            160,  ///< Communication class did not receive enough bytes to process the message. This is NOT an error.
+            159,  ///< Communication class did not receive enough bytes to process the message. This is NOT an error.
         kCommunicationParameterSizeMismatchError =
-            161,  ///< The number of extracted parameter bytes does not match the size of the input structure.
-        kCommunicationParametersExtracted = 162,  ///< Parameter data has been successfully extracted.
+            160,  ///< The number of extracted parameter bytes does not match the size of the input structure.
+        kCommunicationParametersExtracted = 161,  ///< Parameter data has been successfully extracted.
 
+    };
+
+    /**
+     * @enum kKernelCodes
+     * @brief Assigns meaningful names to all status codes used by the Kernel class.
+     *
+     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
+     * values in the range of 201 through 250.
+     */
+    enum class kKernelCodes : uint8_t
+    {
+        kKernelStandby = 201,  ///< Standby placeholder used to initialize the Kernel class status tracker.
     };
 
     /**

@@ -131,7 +131,7 @@ class Communication
         static constexpr uint8_t kModuleId = 0;
 
         /// Tracks the most recent class runtime status.
-        uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationStandby);
+        uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationStandby);
 
         /// Stores the protocol code of the last received message.
         uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
@@ -239,6 +239,7 @@ class Communication
          *
          * @returns True if the message was successfully sent, false otherwise.
          *
+         * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
@@ -285,7 +286,7 @@ class Communication
             if (next_index == 0)
             {
                 communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationPackingError);
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationPackingError);
                 return false;
             }
 
@@ -293,13 +294,14 @@ class Communication
             if (_transport_layer.SendData())
             {
                 // If write operation succeeds, returns with a success code
-                communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmitted);
+                communication_status =
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted);
                 return true;
             }
 
             // If write operation fails, returns with an error status
             communication_status =
-                static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmissionError);
+                static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmissionError);
             return false;
         }
 
@@ -317,6 +319,7 @@ class Communication
          *
          * @returns True if the message was successfully sent, false otherwise.
          *
+         * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
@@ -349,7 +352,7 @@ class Communication
                 if (next_index == 0)
                 {
                     communication_status =
-                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationPackingError);
+                        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationPackingError);
                     return false;
                 }
 
@@ -358,19 +361,19 @@ class Communication
                 {
                     // If write operation succeeds, returns with a success code
                     communication_status =
-                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmitted);
+                        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted);
                     return true;
                 }
 
                 // If write operation fails, returns with an error status
                 communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationTransmissionError);
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmissionError);
                 return false;
             }
 
             // If input protocol code is not one of the valid Service protocol codes, aborts with an error
             communication_status =
-                static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationInvalidProtocolError);
+                static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError);
             return false;
         }
 
@@ -391,8 +394,9 @@ class Communication
          * @returns True if a message was successfully received and parsed, false otherwise. Note, if this method
          * returns false, this does not necessarily indicate runtime error. Use communication_status attribute to
          * determine the  cause of the failure. kCommunicationNoBytesToReceive status code from
-         * shared_assets::kCoreStatusCodes indicates a non-error failure.
+         * shared_assets::kCommunicationCodes indicates a non-error failure.
          *
+         * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
@@ -430,7 +434,8 @@ class Communication
                     {
                         // If input protocol code is not one of the valid protocols, aborts with an error status.
                         communication_status =
-                            static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationInvalidProtocolError);
+                            static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError
+                            );
                         return false;
                     }
 
@@ -438,13 +443,13 @@ class Communication
                     if (next_index == 0)
                     {
                         communication_status =
-                            static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationParsingError);
+                            static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError);
                         return false;
                     }
 
                     // Otherwise, if the message was parsed, returns with a success status.
                     communication_status =
-                        static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationReceived);
+                        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceived);
                     return true;
                 }
             }
@@ -454,16 +459,16 @@ class Communication
             // kNoBytesToParseFromBuffer constant. If message reception failed with any other code, returns with
             // error status. Otherwise, returns with a specialized status that indicates non-error-failure.
             if (_transport_layer.transfer_status !=
-                static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer))
+                static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kNoBytesToParseFromBuffer))
             {
                 communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationReceptionError);
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceptionError);
                 return false;
             }
 
             // Non-error failure status.
             communication_status =
-                static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationNoBytesToReceive);
+                static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationNoBytesToReceive);
             return false;
         }
 
@@ -485,6 +490,7 @@ class Communication
          *
          * @returns True if the parameter data was successfully extracted and set, false otherwise.
          *
+         * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
@@ -505,7 +511,7 @@ class Communication
             if (static_cast<uint8_t>(bytes_to_read) != parameter_header.object_size)
             {
                 communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationParameterSizeMismatchError);
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParameterSizeMismatchError);
                 return false;  // Invalid object size.
             }
 
@@ -513,11 +519,11 @@ class Communication
                 next_index != 0)
             {
                 communication_status =
-                    static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationParametersExtracted);
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted);
                 return true;  // Successfully extracted parameters.
             }
 
-            communication_status = static_cast<uint8_t>(shared_assets::kCoreStatusCodes::kCommunicationParsingError);
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError);
             return false;  // Failed to extract parameters.
         }
 

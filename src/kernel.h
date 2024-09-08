@@ -1,7 +1,7 @@
 // KERNEL
 
-#ifndef AMC_KERNEL_H
-#define AMC_KERNEL_H
+#ifndef AXMC_KERNEL_H
+#define AXMC_KERNEL_H
 
 // Dependencies
 #include "Arduino.h"
@@ -25,6 +25,7 @@
  * AMCModule-derived Module-level classes. The vast majority of methods of this class require a correctly set array of
  * modules to operate properly.
  */
+template <size_t module_number>
 class Kernel
 {
     public:
@@ -89,77 +90,48 @@ class Kernel
         /// kCustomKernelParameters to properly send error messages from commands and other encapsulated contexts
         uint8_t kernel_command;
 
-        /**
-         * @brief Creates a new AMCKernel class instance.
-         *
-         * @attention The class initialization has to be completed by calling SetModules() method prior to calling any
-         * other method. If this is not done, the Kernel is likely to behave unexpectedly.
-         *
-         * @param serial_communication_port A reference to the SerialPCCommunication class instance shared by all AMC
-         * codebase classes that receive (AMCKernel only!) or send (AMCKernel and all Modules) data over the serial port.
-         * The AMCKernel class uses this instance to receive all data sent from the PC and to send some event data to the
-         * PC.
-         */
-        Kernel(Communication& communication, const shared_assets::DynamicRuntimeParameters& dynamic_parameters) :
-            modules(nullptr),
-            module_count(0),
-            initialization_finished(false),
-            _communication(communication),
-            _dynamic_parameters(dynamic_parameters)
-        {}
-
-        /**
-         * @brief Sets the internal modules array to the provided array of AMCModule-derived Module-level classes and
-         * module_count variable to the automatically inferred total modules count.
-         *
-         * This method finishes the AMCKernel initialization process started by the class Constructor by providing it with
-         * the array of Modules to operate upon. The AMC runtime is structured around the Module classes providing specific
-         * Controller behaviors (in a physical-system-dependent fashion) and the AMCKernel class synchronizing and
-         * controlling Module-specific subroutine execution flow.
-         *
-         * @note Expects valid arrays with size of at least 1 configured module. Will break early without finishing the
-         * Module Setting and send an error-message to the PC if provided with an invalid array. Technically this should not
-         * be possible in C++, but this case is verified and guarded against regardless.
-         *
-         * @tparam module_number The number of elements inside the provided array. This number is derived automatically
-         * from the input array size and, in so-doing, eliminates the potential for user-errors when inputting the modules
-         * array.
-         * @param module_array The array of type AMCModule filled with the children inheriting from the Core base AMCModule
-         * class.
-         */
-        template <size_t module_number>
-        void SetModules(Module* (&module_array)[module_number])
+    /**
+     * @brief Creates a new AMCKernel class instance and initializes it with modules.
+     *
+     * @param communication A reference to the SerialPCCommunication class instance shared by all AMC
+     * codebase classes that receive (AMCKernel only!) or send (AMCKernel and all Modules) data over the serial port.
+     * The AMCKernel class uses this instance to receive all data sent from the PC and to send some event data to the
+     * PC.
+     * @param dynamic_parameters A reference to the DynamicRuntimeParameters.
+     * @param module_array The array of type AMCModule filled with the children inheriting from the Core base AMCModule
+     * class.
+     */
+    Kernel(Communication& communication,
+           const shared_assets::DynamicRuntimeParameters& dynamic_parameters,
+           Module* (&module_array)[module_number]) :
+        _communication(communication),
+        _dynamic_parameters(dynamic_parameters)
+    {
+        if (module_number < 1)
         {
-            // Requires at least one module to be provided for the correct operation, so aborts the method if an empty
-            // array is provided to the method.
-            if (module_number < 1)
-            {
-                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);  // Sets error status
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);
 
-                // Sends a message to the PC to communicate that the method runtime failed. Assumes the communication class
-                // is initialized first and the operation is actually possible and meaningful.
-                communication_port.CreateEventHeader(
-                    static_cast<uint8_t>(kCustomKernelParameters::module_id),
-                    static_cast<uint8_t>(kCustomKernelParameters::system_id),
-                    static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                    kernel_status
-                );
-                communication_port.SendData();
-                return;  // Breaks method runtime
-            }
+            _communication.CreateEventHeader(
+                static_cast<uint8_t>(kCustomKernelParameters::module_id),
+                static_cast<uint8_t>(kCustomKernelParameters::system_id),
+                static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
+                kernel_status
+            );
+            _communication.SendData();
 
-            // Initializes internal variables using input data
-            modules      = module_array;
-            module_count = module_number;
-
-            // Sets the lock-in flag to 'true' to allow executing other methods of the class. The class is initialized with
-            // this flag being false and is unable to call any method other than SetModules() until the flag is set to true.
-            initialization_finished = true;
-
-            // Sets the status to indicate that the method runtime was successful
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesSet);
-            return;
+            // Initialize with default values
+            modules = nullptr;
+            module_count = 0;
+            initialization_finished = false;
         }
+        else
+        {
+            modules = module_array;
+            module_count = module_number;
+            initialization_finished = true;
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesSet);
+        }
+    }
 
         /**
          * @brief Triggers the SetupModule() method of each module inside the modules array.
@@ -675,4 +647,4 @@ class Kernel
         const shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 };
 
-#endif  //AMC_KERNEL_H
+#endif  //AXMC_KERNEL_H

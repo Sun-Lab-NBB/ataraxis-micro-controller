@@ -686,7 +686,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_rx_buffer, test_rx_buffer, rx_buffer_size);
 
     // Transfer Status
-    uint8_t expected_code = static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kStandby);
+    uint8_t expected_code = static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kStandby);
     TEST_ASSERT_EQUAL_UINT8(expected_code, protocol.transfer_status);
 
     // Payload size trackers. Generally, this is a redundant check since payload size is now part of the overall buffer
@@ -716,7 +716,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
 
     // Verifies that the buffer status matches the expected status (bytes successfully written)
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer,
+        shared_assets::kTransportLayerCodes::kObjectWrittenToBuffer,
         protocol.transfer_status
     );
 
@@ -830,7 +830,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
 
     // Verifies that the buffer status matches the expected status (bytes successfully read)
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer,
+        shared_assets::kTransportLayerCodes::kObjectReadFromBuffer,
         protocol.transfer_status
     );
 
@@ -874,7 +874,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // payload size and status code
     protocol.WriteData(test_value, protocol.get_maximum_tx_payload_size() - 1);
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kObjectWrittenToBuffer,
+        shared_assets::kTransportLayerCodes::kObjectWrittenToBuffer,
         protocol.transfer_status
     );
 
@@ -882,7 +882,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     uint16_t error_index = protocol.WriteData(test_value, protocol.get_maximum_tx_payload_size());
     TEST_ASSERT_EQUAL_UINT16(0, error_index);
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kWriteObjectBufferError,
+        shared_assets::kTransportLayerCodes::kWriteObjectBufferError,
         protocol.transfer_status
     );
 
@@ -894,7 +894,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // Verifies that reading from the end of the payload functions as expected
     protocol.ReadData(test_value, protocol.get_maximum_rx_payload_size() - 1);
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kObjectReadFromBuffer,
+        shared_assets::kTransportLayerCodes::kObjectReadFromBuffer,
         protocol.transfer_status
     );
 
@@ -902,7 +902,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     error_index = protocol.ReadData(test_value, protocol.get_maximum_rx_payload_size());
     TEST_ASSERT_EQUAL_UINT16(0, error_index);
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kReadObjectBufferError,
+        shared_assets::kTransportLayerCodes::kReadObjectBufferError,
         protocol.transfer_status
     );
 }
@@ -937,7 +937,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
     // Verifies that the data has been successfully sent to the Stream buffer
     TEST_ASSERT_TRUE(sent_status);
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kPacketSent,
+        shared_assets::kTransportLayerCodes::kPacketSent,
         protocol.transfer_status
     );
 
@@ -983,7 +983,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
 
     // Verifies that the data has been successfully received from the StreamMock rx buffer
     TEST_ASSERT_EQUAL_UINT8(
-        shared_assets::kTransportLayerStatusCodes::kPacketReceived,
+        shared_assets::kTransportLayerCodes::kPacketReceived,
         protocol.transfer_status
     );
     TEST_ASSERT_TRUE(receive_status);
@@ -1055,7 +1055,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
 
     // Verifies that the data has been 'sent' successfully
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketSent),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketSent),
         protocol.transfer_status
     );
 
@@ -1076,7 +1076,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[0] = 0;  // Removes the start byte
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kNoBytesToParseFromBuffer),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;  // Resets readout index back to 0
@@ -1087,7 +1087,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     // Verifies that when Start Bytes are enabled, the algorithm correctly returns the error code.
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketStartByteNotFoundError),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketStartByteNotFoundError),
         protocol.transfer_status
     );
     mock_port.rx_buffer[0]    = 129;              // Restores the start byte
@@ -1100,7 +1100,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[1] = -1;  // Essentially aborts reception at the payload_size byte value.
     bool result            = protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kNoBytesToParseFromBuffer),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kNoBytesToParseFromBuffer),
         protocol.transfer_status
     );
     TEST_ASSERT_FALSE(result);
@@ -1124,7 +1124,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[11] = -1;  // Essentially aborts reception at the payload_size byte value.
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPayloadSizeByteNotFound),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPayloadSizeByteNotFound),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;  // Resets readout index back to 0
@@ -1136,7 +1136,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[11] = 4;  // Too small payload value
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kInvalidPayloadSize),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;  // Resets readout index back to 0
@@ -1145,7 +1145,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[11] = 61;  // Too large payload value
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kInvalidPayloadSize),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kInvalidPayloadSize),
         protocol.transfer_status
     );
     mock_port.rx_buffer_index = 0;   // Resets readout index back to
@@ -1164,7 +1164,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[17] = -1;  // Sets byte 8 to an 'invalid' value to simulate not receiving valid bytes at index 7
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kPacketTimeoutError),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketTimeoutError),
         protocol.transfer_status
     );
     mock_port.rx_buffer[17]   = test_buffer[7];  // Restores the invalidated byte back to the original value
@@ -1174,7 +1174,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     mock_port.rx_buffer[24] = 123;  // Fake CRC byte, overwrites the crc byte value found at the end of the packet
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerStatusCodes::kCRCCheckFailed),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kCRCCheckFailed),
         protocol.transfer_status
     );
     mock_port.rx_buffer[24]   = static_cast<int16_t>(test_buffer[14]);  // Restores the CRC byte value
