@@ -1,10 +1,38 @@
-// KERNEL
+/**
+ * @file
+ * @brief The header file for the kernel class, which is used to manage the Microcontroller runtime.
+ *
+ * @subsection kern_description Description:
+ *
+ * For most other classes of this library to work as expected, the Microcontroller should instantiate and use a Kernel
+ * object to manage its runtime. This class manages communications, resolves success and error codes and schedule
+ * commands to be executed. Due to the static API exposed by the (base) Module class, Kernel will natively integrate
+ * with any Module-derived class logic.
+ *
+ * @note A single instance of this class is created in the main.cpp file. It should be provided with an instance
+ * of the Communication class and an array of Module-derived classes during instantiation.
+ *
+ * @subsection kern_developer_notes Developer Notes:
+ * This class functions similar to any major OS Kernel, although it is considerably limited in scope. Specifically, it
+ * manages all compatible Modules and handles communication with other Ataraxis systems. This class is very important
+ * for the correct functioning of the library and, therefore, it should not be modified, if possible. Any modifications
+ * to this class may require modifications to some or all other base (Core) classes of this library, as well as any
+ * custom classes derived from the Core classes.
+ *
+ * @subsection mod_dependencies Dependencies:
+ * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
+ * - communication.h for Communication class, which is used to bidirectionally communicate with other Ataraxis systems.
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
+ * - elapsedMillis.h for millisecond and microsecond timers.
+ */
 
 #ifndef AXMC_KERNEL_H
 #define AXMC_KERNEL_H
 
 // Dependencies
-#include "Arduino.h"
+#include <Arduino.h>
+#include "communication.h"
 #include "module.h"
 #include "shared_assets.h"
 
@@ -24,10 +52,18 @@
  * @note This class is not fully initialized until it's SetModules method is used to provide it with an array of
  * AMCModule-derived Module-level classes. The vast majority of methods of this class require a correctly set array of
  * modules to operate properly.
+ *
+ * @tparam module_number The number of Module-derived classes that will be managed by the class instance.
  */
 template <size_t module_number>
 class Kernel
 {
+        static_assert(
+            module_number > 0,
+            "Module number must be greater than 0. At least one valid Module instance must be provided during Kernel "
+            "class initialization."
+        );
+
     public:
         /// Statically reserves '2' as type id of the class. No other Core or (base) Module-derived class should use
         /// this type id.
@@ -90,7 +126,7 @@ class Kernel
         /// kCustomKernelParameters to properly send error messages from commands and other encapsulated contexts
         uint8_t kernel_command;
 
-    /**
+        /**
      * @brief Creates a new AMCKernel class instance and initializes it with modules.
      *
      * @param communication A reference to the SerialPCCommunication class instance shared by all AMC
@@ -101,37 +137,31 @@ class Kernel
      * @param module_array The array of type AMCModule filled with the children inheriting from the Core base AMCModule
      * class.
      */
-    Kernel(Communication& communication,
-           const shared_assets::DynamicRuntimeParameters& dynamic_parameters,
-           Module* (&module_array)[module_number]) :
-        _communication(communication),
-        _dynamic_parameters(dynamic_parameters)
-    {
-        if (module_number < 1)
+        Kernel(
+            Communication& communication,
+            const shared_assets::DynamicRuntimeParameters& dynamic_parameters,
+            Module* (&module_array)[module_number]
+        ) :
+            _communication(communication), _dynamic_parameters(dynamic_parameters)
         {
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);
+            if (module_number < 1)
+            {
+                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);
+                _communication.SendDataMessage(kernel_status, 0);
 
-            _communication.CreateEventHeader(
-                static_cast<uint8_t>(kCustomKernelParameters::module_id),
-                static_cast<uint8_t>(kCustomKernelParameters::system_id),
-                static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                kernel_status
-            );
-            _communication.SendData();
-
-            // Initialize with default values
-            modules = nullptr;
-            module_count = 0;
-            initialization_finished = false;
+                // Initialize with default values
+                modules                 = nullptr;
+                module_count            = 0;
+                initialization_finished = false;
+            }
+            else
+            {
+                modules                 = module_array;
+                module_count            = module_number;
+                initialization_finished = true;
+                kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kModulesSet);
+            }
         }
-        else
-        {
-            modules = module_array;
-            module_count = module_number;
-            initialization_finished = true;
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesSet);
-        }
-    }
 
         /**
          * @brief Triggers the SetupModule() method of each module inside the modules array.

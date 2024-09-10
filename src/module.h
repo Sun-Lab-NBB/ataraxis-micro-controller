@@ -50,7 +50,7 @@
  *
  * @subsection mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - shared_assets.h for globally shared static message byte-codes and the ControllerRuntimeParameter structure.
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  * - communication.h for Communication class, which is used to send module runtime data to the connected system.
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
@@ -60,8 +60,10 @@
 #define AXMC_MODULE_H
 
 #include <Arduino.h>
-#include "communication.h"
 #include "shared_assets.h"
+#include "communication.h"
+#include <digitalWriteFast.h>
+#include <elapsedMillis.h>
 
 /**
  * @brief Serves as the parent for all custom module classes, providing methods for other Core classes to interface with
@@ -899,11 +901,11 @@ class Module
 
     protected:
         /// Represents the type (family) of the module. All modules in the family share the same type code.
-        uint8_t _module_type = 0;
+        constexpr uint8_t _module_type;
 
         /// The specific ID of the module. This code has to be unique within the module family, as it identifies
         /// specific module instance.
-        uint8_t _module_id = 0;
+        constexpr uint8_t _module_id;
 
         /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
         /// the connected Ataraxis system.
