@@ -646,7 +646,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
     StreamMock<300> mock_port;
 
     // Note, uses different maximum payload size for the Rx and Tx buffers
-    SerializedTransferProtocol<uint16_t, 254, 80, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 254, 80, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Statically extracts the buffer sizes using accessor methods.
     static constexpr uint16_t tx_buffer_size = protocol.get_tx_buffer_size();
@@ -865,7 +865,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // Initializes the tested class
     StreamMock<300> mock_port;
     // Uses identical rx and tx payload sizes
-    SerializedTransferProtocol<uint16_t, 60, 60, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 60, 60, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Initializes a test variable
     uint8_t test_value = 223;
@@ -918,7 +918,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
 
     // Uses identical rx and tx payload sizes and tests maximal supported sizes for both buffers. Also uses a CRC-16
     // to test multibyte CRC handling.
-    SerializedTransferProtocol<uint16_t, 254, 254, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 254, 254, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Instantiates separate instances of encoder classes used to verify processing results
     COBSProcessor<1, 2> cobs_class;
@@ -1038,7 +1038,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
 {
     // Initializes the tested class
     StreamMock<60> mock_port;  // Initializes to the minimal required size
-    SerializedTransferProtocol<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
 
     // Instantiates crc encoder class separately to generate test data
     CRCProcessor<uint16_t> crc_class = CRCProcessor<uint16_t>(0x07, 0x00, 0x00);
