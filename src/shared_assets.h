@@ -418,24 +418,24 @@ namespace communication_assets
     struct DataMessage
     {
             /// The type-code of the module which sent the data message.
-            const uint8_t module_type;
+            uint8_t module_type;
 
             /// The specific module ID within the broader module family specified by module_type.
-            const uint8_t module_id;
+            uint8_t module_id;
 
             /// The unique code of the command the module was executing when it sent the data message.
-            const uint8_t command;
+            uint8_t command;
 
             /// The unique code of the event within the command runtime that prompted the data transmission.
-            const uint8_t event;
+            uint8_t event;
 
             /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
             /// size of the ObjectType template parameter.
-            const uint8_t object_size;
+            uint8_t object_size;
 
             /// The transmitted data object. This can be any valid object type, as long as it fits the
             /// specification imposed by the maximum message payload size.
-            const ObjectType object;
+            ObjectType object;
     } __attribute__((packed));
 
 }  // namespace communication_assets
