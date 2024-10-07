@@ -407,14 +407,13 @@ namespace communication_assets
      * protocol value 3. Data messages are used to communicate all controller-originating information, such as
      * runtime data and error messages to other Ataraxis systems.
      *
-     * @notes Data message parameters are expected to be known at compile time (constexpr). Unlike command and
-     * parameter messages that are not known ahead of time, each data message originates from the Microcontroller and
-     * will, therefore, be known to the compiler.
+     * @notes Data message parameters are stored in a module-type-specific structure, whose layout will not be known at
+     * the time the data is parsed. This structure is the the complete message. It only includes metadata about the data
+     * being sent (e.g., type, module ID, command, etc.), but it does not include the actual data object (`object`). The
+     * data object itself is handled separately and is appended to the payload after the `DataMessage` metadata is 
+     * packed.
      *
-     * @tparam ObjectType The type of object to be sent with the message. The object can be of any supported type,
-     * including arrays and structures.
      */
-    template <typename ObjectType>
     struct DataMessage
     {
             /// The type-code of the module which sent the data message.
@@ -432,12 +431,8 @@ namespace communication_assets
             /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
             /// size of the ObjectType template parameter.
             uint8_t object_size;
-
-            /// The transmitted data object. This can be any valid object type, as long as it fits the
-            /// specification imposed by the maximum message payload size.
-            ObjectType object;
-    } __attribute__((packed));
-
+   
+    } __attribute__((packed));  
 }  // namespace communication_assets
 
 #endif  //AXMC_SHARED_ASSETS_H
