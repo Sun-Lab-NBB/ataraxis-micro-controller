@@ -1,19 +1,19 @@
 /**
  * @file
- * @brief The header file for the kernel class, which is used to manage the Microcontroller runtime.
+ * @brief The header file for the Kernel class, which is used to manage the Microcontroller runtime.
  *
  * @subsection kern_description Description:
  *
  * For most other classes of this library to work as expected, the Microcontroller should instantiate and use a Kernel
- * object to manage its runtime. This class manages communications, resolves success and error codes and schedules
+ * instance to manage its runtime. This class manages communication, resolves success and error codes and schedules
  * commands to be executed. Due to the static API exposed by the (base) Module class, Kernel will natively integrate
  * with any Module-derived class logic.
  *
- * @note A single instance of this class is created in the main.cpp file. It should be provided with an instance
+ * @note A single instance of this class should be created in the main.cpp file. It should be provided with an instance
  * of the Communication class and an array of Module-derived classes during instantiation.
  *
  * @subsection kern_developer_notes Developer Notes:
- * This class functions similar to any major OS kernels, although it is considerably limited in scope. Specifically, it
+ * This class functions similar to major OS kernels, although it is considerably limited in scope. Specifically, it
  * manages all compatible Modules and handles communication with other Ataraxis systems. This class is very important
  * for the correct functioning of the library and, therefore, it should not be modified, if possible. Any modifications
  * to this class may require modifications to some or all other base (Core) classes of this library, as well as any
@@ -23,8 +23,7 @@
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  * - communication.h for Communication class, which is used to bidirectionally communicate with other Ataraxis systems.
- * - digitalWriteFast.h for fast digital pin manipulation methods.
- * - elapsedMillis.h for millisecond and microsecond timers.
+ * - module.h for the shared Module API access.
  */
 
 #ifndef AXMC_KERNEL_H
@@ -37,23 +36,23 @@
 #include "shared_assets.h"
 
 /**
- * @brief The main Core level class that provides the central runtime loop and all kernel-level methods that control
- * data reception, runtime flow, setup and shutdown.
+ * @brief Provides the central runtime loop and all kernel-level methods that control data reception, execution runtime
+ * flow, setup and shutdown.
  *
  * @attention This class functions as the backbone of the AMC codebase by providing runtime flow control functionality.
  * Without it, the AMC codebase would not function as expected. Any modification to this class should be carried out
  * with extreme caution and, ideally, completely avoided by anyone other than the kernel developers of the project.
  *
  * The class contains both major runtime flow methods and minor kernel-level commands that provide general functionality
- * not available through AMCModule (the backbone of every Module-level class). Overall, this class is designed
- * to organically compliment AMCModule methods, and together the two classes provide a robust set of features to realize
- * almost any conceivable custom Controller-mediated behavior.
+ * not available through Module (the parent of every custom module class). Overall, this class is designed
+ * to compliment Module methods, and together the two classes provide a robust set of features to realize
+ * custom Controller-mediated behavior.
  *
- * @note This class is not fully initialized until it's SetModules method is used to provide it with an array of
- * AMCModule-derived Module-level classes. The vast majority of methods of this class require a correctly set array of
- * modules to operate properly.
+ * @note This class requires to be provided with an array of pre-initialized Module-derived classes upon instantiation.
+ * The class will then manage the runtime of these modules via internal methods.
  *
- * @tparam module_number The number of Module-derived classes that will be managed by the class instance.
+ * @tparam module_number The number of custom module classes 9classes derived from the main Module class) that will be
+ * managed by the class instance.
  */
 template <size_t module_number>
 class Kernel
@@ -78,10 +77,10 @@ class Kernel
          * @brief Specifies the byte-codes for errors and states that can be encountered during Kernel class method
          * execution.
          *
-         * The Kernel class uses these byte-codes to communicate the exact status of various Kernel runtimes between class
-         * methods and to send messages to the PC.
+         * The Kernel class uses these byte-codes to communicate the exact status of various Kernel runtimes between
+         * class methods and to send messages to the PC.
          *
-         * @Note Should not use system-reserved codes 0 through 10 and 250 through 255.
+         * @note Unlike most other status-code structures,
          */
         enum class kKernelStatusCodes : uint8_t
         {
