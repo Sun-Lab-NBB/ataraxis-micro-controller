@@ -60,10 +60,10 @@
 #define AXMC_MODULE_H
 
 #include <Arduino.h>
-#include "shared_assets.h"
-#include "communication.h"
 #include <digitalWriteFast.h>
 #include <elapsedMillis.h>
+#include "communication.h"
+#include "shared_assets.h"
 
 /**
  * @brief Serves as the parent for all custom module classes, providing methods for other Core classes to interface with
@@ -570,8 +570,8 @@ class Module
         }
 
         /**
-         * @brief Packages and sends the provided event_code and data object to the connected Ataraxis system via the
-         * thwCommunication class instance.
+         * @brief Packages and sends the provided event_code and data object to the connected Ataraxis system via
+         * the Communication class instance.
          *
          * This method simplifies sending data through the Communication class by automatically resolving most of the
          * payload metadata. This method guarantees that the formed payload follows the correct format and contains
@@ -592,12 +592,17 @@ class Module
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param object Additional data object to be sent along with the message. Currently, all data messages
          * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
-         * object to include.
+         * object to include. By default, this is set to placeholder byte value 255, which is always parsed as
+         * placeholder and will be ignored upon reception.
          * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
          * the type of the object. Do not overwrite this argument.
          */
         template <typename ObjectType>
-        void SendData(const uint8_t event_code, const ObjectType& object, const size_t object_size = sizeof(ObjectType))
+        void SendData(
+            const uint8_t event_code,
+            const ObjectType& object = communication_assets::kDataPlaceholder,
+            const size_t object_size = sizeof(ObjectType)
+        )
         {
             // Packages and sends the data to the connected system via the Communication class
             const bool success = _communication.SendDataMessage(
@@ -791,7 +796,8 @@ class Module
         /**
          * @brief Returns the ID of the Module instance.
          */
-        [[nodiscard]] uint8_t GetModuleID() const
+        [[nodiscard]]
+        uint8_t GetModuleID() const
         {
             return _module_id;
         }
@@ -799,7 +805,8 @@ class Module
         /**
          * @brief Returns the type (family ID) of the Module instance.
          */
-        [[nodiscard]] uint8_t GetModuleType() const
+        [[nodiscard]]
+        uint8_t GetModuleType() const
         {
             return _module_type;
         }

@@ -141,18 +141,6 @@ namespace shared_assets
     };
 
     /**
-     * @enum kKernelCodes
-     * @brief Assigns meaningful names to all status codes used by the Kernel class.
-     *
-     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 201 through 250.
-     */
-    enum class kKernelCodes : uint8_t
-    {
-        kKernelStandby = 201,  ///< Standby placeholder used to initialize the Kernel class status tracker.
-    };
-
-    /**
      * @struct DynamicRuntimeParameters
      * @brief Stores global runtime parameters addressable through the Communication interface.
      *
@@ -437,6 +425,10 @@ namespace communication_assets
             /// specification imposed by the maximum message payload size.
             const ObjectType object;
     } __attribute__((packed));
+
+    /// Stores the placeholder object that is used for data and error messages that do not include a valid
+    /// object. The receiver will discard this object upon reception.
+    constexpr uint8_t kDataPlaceholder = 255;
 
 }  // namespace communication_assets
 

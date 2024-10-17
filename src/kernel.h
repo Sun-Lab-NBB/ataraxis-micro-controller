@@ -21,6 +21,8 @@
  *
  * @subsection mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
+ * - elapsedMillis.h for millisecond and microsecond timers.
  * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  * - communication.h for Communication class, which is used to bidirectionally communicate with other Ataraxis systems.
  * - module.h for the shared Module API access.
@@ -31,6 +33,8 @@
 
 // Dependencies
 #include <Arduino.h>
+#include <digitalWriteFast.h>
+#include <elapsedMillis.h>
 #include "communication.h"
 #include "module.h"
 #include "shared_assets.h"
@@ -87,13 +91,16 @@ class Kernel
             kStandby             = 0,  ///< Standby code used during class initialization.
             kModuleSetupComplete = 1,  ///< SetupModules() method runtime succeeded.
             kModuleSetupError    = 2,  ///< SetupModules() method runtime failed due to a module error.
+            kNoDataToReceive     = 3,  ///< ReceiveData() method succeeded without receiving any data.
+            kDataReceptionError  = 4,  ///< ReceiveData() method failed due to a data reception error.
+            kDataSendingError    = 5,  ///< SendData() method failed due to a data sending error.
+            kInvalidDataProtocol = 6,  ///< Received message uses an unsupported (unknown) protocol.
+            kKernelParametersSet = 7,  ///< Received and applied the new DynamicRuntimeParameters adressed to the Kernel
 
-            kNoDataToReceive           = 2,  ///< No data to receive either due to reception error or genuinely no data
-            kPayloadIDDataReadingError = 3,  ///< Unable to extract the ID data of the received payload
+            kPayloadIDDataReadingError     = 3,   ///< Unable to extract the ID data of the received payload
             kPayloadParameterReadingError  = 4,   ///< Unable to extract a parameter structure from the received payload
             kInvalidKernelParameterIDError = 5,   ///< Unable to recognize Module-targeted parameter ID
             kInvalidModuleParameterIDError = 6,   ///< Unable to recognize Kernel-targeted parameter ID
-            kKernelParameterSet            = 7,   ///< Kernel parameter has been successfully set to input value
             kModuleParameterSet            = 8,   ///< Module parameter has been successfully set to input value
             kNoCommandRequested            = 9,   ///< Received payload did not specify a command to execute
             kUnrecognizedKernelCommand     = 10,  ///< Unable to recognize the requested Kernel-targeted command code
@@ -101,10 +108,18 @@ class Kernel
             kModuleCommandQueued = 12  ///< Module-addressed command has been successfully queued for execution
         };
 
+        /**
+         * @struct kKernelCommands
+         * @brief Specifies the byte-codes for commands that can be executed during runtime.
+         *
+         * The Kernel class uses these byte-codes to communicate what command was executed when it sends data messages
+         * to the connected system. Usually, this is used for error messages.
+         */
         enum class kKernelCommands : uint8_t
         {
-            kSetupModules = 1,
-            k
+            kStandby      = 0,  ///< Standby code used during class initialization.
+            kSetupModules = 1,  /// Module setup command.
+            kReceiveData  = 2,  /// Receive data command.
         };
 
         /// Communicates the most recent status of the Kernel. Primarily, this variable is used during class method
@@ -112,13 +127,16 @@ class Kernel
         /// class runtime.
         uint8_t kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kStandby);
 
+        /// Communicates the active command.
+        uint8_t kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
+
         /**
          * @brief Creates a new Kernel class instance.
          *
          * @param communication A reference to the Communication class instance shared by all other runtime-active
-         * classesis the only class that can receive data from the PC.
+         * class is the only class that can receive data from the PC.
          * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure used to store addressable
-         * controller runtime paramters.
+         * controller runtime parameters.
          * @param module_array The array of custom module classes (the children inheriting from the base Module class).
          * The kernel will manage the runtime of these modules.
          */
@@ -134,6 +152,69 @@ class Kernel
         {}
 
         /**
+         * @brief Packages and sends the provided event_code and data object to the connected Ataraxis system via
+         * the Communication class instance.
+         *
+         * This method simplifies sending data through the Communication class by automatically resolving most of the
+         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
+         * the necessary data.
+         *
+         * @note It is highly recommended to use this utility method for sending data to the connected system instead of
+         * using the Communication class directly.
+         *
+         * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
+         * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
+         * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
+         * this method to avoid interference!
+         *
+         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
+         * automatically by the template constructor.
+         * @param event_code The byte-code specifying the event that triggered the data message.
+         * @param object Additional data object to be sent along with the message. Currently, all data messages
+         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
+         * object to include. By default, this is set to placeholder byte value 255, which is always parsed as
+         * placeholder and will be ignored upon reception.
+         * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
+         * the type of the object. Do not overwrite this argument.
+         */
+        template <typename ObjectType>
+        void SendData(
+            const uint8_t event_code,
+            const ObjectType& object = communication_assets::kDataPlaceholder,
+            const size_t object_size = sizeof(ObjectType)
+        )
+        {
+            // Packages and sends the data to the connected system via the Communication class
+            const bool success =
+                _communication.SendDataMessage(kModuleType, kModuleId, kernel_command, event_code, object, object_size);
+
+            // If the message was sent, ends the runtime
+            if (success) return;
+
+            // If the message was not sent attempts sending an error message. For this, combines the latest status of
+            // the Communication class (likely an error code) and the TransportLayer status code into a 2-byte array.
+            // This will be the data object transmitted with the error message.
+            const uint8_t errors[2] = {_communication.communication_status, _communication.GetTransportLayerStatus()};
+
+            // Attempts sending the error message. Uses the unique DataSendingError event code and the object
+            // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
+            _communication.SendDataMessage(
+                kModuleType,
+                kModuleId,
+                kernel_command,
+                static_cast<uint8_t>(kKernelStatusCodes::kDataSendingError),
+                errors,
+                sizeof(errors)
+            );
+
+            // As a fallback in case the error message does not reach the connected system, sets the class status to
+            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
+            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kDataSendingError);
+            digitalWriteFast(LED_BUILTIN, HIGH);
+        }
+
+        /**
          * @brief Triggers the SetupModule() method of each module inside the module array.
          *
          * This method should only be triggered once, during the runtime of the main script setup() loop. Consider this
@@ -147,6 +228,8 @@ class Kernel
          */
         bool SetupModules()
         {
+            kernel_command = static_cast<uint8_t>(kKernelCommands::kSetupModules);  // Sets active command code
+
             // Loops over each module and calls its SetupModule() virtual method. Note, expects that setup methods
             // generally cannot fail, but supports non-success returns codes.
             for (size_t i = 0; i < _module_count; i++)
@@ -161,71 +244,122 @@ class Kernel
                         _modules[i]->module_status
                     };
 
-                    // Sends the error message to the PC
-                    _communication.SendDataMessage(
-                        kModuleType,
-                        kModuleId,
-                        static_cast<uint8_t>(kKernelCommands::kSetupModules),
-                        static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError),
-                        error_object
-                    );
-
+                    // Sets the status and sends the error message to the PC
                     kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError);
-                    return false;  // REturns without finishing the setup process.
+                    SendData(static_cast<uint8_t>(kKernelCommands::kSetupModules), kernel_status, error_object);
+                    kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
+                    return false;  // Returns without finishing the setup process.
                 }
             }
 
             // If the method reaches this point, all modules have been successfully set up. Sends the confirmation
             // message to the PC and sets the kernel_status to reflect this successful setup.
-            kernel_status                 = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete);
-            constexpr uint8_t placeholder = 0;  // Defines a placeholder as thee is no object to send here.
-            _communication.SendDataMessage(
-                kModuleType,
-                kModuleId,
-                static_cast<uint8_t>(kKernelCommands::kSetupModules),
-                static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete),
-                placeholder
-            );
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete);
 
+            // This automatically uses placeholder value 255 for the object, so it will be discarded upon reception.
+            SendData(static_cast<uint8_t>(kKernelCommands::kSetupModules), kernel_status);
+
+            // Setup complete, returns with success value
+            kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
             return true;
         }
 
-        void ReceivePCData()
+        void ReceiveData()
         {
+            kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);  // Sets active command code
+
             // Attempts to receive a message sent by the PC. The messages received from the PC are stored in the
             // circular buffer of the controller. The call to this method attempts to parse the message from the
             // data available in the buffer. If only part of the message was received, the method will block for some
             // time and attempt to receive and parse the whole message.
             bool status = _communication.ReceiveMessage();  // Note, status is reused below
 
-            // If no data was received, breaks the loop. If this is due to reception runtime error, the method internally
-            // generates and sends an error message to the PC. Otherwise, if this is due to no data being available (no error),
-            // just skips receiving the data during this iteration of the runtime cycle.
+            // If no data was received, breaks the loop. If the reception failed due to a runtime error, sends an error
+            // message to the PC. If the reception failed due to having no data to receive, terminates the runtime with
+            // the appropriate non-error status
             if (!status)
             {
-                // Sets the status to indicate there is no data to receive and breaks the runtime. Does not send any messages to
-                // the PC as this kind of cases is handled silently to conserve communication bandwidth
-                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kNoDataToReceive);
+                // This is a non-error clause, sometimes there is no data to be received.
+                if (_communication.communication_status ==
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationNoBytesToReceive))
+                {
+                    // Sets the status to indicate there is no data to receive and breaks the runtime.
+                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kNoDataToReceive);
+                    kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
+                    return;
+                }
+
+                // Any other status code of the Communication class is interpreted as an error code and results in
+                // kernel sending the error message to the PC.
+                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kDataReceptionError);
+
+                // Retrieves the communication error status
+                const uint8_t errors[2] = {
+                    _communication.communication_status,
+                    _communication.GetTransportLayerStatus()
+                };
+
+                SendData(kernel_status, errors);  // Sends the error data to the PC
+                kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
                 return;
             }
 
-            // Instantiates the ID data structure and reads the received header data into the instantiated structure, if the
-            // data has been received
-            SerialPCCommunication::IDInformation id_data;
-            status = communication_port.ReadIDInformation(id_data);
-
-            // If the read operation fails, breaks the method runtime (the error report is generated and sent by the read
-            // method). Sets the status appropriately to indicate specific runtime failure
-            if (!status)
+            // Processes the received payload, depending on the type (protocol) of the payload:
+            // PARAMETERS
+            if (const uint8_t protocol = _communication.protocol_code();
+                protocol == static_cast<uint8_t>(communication_assets::kProtocols::kParameters))
             {
-                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kPayloadIDDataReadingError);
-                return;
-            }
+                const uint8_t target_type = _communication.parameter_header.module_type;
+                const uint8_t target_id   = _communication.parameter_header.module_id;
 
-            // Resolves the target of the received data payload
-            AMCModule* target_module = modules[0];  // For modules only, stores the pointer to the target module class
-            bool kernel_target =
-                true;  // Tracks whether the target of the payload is Kernel itself or one of the Modules
+                // If the sender requested the reception notification, sends the necessary service message to confirm
+                // that the data was received as expected.
+                if (_communication.parameter_header.return_code)
+                {
+                    _communication.SendServiceMessage(
+                        static_cast<uint8_t>(communication_assets::kProtocols::kReceptionCode),
+                        _communication.parameter_header.return_code
+                    );
+                }
+
+                // If the parameters are adressed to the Kernel class, the parameters always have to be in the form of
+                // the DynamicRuntimeParameters structure.
+                if (target_type == kModuleType)
+                {
+                    // Extracts the received parameters into the DynamicRuntimeParameters structure shared by all
+                    // modules and Kernel class.
+                    _communication.ExtractParameters(_dynamic_parameters);
+
+                    // Sets the class runtime status and inactivates (completes) the command before aborting the
+                    // runtime.
+                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersSet);
+                    kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
+                    return;
+                }
+
+                //
+                else
+                {
+                    Module* target_module =
+                        _modules[0];  // Initializes the module tracker to point to the first module in the array
+                }
+            }
+            // COMMANDS
+            else if (protocol == static_cast<uint8_t>(communication_assets::kProtocols::kCommand))
+            {
+                target_type = _communication.command_message.module_type;
+                target_id   = _communication.command_message.module_id;
+            }
+            // INVALID PROTOCOL
+            else
+            {
+                // If the protocol is neither command nor parameters data, this indicates an incompatible message
+                // protocol. This triggers an error message.
+                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kInvalidProtocol);
+                // Includes the invalid protocol value
+                SendData<uint8_t>(kernel_status, protocol);  // Sends the error data to the PC
+                return;                                      // Breaks the runtime
+            }
 
             // If module_id and system_id of the received payload do not match Kernel IDs, searches through the modules until
             // the target module and system combination is found. Note, uses both module_id and system_id to identify
@@ -427,16 +561,6 @@ class Kernel
                 // that the method runtime has finished successfully.
                 kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kNoCommandRequested);
                 return;
-            }
-
-            // If a command code is provided, executes the appropriate command handling method
-            if (kernel_target)
-            {
-                // If the command is addressed to the kernel, runs it in-place. Usually, kernel commands are reserved for
-                // testing purposes and other generally non-cyclic execution cases, so they do not come with inherent
-                // noblock execution capacity and are not part of the general runtime flow per se. THe method automatically
-                // handles setting kernel_status and sending messages to the PC.
-                RunKernelCommand(id_data.command);
             }
 
             // For commands addressed to Modules, does not run them in-place, but instead queues the command for execution by
