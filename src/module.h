@@ -857,11 +857,11 @@ class Module
          * software assets.
          *
          * @attention Ideally, this method should not contain any logic that can fail or block. Many core dependencies,
-         * such as USB / UART communication is initialized during setup, which may interfere with handling setup
+         * such as USB / UART communication, are initialized during setup, which may interfere with handling setup
          * errors.
          *
          * @returns bool @b true if the setup method ran successfully and @b false otherwise. The Kernel will attempt
-         * handling errors, but there is no guarantee it will succeed.
+         * to handle errors, but there is no guarantee it will succeed.
          *
          * @code
          * const uint8_t output_pin = 12; // Assume this was defined as a compile time constant class attribute.

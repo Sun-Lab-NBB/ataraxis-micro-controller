@@ -5,7 +5,7 @@
  * @subsection kern_description Description:
  *
  * For most other classes of this library to work as expected, the Microcontroller should instantiate and use a Kernel
- * object to manage its runtime. This class manages communications, resolves success and error codes and schedule
+ * object to manage its runtime. This class manages communications, resolves success and error codes and schedules
  * commands to be executed. Due to the static API exposed by the (base) Module class, Kernel will natively integrate
  * with any Module-derived class logic.
  *
@@ -13,7 +13,7 @@
  * of the Communication class and an array of Module-derived classes during instantiation.
  *
  * @subsection kern_developer_notes Developer Notes:
- * This class functions similar to any major OS Kernel, although it is considerably limited in scope. Specifically, it
+ * This class functions similar to any major OS kernels, although it is considerably limited in scope. Specifically, it
  * manages all compatible Modules and handles communication with other Ataraxis systems. This class is very important
  * for the correct functioning of the library and, therefore, it should not be modified, if possible. Any modifications
  * to this class may require modifications to some or all other base (Core) classes of this library, as well as any
@@ -46,7 +46,7 @@
  *
  * The class contains both major runtime flow methods and minor kernel-level commands that provide general functionality
  * not available through AMCModule (the backbone of every Module-level class). Overall, this class is designed
- * to organically compliment AMCModule methods and together the two classes provide a robust set of features to realize
+ * to organically compliment AMCModule methods, and together the two classes provide a robust set of features to realize
  * almost any conceivable custom Controller-mediated behavior.
  *
  * @note This class is not fully initialized until it's SetModules method is used to provide it with an array of
@@ -85,86 +85,54 @@ class Kernel
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandby                   = 11,  ///< Standby code used during initial class initialization
-            kModulesNotSetError        = 12,  ///< A successful SetModules() runtime is required to use other methods
-            kModulesSet                = 13,  ///< SetModules() method runtime succeeded
-            kModuleSetupComplete       = 14,  ///< SetupModules() method runtime succeeded
-            kNoDataToReceive           = 15,  ///< No data to receive either due to reception error or genuinely no data
-            kPayloadIDDataReadingError = 16,  ///< Unable to extract the ID data of the received payload
-            kPayloadParameterReadingError  = 17,  ///< Unable to extract a parameter structure from the received payload
-            kInvalidKernelParameterIDError = 18,  ///< Unable to recognize Module-targeted parameter ID
-            kInvalidModuleParameterIDError = 19,  ///< Unable to recognize Kernel-targeted parameter ID
-            kKernelParameterSet            = 20,  ///< Kernel parameter has been successfully set to input value
-            kModuleParameterSet            = 21,  ///< Module parameter has been successfully set to input value
-            kNoCommandRequested            = 22,  ///< Received payload did not specify a command to execute
-            kUnrecognizedKernelCommand     = 23,  ///< Unable to recognize the requested Kernel-targeted command code
-            kEchoCommandComplete           = 24,  ///< Echo Kernel command executed successfully
-            kModuleCommandQueued = 25  ///< Module-addressed command has been successfully queued for execution
+            kStandby                   = 0,  ///< Standby code used during initial class initialization
+            kModuleSetupComplete       = 1,  ///< SetupModules() method runtime succeeded
+            kNoDataToReceive           = 2,  ///< No data to receive either due to reception error or genuinely no data
+            kPayloadIDDataReadingError = 3,  ///< Unable to extract the ID data of the received payload
+            kPayloadParameterReadingError  = 4,   ///< Unable to extract a parameter structure from the received payload
+            kInvalidKernelParameterIDError = 5,   ///< Unable to recognize Module-targeted parameter ID
+            kInvalidModuleParameterIDError = 6,   ///< Unable to recognize Kernel-targeted parameter ID
+            kKernelParameterSet            = 7,   ///< Kernel parameter has been successfully set to input value
+            kModuleParameterSet            = 8,   ///< Module parameter has been successfully set to input value
+            kNoCommandRequested            = 9,   ///< Received payload did not specify a command to execute
+            kUnrecognizedKernelCommand     = 10,  ///< Unable to recognize the requested Kernel-targeted command code
+            kEchoCommandComplete           = 11,  ///< Echo Kernel command executed successfully
+            kModuleCommandQueued = 12  ///< Module-addressed command has been successfully queued for execution
         };
 
-        /**
-         * @enum kKernelCommandCodes
-         * @brief Specifies the id byte-codes for the available Kernel-level commands. These id-codes should be used by the
-         * PC to trigger specific Kernel commands upon data reception.
-         *
-         * Each kernel command should have a matching code stored in this enumeration in addition to a properly configured
-         * trigger subroutine available through the RunKernelCommand() method of the AMCKernel class.
-         *
-         * @attention Should not use codes 0 through 10 and 250 through 255.
-         */
-        enum class kKernelCommandCodes : uint8_t
-        {
-            kEcho = 11  ///< Re-packages the received data and returns it back to the PC.
-        };
-
-        /// Communicates the most recent status of the Kernel. Primarily, this variable is used during class method testing,
-        /// but it can also be co-opted by any class or method that at any point requires knowing the latest status of the
-        /// kernel class runtime. This tracker is initialized to kStandby from the kKernelStatusCodes.
+        /// Communicates the most recent status of the Kernel. Primarily, this variable is used during class method
+        /// testing, but it can also be co-opted by any class or method that at any point requires knowing the latest
+        /// status of the class runtime.
         uint8_t kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kStandby);
 
         /// Tracks the currently active kernel command. This information is used alongside some other static
         /// kCustomKernelParameters to properly send error messages from commands and other encapsulated contexts
-        uint8_t kernel_command;
+        uint8_t kernel_command = 0;
 
         /**
-     * @brief Creates a new AMCKernel class instance and initializes it with modules.
-     *
-     * @param communication A reference to the SerialPCCommunication class instance shared by all AMC
-     * codebase classes that receive (AMCKernel only!) or send (AMCKernel and all Modules) data over the serial port.
-     * The AMCKernel class uses this instance to receive all data sent from the PC and to send some event data to the
-     * PC.
-     * @param dynamic_parameters A reference to the DynamicRuntimeParameters.
-     * @param module_array The array of type AMCModule filled with the children inheriting from the Core base AMCModule
-     * class.
-     */
+         * @brief Creates a new AMCKernel class instance and initializes it with modules.
+         *
+         * @param communication A reference to the SerialPCCommunication class instance shared by all AMC
+         * codebase classes that receive (AMCKernel only!) or send (AMCKernel and all Modules) data over the serial port.
+         * The AMCKernel class uses this instance to receive all data sent from the PC and to send some event data to the
+         * PC.
+         * @param dynamic_parameters A reference to the DynamicRuntimeParameters.
+         * @param module_array The array of type AMCModule filled with the children inheriting from the Core base AMCModule
+         * class.
+         */
         Kernel(
             Communication& communication,
             const shared_assets::DynamicRuntimeParameters& dynamic_parameters,
             Module* (&module_array)[module_number]
         ) :
-            _communication(communication), _dynamic_parameters(dynamic_parameters)
-        {
-            if (module_number < 1)
-            {
-                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);
-                _communication.SendDataMessage(kernel_status, 0);
-
-                // Initialize with default values
-                modules                 = nullptr;
-                module_count            = 0;
-                initialization_finished = false;
-            }
-            else
-            {
-                modules                 = module_array;
-                module_count            = module_number;
-                initialization_finished = true;
-                kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kModulesSet);
-            }
-        }
+            _modules(module_array),
+            _module_count(module_number),
+            _communication(communication),
+            _dynamic_parameters(dynamic_parameters)
+        {}
 
         /**
-         * @brief Triggers the SetupModule() method of each module inside the modules array.
+         * @brief Triggers the SetupModule() method of each module inside the module array.
          *
          * This method is only triggered once, during the runtime fo the main script setup() loop. Consider this an API
          * wrapper around the setup sequences of each modules to be used by the Kernel class.
@@ -179,34 +147,17 @@ class Kernel
          */
         void SetupModules()
         {
-            // Prevents the method from being executed until the AMCKernel class has been properly initialized.
-            if (!initialization_finished)
+            // Loops over each module and calls its Setup() virtual method. Note, expects that setup methods cannot
+            // fail and does not evaluate.
+            for (size_t i = 0; i < _module_count; i++)
             {
-                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);  // Setup method failure
-
-                // Sends the error message to the PC to indicate setup failure. Expects the communication class to be fully
-                // operational at the time of this method's runtime. Uses kNoCommand code to indicate that the message
-                // originates from a non-command method.
-                communication_port.CreateEventHeader(
-                    static_cast<uint8_t>(kCustomKernelParameters::module_id),
-                    static_cast<uint8_t>(kCustomKernelParameters::system_id),
-                    static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                    kernel_status
-                );
-                communication_port.SendData();
-
-                return;  // Breaks the runtime
-            }
-
-            // Loops over each module and calls its Setup() virtual method. Note, expects that setup methods cannot fail, which
-            // is the case for an absolute majority of all conceived runtimes.
-            for (size_t i = 0; i < module_count; i++)
-            {
-                modules[i]->SetupModule();
+                _modules[i]->SetupModule();
             }
 
             // Communicates method's runtime success to the PC and via kernel status and returned value
             kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete);
+
+            _communication.SendDataMessage();
 
             // Sends success message to the PC. Uses kNoCommand code to indicate that the message originates from a non-command
             // method.
@@ -217,9 +168,6 @@ class Kernel
                 kernel_status
             );
             communication_port.SendData();
-
-            // Ends method runtime
-            return;
         }
 
         void ReceivePCData()
@@ -502,11 +450,8 @@ class Kernel
             return;  // Ends method runtime
         }
 
-        // void TriggerModuleRuntimes();
-
-        // void ResetController();
-
-        // void RuntimeCycle();
+        void RunCommands()
+        {}
 
         /**
          * @brief Updates the variable inside either kControllerRuntimeParameters or kCustomKernelParameters structure
@@ -609,63 +554,19 @@ class Kernel
             }
         }
 
-        /**
-         * @brief Determines whether the input command code is valid and, if so, runs the requested AMCKernel clas command.
-         *
-         * @param command The id byte-code for the command to run. Can be 0 when no command is requested, the method will
-         * automatically hand;e this as a correct non-erroneous no-command case.
-         *
-         * @note Uses kernel_status to communicate the success or failure of the method alongside the specific success or
-         * failure code. Has no return value as it is not really helpful given the context of how this command is called.
-         */
-        void RunKernelCommand(uint8_t command)
-        {
-            // Casts the input command code to kKernelCommandCodes enumeration to match it to an existing id code. Expects that
-            // any failure originating from the command runtime is handled at the command level and only handles the error
-            // message due to an unknown command ID.
-            switch (static_cast<kKernelCommandCodes>(command))
-            {
-                // Echo
-                case kKernelCommandCodes::kEcho: Echo(); return;
-
-                // If the input command is not recognized, returns false to indicate command runtime failure, sets the status
-                // appropriately and sends an error message to the PC to indicate that the input command was not recognized
-                default:
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kUnrecognizedKernelCommand);
-                    communication_port.CreateEventHeader(
-                        kCustomKernelParameters::module_id,
-                        kCustomKernelParameters::system_id,
-                        command,
-                        kernel_status
-                    );
-                    communication_port.SendData();
-                    return;
-            }
-        }
-
-        bool Echo()
-        {
-            return true;
-        }
-
     private:
         /// An internal array of AMCModule-derived Module-level classes. This array is set via SetModules() class method
         /// and it is used to store all Module's available to the Kernel during runtime. The methods of the Kernel loop over
         /// this array and call common interface methods inherited by each module from the core AMCModule class to execute
         /// Controller runtime behavior.
-        Module** modules;
+        Module** _modules;
 
         /// A complimentary variable used to store the size of the AMCModule array. This is required for the classic
         /// realization of the array-pointer + size looping strategy used in C-based languages instead of template-based
-        /// strategy. Since SetModules() is an internal class method that sets this variable through a template approach,
-        /// the use of typically user-error-prone pointer+count method is completely safe for all other methods of the
-        /// Kernel class, assuming SetModules() has been called (this is enforced).
-        size_t module_count;
-
-        /// A tracker flag used to determine whether SetModules() method has been used to properly finish class instance
-        /// initialization. This flag is used to ensure it is impossible to call other methods of the class unless
-        /// SetModules() has been called. This is a safety mechanism that helps avoid unexpected behavior.
-        bool initialization_finished;
+        /// strategy. Since SetModules() is an internal class method that sets this variable through a template
+        /// approach, the use of typically user-error-prone pointer+count method is completely safe for all other
+        /// methods of the Kernel class, assuming SetModules() has been called (this is enforced).
+        size_t _module_count;
 
         // A reference to the shared instance of the Communication class. This class is used to send runtime data to
         /// the connected Ataraxis system.
