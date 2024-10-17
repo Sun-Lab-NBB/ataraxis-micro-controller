@@ -788,6 +788,22 @@ class Module
             CompleteCommand();
         }
 
+        /**
+         * @brief Returns the ID of the Module instance.
+         */
+        [[nodiscard]] uint8_t GetModuleID() const
+        {
+            return _module_id;
+        }
+
+        /**
+         * @brief Returns the type (family ID) of the Module instance.
+         */
+        [[nodiscard]] uint8_t GetModuleType() const
+        {
+            return _module_type;
+        }
+
         // Virtual methods. Like Core methods, the virtual methods provide the Kernel class with the API to interface
         // with the Module class instance. Unlike Core methods, these methods provide access to the custom portion
         // of each Module class instance. Therefore, these methods need to be implemented separately for each class

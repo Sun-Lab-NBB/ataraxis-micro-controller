@@ -84,8 +84,10 @@ class Kernel
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandby                   = 0,  ///< Standby code used during initial class initialization
-            kModuleSetupComplete       = 1,  ///< SetupModules() method runtime succeeded
+            kStandby             = 0,  ///< Standby code used during class initialization.
+            kModuleSetupComplete = 1,  ///< SetupModules() method runtime succeeded.
+            kModuleSetupError    = 2,  ///< SetupModules() method runtime failed due to a module error.
+
             kNoDataToReceive           = 2,  ///< No data to receive either due to reception error or genuinely no data
             kPayloadIDDataReadingError = 3,  ///< Unable to extract the ID data of the received payload
             kPayloadParameterReadingError  = 4,   ///< Unable to extract a parameter structure from the received payload
@@ -99,25 +101,26 @@ class Kernel
             kModuleCommandQueued = 12  ///< Module-addressed command has been successfully queued for execution
         };
 
+        enum class kKernelCommands : uint8_t
+        {
+            kSetupModules = 1,
+            k
+        };
+
         /// Communicates the most recent status of the Kernel. Primarily, this variable is used during class method
-        /// testing, but it can also be co-opted by any class or method that at any point requires knowing the latest
-        /// status of the class runtime.
+        /// testing, but it can also be co-opted by any class or method that requires knowing the latest status of the
+        /// class runtime.
         uint8_t kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kStandby);
 
-        /// Tracks the currently active kernel command. This information is used alongside some other static
-        /// kCustomKernelParameters to properly send error messages from commands and other encapsulated contexts
-        uint8_t kernel_command = 0;
-
         /**
-         * @brief Creates a new AMCKernel class instance and initializes it with modules.
+         * @brief Creates a new Kernel class instance.
          *
-         * @param communication A reference to the SerialPCCommunication class instance shared by all AMC
-         * codebase classes that receive (AMCKernel only!) or send (AMCKernel and all Modules) data over the serial port.
-         * The AMCKernel class uses this instance to receive all data sent from the PC and to send some event data to the
-         * PC.
-         * @param dynamic_parameters A reference to the DynamicRuntimeParameters.
-         * @param module_array The array of type AMCModule filled with the children inheriting from the Core base AMCModule
-         * class.
+         * @param communication A reference to the Communication class instance shared by all other runtime-active
+         * classesis the only class that can receive data from the PC.
+         * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure used to store addressable
+         * controller runtime paramters.
+         * @param module_array The array of custom module classes (the children inheriting from the base Module class).
+         * The kernel will manage the runtime of these modules.
          */
         Kernel(
             Communication& communication,
@@ -133,70 +136,72 @@ class Kernel
         /**
          * @brief Triggers the SetupModule() method of each module inside the module array.
          *
-         * This method is only triggered once, during the runtime fo the main script setup() loop. Consider this an API
-         * wrapper around the setup sequences of each modules to be used by the Kernel class.
+         * This method should only be triggered once, during the runtime of the main script setup() loop. Consider this
+         * an API wrapper around the setup sequence of each module managed by the Kernel class.
          *
-         * @note  Automatically sends a success or error message to the PC and, as such, assumes this method is always
-         * called after finished setting up communication class. The only way for this method to fail it's runtime is to
-         * be called prior to SetModules() method of this class.
+         * @note Automatically sends a success or error message to the PC and, as such, assumes this method is always
+         * called after the Communication class is properly initialized. This method also sets the kernel_status to
+         * reflect the status of this method's runtime.
          *
-         * @attention Sets kernel_status to kModulesNotSetError code if runtime fails, as currently the only way for this
-         * method to fail is if it is called prior to the SetModules() method . Uses kModuleSetupComplete code to indicate
-         * successful runtime. All codes can be found in kKernelStatusCodes enumeration.
+         * @return True if all modules have been successfully set up, false otherwise.
          */
-        void SetupModules()
+        bool SetupModules()
         {
-            // Loops over each module and calls its Setup() virtual method. Note, expects that setup methods cannot
-            // fail and does not evaluate.
+            // Loops over each module and calls its SetupModule() virtual method. Note, expects that setup methods
+            // generally cannot fail, but supports non-success returns codes.
             for (size_t i = 0; i < _module_count; i++)
             {
-                _modules[i]->SetupModule();
+                if (const bool result = _modules[i]->SetupModule(); !result)
+                {
+                    // If the setup fails, sends an error message the includes the ID information about the failed
+                    // module alongside the status, presumably set to the specific error code.
+                    const uint8_t error_object[3] = {
+                        _modules[i]->GetModuleType(),
+                        _modules[i]->GetModuleID(),
+                        _modules[i]->module_status
+                    };
+
+                    // Sends the error message to the PC
+                    _communication.SendDataMessage(
+                        kModuleType,
+                        kModuleId,
+                        static_cast<uint8_t>(kKernelCommands::kSetupModules),
+                        static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError),
+                        error_object
+                    );
+
+                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError);
+                    return false;  // REturns without finishing the setup process.
+                }
             }
 
-            // Communicates method's runtime success to the PC and via kernel status and returned value
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete);
-
-            _communication.SendDataMessage();
-
-            // Sends success message to the PC. Uses kNoCommand code to indicate that the message originates from a non-command
-            // method.
-            communication_port.CreateEventHeader(
-                static_cast<uint8_t>(kCustomKernelParameters::module_id),
-                static_cast<uint8_t>(kCustomKernelParameters::system_id),
-                static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                kernel_status
+            // If the method reaches this point, all modules have been successfully set up. Sends the confirmation
+            // message to the PC and sets the kernel_status to reflect this successful setup.
+            kernel_status                 = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete);
+            constexpr uint8_t placeholder = 0;  // Defines a placeholder as thee is no object to send here.
+            _communication.SendDataMessage(
+                kModuleType,
+                kModuleId,
+                static_cast<uint8_t>(kKernelCommands::kSetupModules),
+                static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupComplete),
+                placeholder
             );
-            communication_port.SendData();
+
+            return true;
         }
 
         void ReceivePCData()
         {
-            bool status;  // Tracks the status of each sub-method call to catch if any method failures
-
-            // Prevents method runtime if AMCKernel class initialization has not been finished and sends an appropriate
-            // error message to the PC. Uses kNoCommand code since no actual command code is yet available (dat reception method
-            // is prevented from running).
-            if (!initialization_finished)
-            {
-                kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModulesNotSetError);  // Setup method failure
-                communication_port.CreateEventHeader(
-                    static_cast<uint8_t>(kCustomKernelParameters::module_id),
-                    static_cast<uint8_t>(kCustomKernelParameters::system_id),
-                    static_cast<uint8_t>(axmc_shared_assets::kGeneralByteCodes::kNoCommand),
-                    kernel_status
-                );
-                communication_port.SendData();
-                return;
-            }
-
-            // Resets the communication port to receive new data. Note, if there is any unprocessed data in the temporary
-            // communication_port buffer, it will be cleared out by this action.
-            communication_port.Reset();
+            // Attempts to receive a message sent by the PC. The messages received from the PC are stored in the
+            // circular buffer of the controller. The call to this method attempts to parse the message from the
+            // data available in the buffer. If only part of the message was received, the method will block for some
+            // time and attempt to receive and parse the whole message.
+            bool status = _communication.ReceiveMessage();  // Note, status is reused below
 
             // If no data was received, breaks the loop. If this is due to reception runtime error, the method internally
             // generates and sends an error message to the PC. Otherwise, if this is due to no data being available (no error),
             // just skips receiving the data during this iteration of the runtime cycle.
-            if (!communication_port.ReceiveData())
+            if (!status)
             {
                 // Sets the status to indicate there is no data to receive and breaks the runtime. Does not send any messages to
                 // the PC as this kind of cases is handled silently to conserve communication bandwidth
@@ -554,21 +559,18 @@ class Kernel
         }
 
     private:
-        /// An internal array of AMCModule-derived Module-level classes. This array is set via SetModules() class method
-        /// and it is used to store all Module's available to the Kernel during runtime. The methods of the Kernel loop over
-        /// this array and call common interface methods inherited by each module from the core AMCModule class to execute
-        /// Controller runtime behavior.
+        /// An array that stores module classes. These are the classes derived from the base Module class that
+        /// encapsulate and expose the API to interface with specific hardware systems managed by the Microcontroller.
         Module** _modules;
 
-        /// A complimentary variable used to store the size of the AMCModule array. This is required for the classic
-        /// realization of the array-pointer + size looping strategy used in C-based languages instead of template-based
-        /// strategy. Since SetModules() is an internal class method that sets this variable through a template
-        /// approach, the use of typically user-error-prone pointer+count method is completely safe for all other
-        /// methods of the Kernel class, assuming SetModules() has been called (this is enforced).
+        /// Stores the size of the _modules array. Since each module class is likely to be different in terms of its
+        /// memory size, the individual classes are accessed using pointer-reference system. For this system to work as
+        /// expected, the overall size of the array needs to be stored separately, which is achieved by this
+        /// variable
         size_t _module_count;
 
-        // A reference to the shared instance of the Communication class. This class is used to send runtime data to
-        /// the connected Ataraxis system.
+        /// A reference to the shared instance of the Communication class. This class is used to receive data from the
+        /// connected Ataraxis systems and to send feedback data to these systems.
         Communication& _communication;
 
         /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
