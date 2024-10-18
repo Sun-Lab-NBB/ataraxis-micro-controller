@@ -313,9 +313,10 @@ namespace communication_assets
         /// controller received the Command or Parameters message.
         kReceptionCode = 4,
 
-        /// Idle protocol. This protocol is used by controllers in the 'standby' mode. It serves as a sign that
-        /// the controller is not currently used by other Ataraxis systems.
-        kIdle = 5,
+        /// Identification protocol. This is a service message protocol that transmits the unique ID of the controller
+        /// to other Ataraxis systems, so that the individual controllers can be identified. This is primarily used to
+        /// determine the USB ports used by specific controllers.
+        kIdentification = 5,
     };
 
     /**

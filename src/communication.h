@@ -311,8 +311,8 @@ class Communication
          * This method is used to transmit all Service messages. Service messages use the same minimalistic one-byte
          * payload structure, but the meaning of the transmitted byte-code depends on the used protocol.
          *
-         * @note Currently, this method only supports kIdle and kReceptionCode protocols from the kProtocols enumeration
-         * available from the communication_assets namespace.
+         * @note Currently, this method only supports kIdentification and kReceptionCode protocols from the
+         * kProtocols enumeration available from the communication_assets namespace.
          *
          * @param protocol_code The byte-code specifying the protocol to use for the transmitted message.
          * @param service_code The byte-code specifying the byte-code to be transmitted as message payload.
@@ -339,7 +339,7 @@ class Communication
 
             // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
             if (protocol == communication_assets::kProtocols::kReceptionCode ||
-                protocol == communication_assets::kProtocols::kIdle)
+                protocol == communication_assets::kProtocols::kIdentification)
             {
                 // Writes message payload. Note, unlike other messages, the bytes are written directly to the buffer,
                 // without using the structure system. Structure would only unnecessarily complicate the procedure
