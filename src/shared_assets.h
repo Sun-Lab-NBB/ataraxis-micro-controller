@@ -396,41 +396,37 @@ namespace communication_assets
      * protocol value 3. Data messages are used to communicate all controller-originating information, such as
      * runtime data and error messages to other Ataraxis systems.
      *
-     * @notes Data message parameters are expected to be known at compile time (constexpr). Unlike command and
-     * parameter messages that are not known ahead of time, each data message originates from the Microcontroller and
-     * will, therefore, be known to the compiler.
+     * @notes Data message parameters are stored in a module-type-specific structure, whose layout will not be known at
+     * the time the data is parsed. This structure is the the complete message. It only includes metadata about the data
+     * being sent (e.g., type, module ID, command, etc.), but it does not include the actual data object (`object`). The
+     * data object itself is handled separately and is appended to the payload after the `DataMessage` metadata is 
+     * packed.
      *
-     * @tparam ObjectType The type of object to be sent with the message. The object can be of any supported type,
-     * including arrays and structures.
      */
-    template <typename ObjectType>
     struct DataMessage
     {
             /// The type-code of the module which sent the data message.
-            const uint8_t module_type;
+            uint8_t module_type;
 
             /// The specific module ID within the broader module family specified by module_type.
-            const uint8_t module_id;
+            uint8_t module_id;
 
             /// The unique code of the command the module was executing when it sent the data message.
-            const uint8_t command;
+            uint8_t command;
 
             /// The unique code of the event within the command runtime that prompted the data transmission.
-            const uint8_t event;
+            uint8_t event;
 
             /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
             /// size of the ObjectType template parameter.
-            const uint8_t object_size;
-
-            /// The transmitted data object. This can be any valid object type, as long as it fits the
-            /// specification imposed by the maximum message payload size.
-            const ObjectType object;
-    } __attribute__((packed));
+            uint8_t object_size;
+   
+    } __attribute__((packed));  
 
     /// Stores the placeholder object that is used for data and error messages that do not include a valid
     /// object. The receiver will discard this object upon reception.
     constexpr uint8_t kDataPlaceholder = 255;
-
+    
 }  // namespace communication_assets
 
 #endif  //AXMC_SHARED_ASSETS_H

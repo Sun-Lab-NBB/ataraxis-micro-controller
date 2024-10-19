@@ -11,6 +11,8 @@
 #include "shared_assets.h"
 #include "stream_mock.h"      // StreamMock class required for SerializedTransferProtocol class testing
 #include "transport_layer.h"  // SerializedTransferProtocol class
+#include "communication.h"
+
 
 // This function is called automatically before each test function. Currently not used.
 void setUp(void)
@@ -646,7 +648,7 @@ void TestSerializedTransferProtocolBufferManipulation(void)
     StreamMock<300> mock_port;
 
     // Note, uses different maximum payload size for the Rx and Tx buffers
-    SerializedTransferProtocol<uint16_t, 254, 80, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 254, 80, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Statically extracts the buffer sizes using accessor methods.
     static constexpr uint16_t tx_buffer_size = protocol.get_tx_buffer_size();
@@ -865,7 +867,7 @@ void TestSerializedTransferProtocolBufferManipulationErrors(void)
     // Initializes the tested class
     StreamMock<300> mock_port;
     // Uses identical rx and tx payload sizes
-    SerializedTransferProtocol<uint16_t, 60, 60, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 60, 60, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Initializes a test variable
     uint8_t test_value = 223;
@@ -918,7 +920,7 @@ void TestSerializedTransferProtocolDataTransmission(void)
 
     // Uses identical rx and tx payload sizes and tests maximal supported sizes for both buffers. Also uses a CRC-16
     // to test multibyte CRC handling.
-    SerializedTransferProtocol<uint16_t, 254, 254, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 254, 254, 1> protocol(mock_port, 0x1021, 0xFFFF, 0x0000, 129, 0, 20000, false);
 
     // Instantiates separate instances of encoder classes used to verify processing results
     COBSProcessor<1, 2> cobs_class;
@@ -1038,7 +1040,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
 {
     // Initializes the tested class
     StreamMock<60> mock_port;  // Initializes to the minimal required size
-    SerializedTransferProtocol<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
+    TransportLayer<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
 
     // Instantiates crc encoder class separately to generate test data
     CRCProcessor<uint16_t> crc_class = CRCProcessor<uint16_t>(0x07, 0x00, 0x00);
@@ -1104,6 +1106,17 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
         protocol.transfer_status
     );
     TEST_ASSERT_FALSE(result);
+    mock_port.rx_buffer[1] = static_cast<int16_t>(test_buffer[1]);
+
+    // Verifies that the algorithm correctly handles a CRC checksum error (indicates corrupted packets).
+    mock_port.rx_buffer[14] = 123;  // Fake CRC byte, overwrites the crc byte value found at the end of the packet
+    protocol.ReceiveData();
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kCRCCheckFailed),
+        protocol.transfer_status
+    );
+    mock_port.rx_buffer[14] = test_buffer[14];  // Restores the CRC byte value
+    mock_port.rx_buffer_index = 0;        // Resets readout index back to 0
 
     // Verifies that the algorithm correctly handles missing payload_size byte errors. Due to reasons discussed above,
     // for this test to work, the buffer has to be modified to contain valid bytes before the start byte in a way that
@@ -1169,16 +1182,173 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     );
     mock_port.rx_buffer[17]   = test_buffer[7];  // Restores the invalidated byte back to the original value
     mock_port.rx_buffer_index = 0;               // Resets readout index back to 0
+}
 
-    // Verifies that the algorithm correctly handles a CRC checksum error (indicates corrupted packets).
-    mock_port.rx_buffer[24] = 123;  // Fake CRC byte, overwrites the crc byte value found at the end of the packet
+void TestSerializedTransferProtocolDelimiterNotFoundError(void)
+{
+    // Initializes the tested class
+    StreamMock<60> mock_port;
+    TransportLayer<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
+    CRCProcessor<uint16_t> crc_class(0x07, 0x00, 0x00);
+
+    // Initializes a test payload
+    uint8_t test_payload[10] = {1, 2, 3, 4, 0, 0, 7, 8, 9, 10};
+
+    protocol.WriteData(test_payload);
+    protocol.SendData();
+
+   // Instantiates the test buffer. Delimiter is changed.
+    uint8_t test_buffer[15] = {129, 10, 5, 1, 2, 3, 4, 3, 6, 7, 3, 9, 10, 0, 0};
+
+    memcpy(mock_port.rx_buffer, mock_port.tx_buffer, sizeof(test_buffer) * sizeof(mock_port.tx_buffer[0]));
+    mock_port.rx_buffer[13] = 1; // Changes delimiter byte to non zero
+    
+    // Calculates and adds packet CRC checksum to the postamble section of the test_buffer to avoid CRC check error
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, 12);
+    crc_class.AddCRCChecksumToBuffer(test_buffer, 14, crc_checksum);
+
+    // Simulate receiving data
     protocol.ReceiveData();
+
+    // Verifies that the delimiter was not found
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kCRCCheckFailed),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kDelimiterNotFoundError),
         protocol.transfer_status
     );
-    mock_port.rx_buffer[24]   = static_cast<int16_t>(test_buffer[14]);  // Restores the CRC byte value
-    mock_port.rx_buffer_index = 0;                                      // Resets readout index back to 0
+    mock_port.rx_buffer[14] = test_buffer[14];
+    mock_port.rx_buffer_index = 0;  
+}
+
+void TestSerializedTransferProtocolDelimiterFoundTooEarlyError(void)
+{
+ // Initializes the tested class
+    StreamMock<60> mock_port;
+    TransportLayer<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
+    CRCProcessor<uint16_t> crc_class(0x07, 0x00, 0x00);
+
+    // Initializes a test payload
+    uint8_t test_payload[10] = {1, 2, 3, 4, 0, 0, 7, 8, 9, 10};
+
+    protocol.WriteData(test_payload);
+    protocol.SendData();
+
+   // Instantiates the test buffer. Delimiter is changed.
+    uint8_t test_buffer[15] = {129, 10, 5, 1, 2, 3, 4, 3, 6, 7, 3, 9, 10, 0, 0};
+
+    memcpy(mock_port.rx_buffer, mock_port.tx_buffer, sizeof(test_buffer) * sizeof(mock_port.tx_buffer[0]));
+    mock_port.rx_buffer[7] = 0; // Add delimeiter value too early
+    
+    // Calculates and adds packet CRC checksum to the postamble section of the test_buffer to avoid CRC check error
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, 12);
+    crc_class.AddCRCChecksumToBuffer(test_buffer, 14, crc_checksum);
+
+    // Simulate receiving data
+    protocol.ReceiveData();
+
+    // Verifies that the delimiter was found too early
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kDelimiterFoundTooEarlyError),
+        protocol.transfer_status
+    );
+    mock_port.rx_buffer[7] = test_buffer[7];
+    mock_port.rx_buffer_index = 0;  
+}
+
+void TestSerializedTransferProtocolPostambleTimeoutError(void)
+{
+   // Initializes the tested class
+    StreamMock<60> mock_port;
+    TransportLayer<uint16_t, 60, 60, 5> protocol(mock_port, 0x07, 0x00, 0x00, 129, 0, 20000, false);
+    CRCProcessor<uint16_t> crc_class(0x07, 0x00, 0x00);
+    
+    // Initializes a test payload
+    uint8_t test_payload[10] = {1, 2, 3, 4, 0, 0, 7, 8, 9, 10};
+
+    // Currently, it is effectively impossible to encounter an error during data sending as there are now compile-time
+    // guards against every possible error engineered into the class itself or buffer manipulation methods. As such,
+    // simply runs the method sequence here and moves on to testing reception, which can run into errors introduced
+    // during transmission.
+    protocol.WriteData(test_payload);
+    protocol.SendData();
+
+   /// Initializes the test buffer, omitting the postamble to simulate the timeout
+    uint8_t test_buffer[15] = {129, 10, 5, 1, 2, 3, 4, 3, 6, 7, 3, 9, 10, 0, 0}; // Postamble should be here but is missing
+
+    // Writes the components to the mock class rx buffer to simulate data reception
+    // Note, adjusts the size to account for the fact mock class uses uint16 buffers
+    memcpy(mock_port.rx_buffer, mock_port.tx_buffer, sizeof(test_buffer) * sizeof(mock_port.tx_buffer[0]));
+    mock_port.rx_buffer[14] = -1; // Sets postamble byte 8 to an 'invalid' value
+
+    // Calculates and adds packet CRC checksum to the postamble section of the test_buffer to avoid CRC check error
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, 12);
+    crc_class.AddCRCChecksumToBuffer(test_buffer, 14, crc_checksum);
+
+    // Simulate receiving data
+    protocol.ReceiveData();
+
+    // Simulate timeout for postamble not being received
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPostambleTimeoutError),
+        protocol.transfer_status
+    );
+    mock_port.rx_buffer[14] = test_buffer[14];
+    mock_port.rx_buffer_index = 0;  
+}
+
+void TestSendDataMessageSuccess(void)
+{
+    // Mocking a transport layer and communication class setup
+    StreamMock<60> mock_port;
+    Communication comm_class(mock_port);
+
+    const uint8_t module_type = 112;       // Example module type
+    const uint8_t module_id = 12;          // Example module ID
+    const uint8_t command = 88;            // Example command code
+    const uint8_t event_code = 221;        // Example event code
+    const uint8_t placeholder_object = 0;  // Meaningless, placeholder object
+    bool result = comm_class.SendDataMessage(module_type, module_id, command, event_code, placeholder_object);
+
+    // Assert that the message was successfully sent
+    TEST_ASSERT_TRUE(result);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        comm_class.communication_status
+    );
+}
+
+
+// kCommunicationParametersExtracted
+void TestExtractParametersSuccess(void)
+{
+    // Mocking a transport layer and communication class setup
+    StreamMock<60> mock_port;
+    Communication comm_class(mock_port);
+
+    // Mocking the structure to pass into ExtractParameters
+    struct TestStructure
+    {
+        uint8_t id = 1;
+        uint8_t data = 10;
+    } test_structure;
+    
+    const uint8_t module_type = 112;       // Example module type
+    const uint8_t module_id = 12;          // Example module ID
+    const uint8_t command = 88;            // Example command code
+    const uint8_t event_code = 221;        // Example event code
+    const uint8_t placeholder_object = 0;  // Meaningless, placeholder object
+
+    communication_assets::ParameterMessage parameter_head;
+    parameter_head.object_size = sizeof(TestStructure);  // Make sure this is initialized properly
+
+    // Call the ExtractParameters function
+    bool result = comm_class.ExtractParameters(test_structure);
+
+    // Assert that extraction was successful
+    // TEST_ASSERT_TRUE(result);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted),
+        comm_class.communication_status
+    );
 }
 
 // Specifies the test functions to be executed and controls their runtime. Use this function to determine which tests
@@ -1218,6 +1388,11 @@ int RunUnityTests(void)
     // Serial Transfer Protocol Send / Receive Data
     RUN_TEST(TestSerializedTransferProtocolDataTransmission);
     RUN_TEST(TestSerializedTransferProtocolDataTransmissionErrors);
+    RUN_TEST(TestSerializedTransferProtocolDelimiterNotFoundError);
+    RUN_TEST(TestSerializedTransferProtocolPostambleTimeoutError);
+    RUN_TEST(TestSerializedTransferProtocolDelimiterFoundTooEarlyError);
+    RUN_TEST(TestSendDataMessageSuccess);
+    RUN_TEST(TestExtractParametersSuccess);
 
     return UNITY_END();
 }

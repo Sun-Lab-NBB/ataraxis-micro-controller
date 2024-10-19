@@ -266,8 +266,13 @@ class Communication
             ResetTransmissionState();
 
             // Packages data into the message structure
-            communication_assets::DataMessage<ObjectType>
-                message(module_type, module_id, command, event_code, static_cast<uint8_t>(object_size), object);
+            communication_assets::DataMessage<ObjectType> message;
+            message.command = command;
+            message.module_id = module_id;
+            message.module_type = module_type;
+            message.event = event_code;
+            message.object_size = object_size;
+            message.object = object;
 
             // Constructs the payload by writing the protocol code, followed by the message structure generated above
             uint16_t next_index = _transport_layer.WriteData(
@@ -506,7 +511,7 @@ class Communication
          * @endcode
          */
         template <typename ObjectType>
-        bool ExtractParameters(const ObjectType& structure, const uint16_t& bytes_to_read = sizeof(ObjectType))
+        bool ExtractParameters(ObjectType& structure, const uint16_t& bytes_to_read = sizeof(ObjectType))
         {
             if (static_cast<uint8_t>(bytes_to_read) != parameter_header.object_size)
             {
