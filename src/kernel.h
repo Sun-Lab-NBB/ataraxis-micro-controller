@@ -383,7 +383,7 @@ class Kernel
 
             // Processes the received payload, depending on the type (protocol) of the payload:
             // PARAMETERS
-            if (const uint8_t protocol = _communication.protocol_code();
+            if (const uint8_t protocol = _communication.protocol_code;
                 protocol == static_cast<uint8_t>(communication_assets::kProtocols::kParameters))
             {
                 const uint8_t target_type = _communication.parameter_header.module_type;
@@ -593,7 +593,7 @@ class Kernel
             // INVALID PROTOCOL
             // If the protocol is neither command nor parameters data, this indicates an incompatible message
             // protocol and triggers an error message.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kInvalidProtocol);
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kInvalidDataProtocol);
             // Includes the invalid protocol value
             SendData<uint8_t>(kernel_status, _communication.protocol_code);  // Sends the error data to the PC
             kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
@@ -616,7 +616,7 @@ class Kernel
         void RunCommands()
         {
             kernel_command =
-                staic_cast<uint8_t>(kKernelCommands::kRunModuleCommands);  // Adjusts executed command status
+                static_cast<uint8_t>(kKernelCommands::kRunModuleCommands);  // Adjusts executed command status
 
             // Loops over all managed modules
             for (size_t i = 0; i < _module_count; i++)
@@ -673,7 +673,7 @@ class Kernel
 
         /// Stores the unique user-assigned ID of the controller. These IDs help with identifying which controllers
         /// use which serial communication (USB and UART) ports by sending the ID request command.
-        constexpr uint8_t kControllerID;
+        const uint8_t kControllerID;
 };
 
 #endif  //AXMC_KERNEL_H

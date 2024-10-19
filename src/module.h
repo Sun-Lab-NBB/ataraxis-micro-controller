@@ -924,11 +924,11 @@ class Module
 
     protected:
         /// Represents the type (family) of the module. All modules in the family share the same type code.
-        constexpr uint8_t _module_type;
+        const uint8_t _module_type;
 
         /// The specific ID of the module. This code has to be unique within the module family, as it identifies
         /// specific module instance.
-        constexpr uint8_t _module_id;
+        const uint8_t _module_id;
 
         /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
         /// the connected Ataraxis system.

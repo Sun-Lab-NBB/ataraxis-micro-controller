@@ -36,7 +36,8 @@
 // Dependencies
 #include "Arduino.h"
 #include "communication.h"
-#include "transport_layer.h"
+#include "modules/io_communication.h"
+#include "kernel.h"
 
 shared_assets:: DynamicRuntimeParameters DynamicRuntimeParameters;
 
@@ -49,10 +50,18 @@ constexpr shared_assets::StaticRuntimeParameters kStaticRuntimeParameters = {
 // NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
 Communication axmc_communication(Serial);
 
+IOCommunication<1, 2> io_instance(1, 1, axmc_communication, DynamicRuntimeParameters);
+
+Module* modules[] = {&io_instance};
+
+Kernel<1, 123> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
+
 void setup()
 {
     Serial.begin(115200);
 }
 
 void loop()
-{}
+{
+    kernel_instance.ReceiveData();
+}
