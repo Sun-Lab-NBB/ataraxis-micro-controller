@@ -36,8 +36,10 @@
 // Dependencies
 #include "Arduino.h"
 #include "communication.h"
+#include "module.h"
 #include "modules/io_communication.h"
 #include "kernel.h"
+#include "shared_assets.h"
 
 shared_assets:: DynamicRuntimeParameters DynamicRuntimeParameters;
 

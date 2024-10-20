@@ -6,7 +6,8 @@
 #define IO_COMMUNICATION_H
 
 #include <Arduino.h>
-#include <module.h>
+#include "module.h"
+#include "shared_assets.h"
 
 template <uint8_t kOutputPin = 255, uint8_t kInputPin = 255>
 class IOCommunication final : public Module
@@ -60,6 +61,8 @@ class IOCommunication final : public Module
             // For instance, resetting custom internal states or objects
             return true;
         }
+
+        ~IOCommunication() override = default;
 };
 
 #endif  //IO_COMMUNICATION_H

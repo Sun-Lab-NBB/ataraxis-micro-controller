@@ -313,7 +313,7 @@ class Kernel
 
                     // Sets the status and sends the error message to the PC
                     kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError);
-                    SendData(static_cast<uint8_t>(kKernelCommands::kSetupModules), kernel_status, error_object);
+                    SendData(kernel_status, error_object);
                     kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
                     return false;  // Returns without finishing the setup process.
                 }
@@ -399,7 +399,7 @@ class Kernel
                     );
                 }
 
-                // If the parameters are adressed to the Kernel class, the parameters always have to be in the form of
+                // If the parameters are addressed to the Kernel class, the parameters always have to be in the form of
                 // the DynamicRuntimeParameters structure.
                 if (target_type == kModuleType && target_id == kModuleId)
                 {
@@ -424,7 +424,7 @@ class Kernel
                 }
 
                 // Otherwise, if the parameters were not addressed to the Kernel class, loops over the managed modules
-                // and attempts to find the adressed module
+                // and attempts to find the addressed module
                 for (size_t i = 0; i < _module_count; i++)
                 {
                     // If a Module class is found with matching type and id, calls its SetCustomParameters() method to
@@ -555,7 +555,7 @@ class Kernel
                     }
                 }
 
-                // Otherwise, loops over the managed modules and attempts to find the adressed module.
+                // Otherwise, loops over the managed modules and attempts to find the addressed module.
                 for (size_t i = 0; i < _module_count; i++)
                 {
                     // If a Module class is found with matching type and id, queues the command to be executed by the

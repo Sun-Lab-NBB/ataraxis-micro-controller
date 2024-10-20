@@ -140,6 +140,7 @@ class Module
             kRecurrentCommandActivated = 4,  ///< The module has successfully activated a recurrent command.
             kNoQueuedCommands          = 5,  ///< The module does not have any new or recurrent commands to activate.
             kRecurrentTimerNotExpired  = 6,  ///< The module's recurrent activation timeout has not expired yet
+            kNotImplemented            = 7,  ///< Derived class has not implemented the called virtual method
         };
 
         /// Stores the most recent module status code.
@@ -701,7 +702,7 @@ class Module
          * executed when RunActiveCommand() method is called.
          *
          * @notes Any queued command is considered new until this method activates that command. All following
-         * reactivations of the command are considered recurrent.
+         * command reactivations are considered recurrent.
          *
          * @returns bool @b true if a command has been activated and @b false otherwise. Additional information
          * regarding method runtime status can be obtained from the module_status attribute.
@@ -836,7 +837,15 @@ class Module
          * return status;  // Kernel class resolves both error and success outcomes.
          * @endcode
          */
-        virtual bool SetCustomParameters();
+        virtual bool SetCustomParameters()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
 
         /**
          * @brief Calls the specific logic method associated with the currently active command code.
@@ -870,7 +879,15 @@ class Module
          * return true; // This method statically returns 'true' whenever it is able to resolve and call the command.
          * @endcode
          */
-        virtual bool RunActiveCommand();
+        virtual bool RunActiveCommand()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
 
         /**
          * @brief Sets up the software and hardware assets used by the module.
@@ -892,7 +909,15 @@ class Module
          * return true;  // The method ahs to return the boolean success code.
          * @endcode
          */
-        virtual bool SetupModule();
+        virtual bool SetupModule()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
 
         /**
          * @brief Resets all custom structures and objects of the class instance to pre-specified default values.
@@ -912,7 +937,15 @@ class Module
          * custom_parameters_object[2] = 0;  // Reset the third byte of the object to zero.
          * @endcode
          */
-        virtual bool ResetCustomAssets();
+        virtual bool ResetCustomAssets()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
 
         /**
          * @brief A pure virtual destructor method to ensure proper cleanup.
