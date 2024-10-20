@@ -122,14 +122,6 @@ static constexpr uint16_t kSerialBufferSize = 64;
 class Communication
 {
     public:
-        /// Statically reserves '1' as type id of the class. No other Core or (base) Module-derived class should use
-        /// this type id.
-        static constexpr uint8_t kModuleType = 1;
-
-        /// There should always be a single Communication class shared by all other classes. Therefore, the ID for the
-        /// class instance is always 0 (not used).
-        static constexpr uint8_t kModuleId = 0;
-
         /// Tracks the most recent class runtime status.
         uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationStandby);
 
@@ -279,10 +271,16 @@ class Communication
                 kProtocolIndex
             );
 
-            // Writes message payload if the protocol number was successfully written
+            // Writes message payload header if the protocol number was successfully written
             if (next_index != 0)
             {
                 next_index = _transport_layer.WriteData(message, next_index);
+            }
+
+            // Writes the data object if the protocol number was successfully written
+            if (next_index != 0)
+            {
+                next_index = _transport_layer.WriteData(object, next_index);
             }
 
             // If write operation fails, breaks the runtime with an error status. This will be executed regardless of
@@ -564,7 +562,7 @@ class Communication
         /// Stores the first index of the Parameter message object data in the incoming message payload sequence.
         /// Parameter messages are different from other messages, as the parameter object itself is not part of the
         /// message structure. However, the message header has a fixed size, so the first parameter data index
-        /// is static: it is the size of the ParameterMessage structure + Protocol byte (1).
+        /// is static: it is the size of the ParameterMessage structure and Protocol byte (1).
         static constexpr uint16_t kParameterObjectIndex = sizeof(communication_assets::ParameterMessage) + 1;
 
         /// The bound TransportLayer instance that abstracts low-level data communication steps. This class statically

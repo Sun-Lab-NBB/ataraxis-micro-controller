@@ -56,7 +56,7 @@ IOCommunication<1, 2> io_instance(1, 1, axmc_communication, DynamicRuntimeParame
 
 Module* modules[] = {&io_instance};
 
-Kernel<1, 123> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
+Kernel<123, 1> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
 
 void setup()
 {

@@ -50,10 +50,10 @@
  *
  * @subsection mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - shared_assets.h for globally shared static message byte-codes and parameter structures.
- * - communication.h for Communication class, which is used to send module runtime data to the connected system.
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
+ * - communication.h for Communication class, which is used to send module runtime data to the connected system.
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_MODULE_H
@@ -150,13 +150,13 @@ class Module
          * @brief Instantiates a new Module class object.
          *
          * @param module_type The ID that identifies the type family) of the module. All instances of the same custom
-         * module class should share this ID. Has to use a value not reserved by Core classes
-         * (check shared_assets::kCoreMessageCodes) or other Module-derived classes.
+         * module class should share this ID. Has to use a value not reserved by other Module-derived classes or the
+         * Kernel class. Note, value 1 is always reserved for the Kernel! Do not use values below 2!
          * @param module_id This ID is used to identify the specific instance of the module. It can use any value
-         * supported by uint8_t range, as long as no other module in the type (family) uses the same value-.
+         * supported by uint8_t range, as long as no other module in the type (family) uses the same value.
          * @param communication A reference to the Communication class instance that will be used to send module runtime
          * data to the connected system. Usually, a single Communication class instance is shared by all classes of the
-         * AMC codebase during runtime.
+         * AXMC codebase during runtime.
          * @param dynamic_parameters A reference to the ControllerRuntimeParameters structure that stores
          * dynamically addressable runtime parameters that broadly alter the behavior of all modules used by the
          * controller. This structure is modified via Kernel class, modules only read the data from the structure.
@@ -176,7 +176,8 @@ class Module
             _dynamic_parameters(dynamic_parameters)
         {}
 
-        // Non-virtual utility methods. These methods are designed to help developers with writing custom modules. They
+        // UTILITY METHODS.
+        // These methods are designed to help developers with writing custom modules. They
         // are not accessed by the Kernel class and, consequently, do not interface with the Module's runtime status
         // tracker.
 
@@ -641,7 +642,8 @@ class Module
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
-        // Core methods. These methods are used by the Kernel class to integrate the Module into the broader runtime
+        // CORE METHODS.
+        // These methods are used by the Kernel class to integrate the Module into the broader runtime
         // flow managed by the Kernel. Some methods from this section make use of the module_status class field to
         // provide additional information about the method runtime outcome.
 
@@ -660,7 +662,7 @@ class Module
         }
 
         /**
-         * @brief Queues the input command to be executed by the Module.
+         * @brief Queues the input command to be executed by the Module instance.
          *
          * This method queues the command code to be executed and sets the runtime parameters for the command. Once
          * a command is queued in this way, the Module will execute it as soon as it is done with any currently
@@ -707,7 +709,7 @@ class Module
          * @returns bool @b true if a command has been activated and @b false otherwise. Additional information
          * regarding method runtime status can be obtained from the module_status attribute.
          */
-        bool SetActiveCommand()
+        bool ResolveActiveCommand()
         {
             // If the command field is not 0, this means there is already an active command being executed and no
             // further action is necessary. Returns false to indicate no command was activated.
@@ -772,7 +774,7 @@ class Module
          * @brief Resets the class execution_parameters structure to default values.
          *
          * This method is designed for Teensy boards that do not reset on UART / USB cycling. The Kernel uses this
-         * method to reset the Module between runtimes.
+         * method to reset the Module between runtimes and when it receives the Reset command.
          */
         void ResetExecutionParameters()
         {
@@ -781,13 +783,13 @@ class Module
         }
 
         /**
-         * @brief Aborts the active command by forcibly terminating its concurrent runtime.
+         * @brief Aborts the currently active command by forcibly terminating its concurrent runtime.
          *
          * This method is used to cancel an actively running command, provided it is executed in non-blocking mode.
-         * Kernel class uses this command to 'soft' reset the Module in certain circumstances.
+         * Kernel class uses this command to 'soft' reset the Module when it receives the Reset command.
          *
          * @warning This method will not be able to abort blocking commands! Aborting blocking commands requires
-         * software or hardware interrupt functionality and needs to be introduced at the Kernel class level.
+         * software or hardware interrupt functionality and is currently not supported by the Ataraxis framework.
          */
         void AbortCommandExecution()
         {
@@ -812,13 +814,14 @@ class Module
             return _module_type;
         }
 
-        // Virtual methods. Like Core methods, the virtual methods provide the Kernel class with the API to interface
+        // VIRTUAL METHODS.
+        // Like Core methods, the virtual methods provide the Kernel class with the API to interface
         // with the Module class instance. Unlike Core methods, these methods provide access to the custom portion
         // of each Module class instance. Therefore, these methods need to be implemented separately for each class
         // derived from the base Module class.
 
         /**
-         * @brief Overwrites the object used to store custom dynamic parameters of the class instance with the data
+         * @brief Overwrites the object used to store custom addressable parameters of the class instance with the data
          * received from the connected Ataraxis system.
          *
          * Kernel class calls this method when it receives a Parameters message targeted at the specific (base)
@@ -848,11 +851,11 @@ class Module
         };
 
         /**
-         * @brief Calls the specific logic method associated with the currently active command code.
+         * @brief Calls the specific method associated with the currently active command code.
          *
          * Kernel class calls this method cyclically for every managed Module class instance. This method is expected to
-         * contain conditional switch-based logic to call the appropriate custom command logic based on the active
-         * command code. overall, this method provides a stable API that allows Kernel to work with any custom Module
+         * contain conditional switch-based logic to call the appropriate custom class method, based on the active
+         * command code. Overall, this method provides a stable API that allows Kernel to work with any custom Module
          * logic.
          *
          * @returns bool @b true if active command was executed successfully and @b false otherwise. Note, successful

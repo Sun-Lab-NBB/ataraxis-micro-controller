@@ -397,7 +397,7 @@ namespace communication_assets
      * runtime data and error messages to other Ataraxis systems.
      *
      * @notes Data message parameters are stored in a module-type-specific structure, whose layout will not be known at
-     * the time the data is parsed. This structure is the the complete message. It only includes metadata about the data
+     * the time the data is parsed. This structure is the complete message. It only includes metadata about the data
      * being sent (e.g., type, module ID, command, etc.), but it does not include the actual data object (`object`). The
      * data object itself is handled separately and is appended to the payload after the `DataMessage` metadata is 
      * packed.

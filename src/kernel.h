@@ -7,10 +7,30 @@
  * For most other classes of this library to work as expected, the Microcontroller should instantiate and use a Kernel
  * instance to manage its runtime. This class manages communication, resolves success and error codes and schedules
  * commands to be executed. Due to the static API exposed by the (base) Module class, Kernel will natively integrate
- * with any Module-derived class logic.
+ * with any Module-derived class logic. This allows seamlessly integrated custom modules with already existing
+ * Ataraxis control structure, improving overall codebase flexibility.
  *
  * @note A single instance of this class should be created in the main.cpp file. It should be provided with an instance
- * of the Communication class and an array of Module-derived classes during instantiation.
+ * of the Communication class and an array of pointers to Module-derived classes during instantiation.
+ *
+ * The Kernel class contains three major runtime-flow functions that have to be called as part of the main setup() and
+ * loop() methods of the main.cpp or main.ino file:
+ * - SetupModules(): Initializes the hardware (e.g.: pin modes) for all managed modules. This command only needs to be
+ * called once, during setup() method runtime.
+ * - ReceiveData(): Receives and processes the command and parameter messages sent from the connected Ataraxis system.
+ * This command processes the data dressed to Kernel and all managed modules. This command has to be called during
+ * loop() runtime.
+ * - RunCommands(): Loops over managed modules and sequentially executes the necessary stage(s) of the active commands
+ * for these modules. Note, during a single loop cycle, only one command (if blocking) or command stage
+ * (if non-blocking) will be executed. This command has to be called during loop() runtime.
+ *
+ * Additionally, the Kernel contains addressable commands (commands that can be triggered from the connected Ataraxis
+ * system via Communication class):
+ * - ResetController(): Resets all parameters and hardware configuration of all modules and the Kernel class. This is
+ * used to 'soft' reset the controller (opposed to hard-resetting by re-uploading the firmware). Generally, it is
+ * advised to call this command at the end of the runtime on all microcontrollers.
+ * - IdentifyController(): Sends the unique user-defined identifier assigned to the controller. Usually, this is used
+ * when multiple controllers are connected to the same host-system (PC) to map specific USB ports to controllers.
  *
  * @subsection kern_developer_notes Developer Notes:
  * This class functions similar to major OS kernels, although it is considerably limited in scope. Specifically, it
@@ -23,9 +43,9 @@
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
- * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  * - communication.h for Communication class, which is used to bidirectionally communicate with other Ataraxis systems.
- * - module.h for the shared Module API access.
+ * - module.h for the shared Module class API access (allows interfacing with custom modules).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_KERNEL_H
@@ -40,39 +60,47 @@
 #include "shared_assets.h"
 
 /**
- * @brief Provides the central runtime loop and all kernel-level methods that control data reception, execution runtime
- * flow, setup and shutdown.
+ * @brief Provides the central runtime loop and methods that control data reception, runtime flow, setup and shutdown of
+ * the microcontroller's logic.
  *
- * @attention This class functions as the backbone of the AMC codebase by providing runtime flow control functionality.
- * Without it, the AMC codebase would not function as expected. Any modification to this class should be carried out
- * with extreme caution and, ideally, completely avoided by anyone other than the kernel developers of the project.
- *
- * The class contains both major runtime flow methods and minor kernel-level commands that provide general functionality
- * not available through Module (the parent of every custom module class). Overall, this class is designed
- * to compliment Module methods, and together the two classes provide a robust set of features to realize
- * custom Controller-mediated behavior.
+ * @attention This class functions as the backbone of the Ataraxis microcontroller codebase by providing runtime flow
+ * control functionality. Any modification to this class should be carried out with extreme caution and, ideally,
+ * completely avoided by anyone other than the kernel developers of the project.
  *
  * @note This class requires to be provided with an array of pre-initialized Module-derived classes upon instantiation.
  * The class will then manage the runtime of these modules via internal methods.
  *
- * @tparam module_number The number of custom module classes derived from the main Module class) that will be
- * managed by the class instance.
  * @tparam controller_id The unique identifier for the controller managed by the Kernel class instance. This identifier
  * will be sent to the connected system when it requests the identification code of the controller.
+ * @tparam module_number The number of custom module classes derived from the main Module class that will be
+ * managed by the class instance.
+ *
+ * Example instantiation (as would found in main.cpp file):
+ * @code
+ * shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters; // Dynamic runtime parameters structure first
+ * Communication axmc_communication(Serial);  // Communication class second
+ * IOCommunication<1, 2> io_instance(1, 1, axmc_communication, DynamicRuntimeParameters);  // Example custom module
+ * Module* modules[] = {&io_instance};  // Packages module(s) into an array to be provided to the Kernel class
+ *
+ * const uint8_t module_count = 1  // Module count has to match the size of the modules array
+ * const uint8_t controller_id = 123;  // Example controller ID
+ * // Kernel class should always be instantiated last
+ * Kernel<controller_id, module_count> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
+ * @endcode
  */
-template <size_t module_number, uint8_t controller_id>
+template <uint8_t controller_id, size_t module_number = 0>
 class Kernel
 {
         static_assert(
             module_number > 0,
-            "Module number must be greater than 0. At least one valid Module instance must be provided during Kernel "
-            "class initialization."
+            "Module number must be greater than 0. At least one valid Module-derived class instance must be provided "
+            "during Kernel class initialization."
         );
 
     public:
-        /// Statically reserves '2' as type id of the class. No other Core or (base) Module-derived class should use
+        /// Statically reserves '1' as type id of the class. No other Core or (base) Module-derived class should use
         /// this type id.
-        static constexpr uint8_t kModuleType = 2;
+        static constexpr uint8_t kModuleType = 1;
 
         /// There should always be a single Kernel class shared by all other classes. Therefore, the ID for the
         /// class instance is always 0 (not used).
@@ -86,21 +114,23 @@ class Kernel
          * The Kernel class uses these byte-codes to communicate the exact status of various Kernel runtimes between
          * class methods and to send messages to the PC.
          *
-         * @note Unlike most other status-code structures,
+         * @note Due to the overall message code hierarchy, this structure can use any byte-range values for status
+         * codes. Kernel status codes always take precedence over all other status codes for messages sent by the
+         * Kernel class (and, therefore, they will never directly clash with Communication or TransportLayer codes).
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandby                  = 0,  ///< Standby code used during class initialization.
-            kModuleSetupComplete      = 1,  ///< SetupModules() method runtime succeeded.
-            kModuleSetupError         = 2,  ///< SetupModules() method runtime failed due to a module error.
-            kNoDataToReceive          = 3,  ///< ReceiveData() method succeeded without receiving any data.
-            kDataReceptionError       = 4,  ///< ReceiveData() method failed due to a data reception error.
-            kDataSendingError         = 5,  ///< SendData() method failed due to a data sending error.
-            kInvalidDataProtocol      = 6,  ///< Received message uses an unsupported (unknown) protocol.
-            kKernelParametersSet      = 7,  ///< Received and applied the parameters adressed to the Kernel class.
-            kKernelParametersError    = 8,  ///< Unable to apply the received Kernel parameters.
-            kModuleParametersSet      = 9,  ///< Received and applied the parameters adressed to a managed Module class.
-            kModuleParametersError    = 10,  ///< Unable to apply the received Module parameters.
+            kStandby               = 0,   ///< Standby code used during class initialization.
+            kModuleSetupComplete   = 1,   ///< SetupModules() method runtime succeeded.
+            kModuleSetupError      = 2,   ///< SetupModules() method runtime failed due to a module error.
+            kNoDataToReceive       = 3,   ///< ReceiveData() method succeeded without receiving any data.
+            kDataReceptionError    = 4,   ///< ReceiveData() method failed due to a data reception error.
+            kDataSendingError      = 5,   ///< SendData() method failed due to a data sending error.
+            kInvalidDataProtocol   = 6,   ///< Received message uses an unsupported (unknown) protocol.
+            kKernelParametersSet   = 7,   ///< Received and applied the parameters addressed to the Kernel class.
+            kKernelParametersError = 8,   ///< Unable to apply the received Kernel parameters.
+            kModuleParametersSet   = 9,   ///< Received and applied the parameters addressed to a managed Module class.
+            kModuleParametersError = 10,  ///< Unable to apply the received Module parameters.
             kParametersTargetNotFound = 11,  ///< The addressee of the parameters' message could not be found.
             kControllerReset          = 12,  ///< The Kernel has reset the controller's software and hardware states.
             kKernelCommandUnknown     = 13,  ///< The Kernel has received an unknown command.
@@ -118,7 +148,8 @@ class Kernel
          * @brief Specifies the byte-codes for commands that can be executed during runtime.
          *
          * The Kernel class uses these byte-codes to communicate what command was executed when it sends data messages
-         * to the connected system. Usually, this is used for error messages.
+         * to the connected system. Additionally, some of the listed commands are addressable by sending Kernel a
+         * Command message that uses the appropriate command code.
          */
         enum class kKernelCommands : uint8_t
         {
@@ -135,18 +166,22 @@ class Kernel
         /// class runtime.
         uint8_t kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kStandby);
 
-        /// Communicates the active command.
+        /// Tracks the currently active Kernel command. This is used to send data and error messages to the connected
+        /// system. Overall, this provides a unified message system shared by Kernel and Module-derived classes.
         uint8_t kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
 
         /**
          * @brief Creates a new Kernel class instance.
          *
-         * @param communication A reference to the Communication class instance shared by all other runtime-active
-         * class is the only class that can receive data from the PC.
-         * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure used to store addressable
-         * controller runtime parameters.
-         * @param module_array The array of custom module classes (the children inheriting from the base Module class).
-         * The kernel will manage the runtime of these modules.
+         * @param communication A reference to the Communication class instance that will be used to send module runtime
+         * data to the connected system. Usually, a single Communication class instance is shared by all classes of the
+         * AXMC codebase during runtime.
+         * @param dynamic_parameters A reference to the ControllerRuntimeParameters structure that stores
+         * dynamically addressable runtime parameters that broadly alter the behavior of all modules used by the
+         * controller. This structure is addressable through the Kernel class (by sending Parameters message addressed
+         * to the Kernel).
+         * @param module_array The array of pointers to custom module classes (the children inheriting from the base
+         * Module class). The Kernel instance will manage the runtime of these modules.
          */
         Kernel(
             Communication& communication,
@@ -156,8 +191,7 @@ class Kernel
             _modules(module_array),
             _module_count(module_number),
             _communication(communication),
-            _dynamic_parameters(dynamic_parameters),
-            kControllerID(controller_id)
+            _dynamic_parameters(dynamic_parameters)
         {}
 
         /**
@@ -303,7 +337,7 @@ class Kernel
             {
                 if (const bool result = _modules[i]->SetupModule(); !result)
                 {
-                    // If the setup fails, sends an error message the includes the ID information about the failed
+                    // If the setup fails, sends an error message that includes the ID information about the failed
                     // module alongside the status, presumably set to the specific error code.
                     const uint8_t error_object[3] = {
                         _modules[i]->GetModuleType(),
@@ -537,7 +571,7 @@ class Kernel
                             // code of the controller to the connected system.
                             SendServiceMessage(
                                 static_cast<uint8_t>(communication_assets::kProtocols::kIdentification),
-                                kControllerID
+                                controller_id
                             );  // Sends the identification code to the PC
                             kernel_status  = static_cast<uint8_t>(kKernelStatusCodes::kControllerIDSent);
                             kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
@@ -625,7 +659,7 @@ class Kernel
                 // hierarchy: finish already active commands > execute a newly queued command > repeat a cyclic command.
                 // Active command setting does not fail due to errors. 'false' means there is no valid command to
                 // execute. Running the command, on the other hand, may fail.
-                if (_modules[i]->SetActiveCommand())
+                if (_modules[i]->ResolveActiveCommand())
                 {
                     // Since RunActiveCommand is a virtual method intended to be implemented by the end-user
                     // that subclasses the base Module class, it relies on the Kernel to handle runtime errors.
@@ -657,8 +691,8 @@ class Kernel
         Module** _modules;
 
         /// Stores the size of the _modules array. Since each module class is likely to be different in terms of its
-        /// memory size, the individual classes are accessed using pointer-reference system. For this system to work as
-        /// expected, the overall size of the array needs to be stored separately, which is achieved by this
+        /// memory size, the individual classes are accessed using a pointer-reference system. For this system to work
+        /// as expected, the overall size of the array needs to be stored separately, which is achieved by this
         /// variable
         size_t _module_count;
 
@@ -670,10 +704,6 @@ class Kernel
         /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
         shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
-
-        /// Stores the unique user-assigned ID of the controller. These IDs help with identifying which controllers
-        /// use which serial communication (USB and UART) ports by sending the ID request command.
-        const uint8_t kControllerID;
 };
 
 #endif  //AXMC_KERNEL_H
