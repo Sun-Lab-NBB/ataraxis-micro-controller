@@ -50,23 +50,16 @@ class IOCommunication final : public Module
 
                     if (GetCommandStage() == 2)
                     {
-                        if (WaitForMicros(1000000) == true)
+                        if (WaitForMicros(1000000))
                         {
                             digitalWrite(LED_BUILTIN, HIGH);
-                            delayMicroseconds(1000000);
-                            digitalWrite(LED_BUILTIN, LOW);
-                            delayMicroseconds(1000000);
-                            digitalWrite(LED_BUILTIN, HIGH);
-
+                            delay(1000);
+                            digitalWrite(LED_BUILTIN,LOW);
                             CompleteCommand();
-                            return true;
                         }
-                        digitalWrite(LED_BUILTIN, HIGH);
-                        delayMicroseconds(1000000);
-                        digitalWrite(LED_BUILTIN, LOW);
                     }
                     break;
-
+                case 4: break;
                 default: return false;  // Unrecognized command
             }
             return true;  // Command executed successfully

@@ -655,16 +655,16 @@ class Kernel
             // Loops over all managed modules
             for (size_t i = 0; i < _module_count; i++)
             {
-                // First, determines whether the module ahs an active command. This relies on the following choice
+                // First, determines which command to run, if any. This relies on the following choice
                 // hierarchy: finish already active commands > execute a newly queued command > repeat a cyclic command.
-                // Active command setting does not fail due to errors. 'false' means there is no valid command to
-                // execute. Running the command, on the other hand, may fail.
-                if (!_modules[i]->ResolveActiveCommand()) continue;
+                // Active command setting does not fail due to errors, so this method simply needs to be called once for
+                // each module.
+                _modules[i]->ResolveActiveCommand();
 
+                // Since RunActiveCommand is a virtual method intended to be implemented by the end-user
+                // that subclasses the base Module class, it relies on the Kernel to handle runtime errors.
                 if (!_modules[i]->RunActiveCommand())
                 {
-                    // Since RunActiveCommand is a virtual method intended to be implemented by the end-user
-                    // that subclasses the base Module class, it relies on the Kernel to handle runtime errors.
                     // Constructs and sends the appropriate error message to the connected system.
                     uint8_t errors[3] = {
                         _modules[i]->GetModuleType(),

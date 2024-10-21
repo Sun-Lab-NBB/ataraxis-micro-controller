@@ -52,21 +52,19 @@ constexpr shared_assets::StaticRuntimeParameters kStaticRuntimeParameters = {
 // NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
 Communication axmc_communication(Serial);
 
-IOCommunication<1, 2> io_instance(1, 1, axmc_communication, DynamicRuntimeParameters);
+IOCommunication<1, 2> io_instance(4, 5, axmc_communication, DynamicRuntimeParameters);
+IOCommunication<1, 2> io_instance_2(6, 7, axmc_communication, DynamicRuntimeParameters);
 
-Module* modules[] = {&io_instance};
+Module* modules[] = {&io_instance, &io_instance_2};
 
-Kernel<123, 1> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
+Kernel<123, 2> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
 
 void setup()
 {
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
-    io_instance.execution_parameters.new_command=true;
-    io_instance.execution_parameters.next_command=3;
-    io_instance.execution_parameters.next_noblock=false;
-    io_instance.execution_parameters.run_recurrently=true;
-    io_instance.execution_parameters.recurrent_delay=10000000;
+    io_instance.QueueCommand(3, true, true, 5000000);
+    io_instance_2.QueueCommand(4,false,false,1000);
 }
 
 void loop()
