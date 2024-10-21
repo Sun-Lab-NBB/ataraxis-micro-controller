@@ -390,7 +390,7 @@ class Communication
          * message. Based on the protocol code, use command_message or parameter_header attributes to access the
          * parsed message data.
          *
-         * @attention If the received message is a Parameters message, call ExtractParameters()c method to finalize
+         * @attention If the received message is a Parameters message, call ExtractParameters() method to finalize
          * message parsing. This method DOES NOT extract parameter data from the received message.
          *
          * @returns True if a message was successfully received and parsed, false otherwise. Note, if this method
@@ -442,6 +442,7 @@ class Communication
                     }
 
                     // If any of the reading method calls failed, breaks with an error status.
+                    // If data attempting to receive is not in valid message structure.
                     if (next_index == 0)
                     {
                         communication_status =
