@@ -659,24 +659,23 @@ class Kernel
                 // hierarchy: finish already active commands > execute a newly queued command > repeat a cyclic command.
                 // Active command setting does not fail due to errors. 'false' means there is no valid command to
                 // execute. Running the command, on the other hand, may fail.
-                if (_modules[i]->ResolveActiveCommand())
+                if (!_modules[i]->ResolveActiveCommand()) continue;
+
+                if (!_modules[i]->RunActiveCommand())
                 {
                     // Since RunActiveCommand is a virtual method intended to be implemented by the end-user
                     // that subclasses the base Module class, it relies on the Kernel to handle runtime errors.
-                    if (!_modules[i]->RunActiveCommand())
-                    {
-                        // Constructs and sends the appropriate error message to the connected system.
-                        uint8_t errors[3] = {
-                            _modules[i]->GetModuleType(),
-                            _modules[i]->GetModuleID(),
-                            _modules[i]->GetActiveCommand()
-                        };
-                        kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandError);
-                        SendData(kernel_status, errors);
-                        // Does not terminate the runtime and continues with other modules. This is intentionally
-                        // designed to allow recovering from non-fatal command execution errors without terminating the
-                        // runtime.
-                    }
+                    // Constructs and sends the appropriate error message to the connected system.
+                    uint8_t errors[3] = {
+                        _modules[i]->GetModuleType(),
+                        _modules[i]->GetModuleID(),
+                        _modules[i]->GetActiveCommand()
+                    };
+                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandError);
+                    SendData(kernel_status, errors);
+                    // Does not terminate the runtime and continues with other modules. This is intentionally
+                    // designed to allow recovering from non-fatal command execution errors without terminating the
+                    // runtime.
                 }
             }
 

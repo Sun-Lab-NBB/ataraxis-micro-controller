@@ -42,6 +42,31 @@ class IOCommunication final : public Module
                     digitalWrite(kOutputPin, HIGH);
                     break;
                 case 2: digitalWrite(kOutputPin, LOW); break;
+                case 3:  // Blinker test
+                    if (GetCommandStage() == 1)
+                    {
+                        AdvanceCommandStage();
+                    }
+
+                    if (GetCommandStage() == 2)
+                    {
+                        if (WaitForMicros(1000000) == true)
+                        {
+                            digitalWrite(LED_BUILTIN, HIGH);
+                            delayMicroseconds(1000000);
+                            digitalWrite(LED_BUILTIN, LOW);
+                            delayMicroseconds(1000000);
+                            digitalWrite(LED_BUILTIN, HIGH);
+
+                            CompleteCommand();
+                            return true;
+                        }
+                        digitalWrite(LED_BUILTIN, HIGH);
+                        delayMicroseconds(1000000);
+                        digitalWrite(LED_BUILTIN, LOW);
+                    }
+                    break;
+
                 default: return false;  // Unrecognized command
             }
             return true;  // Command executed successfully

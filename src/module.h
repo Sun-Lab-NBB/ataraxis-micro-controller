@@ -61,7 +61,6 @@
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
-#include <elapsedMillis.h>
 #include "communication.h"
 #include "shared_assets.h"
 
@@ -109,11 +108,9 @@ class Module
                 bool new_command     = false;  ///< Tracks whether next_command is a new or recurrent command.
                 bool run_recurrently = false;  ///< Specifies whether the queued command runs once and clears or recurs.
                 uint32_t recurrent_delay = 0;  ///< The minimum number of microseconds between recurrent command calls.
-                elapsedMicros recurrent_timer =
-                    0;  ///< A timer class instance to time recurrent command activation delays.
-                elapsedMicros delay_timer =
-                    0;           ///< A timer class instance to time delays between active command stages.
-        } execution_parameters;  ///< Stores module-specific runtime flow control parameters.
+                elapsedMicros recurrent_timer;  ///< A timer class instance to time recurrent command activation delays.
+                elapsedMicros delay_timer;  ///< A timer class instance to time delays between active command stages.
+        } execution_parameters;             ///< Stores module-specific runtime flow control parameters.
 
         /**
          * @enum kCoreStatusCodes
@@ -372,7 +369,7 @@ class Module
             // this check will always be true.
             if (execution_parameters.delay_timer >= delay_duration)
             {
-                return true;  // Returns true
+                return true;
             }
 
             // If the requested duration has not passed, returns false

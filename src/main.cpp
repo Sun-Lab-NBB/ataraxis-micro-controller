@@ -61,9 +61,16 @@ Kernel<123, 1> kernel_instance(axmc_communication, DynamicRuntimeParameters, mod
 void setup()
 {
     Serial.begin(115200);
+    pinMode(LED_BUILTIN, OUTPUT);
+    io_instance.execution_parameters.new_command=true;
+    io_instance.execution_parameters.next_command=3;
+    io_instance.execution_parameters.next_noblock=false;
+    io_instance.execution_parameters.run_recurrently=true;
+    io_instance.execution_parameters.recurrent_delay=10000000;
 }
 
 void loop()
 {
-    kernel_instance.ReceiveData();
+    //kernel_instance.ReceiveData();
+    kernel_instance.RunCommands();
 }
