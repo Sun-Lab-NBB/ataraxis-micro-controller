@@ -266,13 +266,12 @@ class Communication
             ResetTransmissionState();
 
             // Packages data into the message structure
-            communication_assets::DataMessage<ObjectType> message;
+            communication_assets::DataMessage message;
             message.command = command;
             message.module_id = module_id;
             message.module_type = module_type;
             message.event = event_code;
             message.object_size = object_size;
-            message.object = object;
 
             // Constructs the payload by writing the protocol code, followed by the message structure generated above
             uint16_t next_index = _transport_layer.WriteData(
@@ -393,7 +392,7 @@ class Communication
          * message. Based on the protocol code, use command_message or parameter_header attributes to access the
          * parsed message data.
          *
-         * @attention If the received message is a Parameters message, call ExtractParameters()c method to finalize
+         * @attention If the received message is a Parameters message, call ExtractParameters() method to finalize
          * message parsing. This method DOES NOT extract parameter data from the received message.
          *
          * @returns True if a message was successfully received and parsed, false otherwise. Note, if this method
@@ -445,6 +444,7 @@ class Communication
                     }
 
                     // If any of the reading method calls failed, breaks with an error status.
+                    // If data attempting to receive is not in valid message structure.
                     if (next_index == 0)
                     {
                         communication_status =
