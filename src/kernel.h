@@ -602,7 +602,7 @@ class Kernel
                             _communication.command_message.command,
                             _communication.command_message.noblock,
                             _communication.command_message.cycle,
-                            _communication.command_message.cycle_duration
+                            _communication.command_message.cycle_delay
                         );
 
                         // Ends the reception runtime

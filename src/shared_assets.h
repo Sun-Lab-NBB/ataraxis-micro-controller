@@ -296,10 +296,6 @@ namespace communication_assets
      */
     enum class kProtocols : uint8_t
     {
-        /// Undefined protocol. This value is used as the default initializer and is not a valid protocol code.
-        /// Messages with this protocol code will be interpreted as communication errors.
-        kUndefined = 0,
-
         /// Command message protocol.
         kCommand = 1,
 
@@ -351,12 +347,12 @@ namespace communication_assets
             bool noblock = false;
 
             /// Determines whether the command is executed once or repeatedly cycled with a certain periodicity.
-            /// Together with cycle_duration, this allows triggering both one-shot and cyclic command runtimes.
+            /// Together with cycle_delay, this allows triggering both one-shot and cyclic command runtimes.
             bool cycle = false;
 
-            /// The period of time, in milliseconds, to delay before repeating (cycling) the command. This is only used
+            /// The period of time, in microseconds, to delay before repeating (cycling) the command. This is only used
             /// if the cycle flag is True.
-            uint32_t cycle_duration = 0;
+            uint32_t cycle_delay = 0;
     } __attribute__((packed));
 
     /**
