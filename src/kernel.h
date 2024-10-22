@@ -381,6 +381,8 @@ class Kernel
         {
             kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);  // Sets active command code
 
+            digitalWrite(LED_BUILTIN, LOW);
+
             // Attempts to receive a message sent by the PC. The messages received from the PC are stored in the
             // circular buffer of the controller. The call to this method attempts to parse the message from the
             // data available in the buffer. If only part of the message was received, the method will block for some

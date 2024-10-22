@@ -52,9 +52,6 @@ class IOCommunication final : public Module
                     {
                         if (WaitForMicros(1000000))
                         {
-                            digitalWrite(LED_BUILTIN, HIGH);
-                            delay(1000);
-                            digitalWrite(LED_BUILTIN,LOW);
                             CompleteCommand();
                         }
                     }

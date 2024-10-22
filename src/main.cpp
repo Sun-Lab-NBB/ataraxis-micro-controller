@@ -63,12 +63,12 @@ void setup()
 {
     Serial.begin(115200);
     pinMode(LED_BUILTIN, OUTPUT);
-    io_instance.QueueCommand(3, true, true, 5000000);
-    io_instance_2.QueueCommand(4,false,false,1000);
+    // io_instance.QueueCommand(3, true, true, 5000000);
+    // io_instance_2.QueueCommand(4,false,false,1000);
 }
 
 void loop()
 {
-    //kernel_instance.ReceiveData();
-    kernel_instance.RunCommands();
+    kernel_instance.ReceiveData();
+    // kernel_instance.RunCommands();
 }
