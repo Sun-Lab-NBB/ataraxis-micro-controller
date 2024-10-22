@@ -50,7 +50,7 @@ class IOCommunication final : public Module
 
                     if (GetCommandStage() == 2)
                     {
-                        if (WaitForMicros(1000000))
+                        if (WaitForMicros(1))
                         {
                             CompleteCommand();
                         }

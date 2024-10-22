@@ -254,7 +254,6 @@ class Kernel
             // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
             // unhandled runtime error. The Kernel class manages the indicator inactivation.
             kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kDataSendingError);
-            digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
         /**
@@ -304,7 +303,6 @@ class Kernel
             // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
             // unhandled runtime error. The Kernel class manages the indicator inactivation.
             kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError);
-            digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
         /**

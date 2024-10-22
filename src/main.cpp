@@ -62,7 +62,7 @@ Kernel<123, 2> kernel_instance(axmc_communication, DynamicRuntimeParameters, mod
 void setup()
 {
     Serial.begin(115200);
-    pinMode(LED_BUILTIN, OUTPUT);
+    kernel_instance.SetupModules();
     // io_instance.QueueCommand(3, true, true, 5000000);
     // io_instance_2.QueueCommand(4,false,false,1000);
 }
