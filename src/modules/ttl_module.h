@@ -2,18 +2,23 @@
 // Created by ikond on 10/19/2024.
 //
 
-#ifndef IO_COMMUNICATION_H
-#define IO_COMMUNICATION_H
+#ifndef AXMC_TTL_MODULE_H
+#define AXMC_TTL_MODULE_H
 
 #include <Arduino.h>
+#include <digitalWriteFast.h>
 #include "module.h"
 #include "shared_assets.h"
 
-template <uint8_t kOutputPin = 255, uint8_t kInputPin = 255>
-class IOCommunication final : public Module
+template <const uint8_t kOutputPin, const uint8_t kInputPin>
+class TTLModule final : public Module
 {
+        // The only reason why pins are accessed via template parameter is to enable this static assert here
+        static_assert(kOutputPin != kInputPin, "Input and output pins cannot be the same.");
+
     public:
-        IOCommunication(
+
+        TTLModule(
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
@@ -22,14 +27,15 @@ class IOCommunication final : public Module
             Module(module_type, module_id, communication, dynamic_parameters)
         {}
 
-        static void test_function()
-        {}
-
+        /// Overwrites the custom_parameters structure memory with the data extracted from the Communication
+        /// reception buffer.
         bool SetCustomParameters() override
         {
-            // Example implementation: this could involve setting module-specific parameters from Communication data
-            // Here we assume a generic placeholder for a parameter object. You can customize based on your application
-            return false;
+            // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
+            // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
+            // PC.
+            if (!_communication.ExtractParameters(_custom_parameters)) return false;
+            return true;
         }
 
         bool RunActiveCommand() override
@@ -62,22 +68,30 @@ class IOCommunication final : public Module
             return true;  // Command executed successfully
         }
 
+        /// Sets up module hardware parameters.
         bool SetupModule() override
         {
-            // Set up the module, e.g., setting pin modes
             pinMode(kOutputPin, OUTPUT);
             pinMode(kInputPin, INPUT);
             return true;
         }
 
+        /// Resets the custom_parameters structure fields to their default values.
         bool ResetCustomAssets() override
         {
-            // Reset custom parameters or assets here, if necessary
-            // For instance, resetting custom internal states or objects
+            _custom_parameters.command = 0;
+            _custom_parameters.stage   = 0;
             return true;
         }
 
-        ~IOCommunication() override = default;
+        ~TTLModule() override = default;
+
+    private:
+        struct CustomRuntimeParameters
+        {
+                uint8_t command = 0;  ///< Currently executed (in-progress) command.
+                uint8_t stage   = 0;  ///< Stage of the currently executed command.
+        } _custom_parameters;
 };
 
-#endif  //IO_COMMUNICATION_H
+#endif  //AXMC_TTL_MODULE_H

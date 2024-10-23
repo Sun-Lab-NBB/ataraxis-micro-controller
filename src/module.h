@@ -54,6 +54,7 @@
  * - elapsedMillis.h for millisecond and microsecond timers.
  * - communication.h for Communication class, which is used to send module runtime data to the connected system.
  * - shared_assets.h for globally shared static message byte-codes and parameter structures.
+ *
  */
 
 #ifndef AXMC_MODULE_H
@@ -61,6 +62,7 @@
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
+#include <elapsedMillis.h>
 #include "communication.h"
 #include "shared_assets.h"
 
@@ -172,6 +174,348 @@ class Module
             _communication(communication),
             _dynamic_parameters(dynamic_parameters)
         {}
+
+        // CORE METHODS.
+        // These methods are used by the Kernel class to integrate the Module into the broader runtime
+        // flow managed by the Kernel. Some methods from this section make use of the module_status class field to
+        // provide additional information about the method runtime outcome.
+
+        /**
+         * @brief Returns the code of the currently active (running) command.
+         *
+         * If there are no active commands, the returned code will be 0.
+         *
+         * The Kernel class uses this accessor method to infer when the Module is ready to execute the next
+         * queued command (if available).
+         */
+        [[nodiscard]]
+        uint8_t GetActiveCommand() const
+        {
+            return execution_parameters.command;
+        }
+
+        /**
+         * @brief Queues the input command to be executed by the Module instance.
+         *
+         * This method queues the command code to be executed and sets the runtime parameters for the command. Once
+         * a command is queued in this way, the Module will execute it as soon as it is done with any currently
+         * running command, ignoring any recursive (cyclic) flags it had before. The Kernel class uses this method to
+         * queue commands received from the connected Ataraxis system for execution.
+         *
+         * @note This method is explicitly written in a way that allows replacing any already queued command. Since the
+         * Module buffer is designed to only hold 1 command a time, this allows replacing the queued command in response
+         * to external events.
+         *
+         * @warning This method does not check whether the input command code is valid. It only saves it to the
+         * appropriate field of the execution_parameters structure. The validity check should be carried out by the
+         * virtual RunActiveCommand() method.
+         *
+         * @param command The byte-code of the command to execute.
+         * @param noblock Determines whether the queued command will be executed in blocking or non-blocking mode.
+         * Non-blocking execution requires the command to make use of the class utility functions that support
+         * non-blocking delays.
+         * @param cycle Determines whether to execute the command once or run it recurrently (cyclically).
+         * @param cycle_delay The number of microseconds to delay between command repetitions when it is executed
+         * cyclically (recurrently).
+         */
+        void QueueCommand(const uint8_t command, const bool noblock, const bool cycle, const uint32_t cycle_delay)
+        {
+            execution_parameters.next_command    = command;      // Sets the command to be executed
+            execution_parameters.next_noblock    = noblock;      // Sets the noblock flag for the command
+            execution_parameters.run_recurrently = cycle;        // Sets the recurrent runtime flag for the command
+            execution_parameters.recurrent_delay = cycle_delay;  // Sets the recurrent delay for the command
+            execution_parameters.new_command     = true;         // Notifies other class methods this is a new command
+        }
+
+        /**
+         * @brief If the module does not have an active command, activates the next queued command.
+         *
+         * If a new command is available, preferentially executes that command. If new command is not available, but
+         * recursive command execution is enabled, repeats the previous command. When repeating previous commands, the
+         * method checks whether the specified 'recurrent_delay' of microseconds has passed since the last command
+         * activation, before (re)activating the command. The Kernel uses this method to set up the command to be
+         * executed when RunActiveCommand() method is called.
+         *
+         * @notes Any queued command is considered new until this method activates that command. All following
+         * command reactivations are considered recurrent.
+         *
+         * @returns bool @b true if a command has been activated and @b false otherwise. Additional information
+         * regarding method runtime status can be obtained from the module_status attribute.
+         */
+        bool ResolveActiveCommand()
+        {
+            // If the command field is not 0, this means there is already an active command being executed and no
+            // further action is necessary. Returns false to indicate no command was activated.
+            if (execution_parameters.command != 0)
+            {
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandAlreadyRunning);
+                return false;
+            }
+
+            // If the next_command field is set to 0, this means that the module does not have any new or recurrent
+            // commands to execute. Returns false to indicate no command was activated.
+            if (execution_parameters.next_command == 0)
+            {
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kNoQueuedCommands);
+                return false;
+            }
+
+            // If the new_command flag is set to true activates the queued command.
+            if (execution_parameters.new_command)
+            {
+                // Transfers the command and the noblock flag from buffer fields to active fields
+                execution_parameters.command = execution_parameters.next_command;
+                execution_parameters.noblock = execution_parameters.next_noblock;
+
+                // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
+                // should start with stage 1 and deadlock if the stage is kept at 0 (default reset state)
+                execution_parameters.stage = 1;
+
+                // Removes the new_command flag to indicate that the new command has been consumed
+                execution_parameters.new_command = false;
+
+                // Resets recurrent timer to 0 whenever a command is activated
+                execution_parameters.recurrent_timer = 0;
+
+                // Returns 'true' to indicate that a new command was activated
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kNewCommandActivated);
+                return true;
+            }
+
+            // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
+            // number of microseconds has passed, re-activates the previously executed command.
+            if (execution_parameters.run_recurrently &&
+                execution_parameters.recurrent_timer > execution_parameters.recurrent_delay &&
+                execution_parameters.next_command != 0)
+            {
+                // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
+                execution_parameters.command         = execution_parameters.next_command;
+                execution_parameters.noblock         = execution_parameters.next_noblock;
+                execution_parameters.stage           = 1;
+                execution_parameters.recurrent_timer = 0;
+                module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentCommandActivated);
+                return true;
+            }
+
+            // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
+            // Returns false to indicate that no command was activated.
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentTimerNotExpired);
+            return false;
+        }
+
+        /**
+         * @brief Resets the class execution_parameters structure to default values.
+         *
+         * This method is designed for Teensy boards that do not reset on UART / USB cycling. The Kernel uses this
+         * method to reset the Module between runtimes and when it receives the Reset command.
+         */
+        void ResetExecutionParameters()
+        {
+            // Rests the execution_parameters structure back to default values
+            execution_parameters.command         = 0;
+            execution_parameters.stage           = 0;
+            execution_parameters.noblock         = false;
+            execution_parameters.next_command    = 0;
+            execution_parameters.next_noblock    = false;
+            execution_parameters.new_command     = false;
+            execution_parameters.run_recurrently = false;
+            execution_parameters.recurrent_delay = 0;
+            execution_parameters.recurrent_timer = 0;
+            execution_parameters.delay_timer     = 0;
+        }
+
+        /**
+         * @brief Aborts the currently active command by forcibly terminating its concurrent runtime.
+         *
+         * This method is used to cancel an actively running command, provided it is executed in non-blocking mode.
+         * Kernel class uses this command to 'soft' reset the Module when it receives the Reset command.
+         *
+         * @warning This method will not be able to abort blocking commands! Aborting blocking commands requires
+         * software or hardware interrupt functionality and is currently not supported by the Ataraxis framework.
+         */
+        void AbortCommandExecution()
+        {
+            CompleteCommand();
+        }
+
+        /**
+         * @brief Returns the ID of the Module instance.
+         */
+        [[nodiscard]]
+        uint8_t GetModuleID() const
+        {
+            return _module_id;
+        }
+
+        /**
+         * @brief Returns the type (family ID) of the Module instance.
+         */
+        [[nodiscard]]
+        uint8_t GetModuleType() const
+        {
+            return _module_type;
+        }
+
+        // VIRTUAL METHODS.
+        // Like Core methods, the virtual methods provide the Kernel class with the API to interface
+        // with the Module class instance. Unlike Core methods, these methods provide access to the custom portion
+        // of each Module class instance. Therefore, these methods need to be implemented separately for each class
+        // derived from the base Module class.
+
+        /**
+         * @brief Overwrites the object used to store custom addressable parameters of the class instance with the data
+         * received from the connected Ataraxis system.
+         *
+         * Kernel class calls this method when it receives a Parameters message targeted at the specific (base)
+         * Module-derived class instance. This method is expected to call the ExtractParameters() method of the
+         * bound Communication class (_communication attribute) to parse the received data into the Module's custom
+         * parameters object. Commonly, the parameter object is a Structure, but it can also be any valid C++ data
+         * object.
+         *
+         * @returns bool @b true if new parameters were parsed successfully and @b false otherwise. The Kernel class
+         * will handle both return codes as needed.
+         *
+         * This is an example of how to implement this method (what to put in the method's body):
+         * @code
+         * uint8_t custom_parameters_object[3] = {0, 0, 0}; // Assume this object was created at class instantiation.
+         * bool status = _communication.ExtractParameters(custom_parameters_object);  // Writes data into the object.
+         * return status;  // Kernel class resolves both error and success outcomes.
+         * @endcode
+         */
+        virtual bool SetCustomParameters()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
+
+        /**
+         * @brief Calls the specific method associated with the currently active command code.
+         *
+         * Kernel class calls this method cyclically for every managed Module class instance. This method is expected to
+         * contain conditional switch-based logic to call the appropriate custom class method, based on the active
+         * command code. Overall, this method provides a stable API that allows Kernel to work with any custom Module
+         * logic.
+         *
+         * @returns bool @b true if active command was executed successfully and @b false otherwise. Note, successful
+         * execution does not mean that the command was completed. Non-blocking commands may need multiple calls to this
+         * method to complete.
+         *
+         * This is an example of how to implement this method (what to put in the method's body):
+         * @code
+         * uint8_t active_command = GetActiveCommand();  // Returns the code of the currently active command.
+         * switch (active_command) {
+         *  case 5:
+         *      // If command 5 runs into an error, it should use the SendData() method to send the error message to the
+         *      // connected system. All commands are expected to have 'void' return type.
+         *      command_5();
+         *  case 9:
+         *      // All commands should not take any arguments. Any static or dynamic runtime parameters should be
+         *      // accessible through custom class instance attributes.
+         *      command_9();
+         *  default:
+         *      // If this method does not recognize the active command code, it should return false. The Kernel class
+         *      // will then handle this as an error case.
+         *      return false;
+         * }
+         * return true; // This method statically returns 'true' whenever it is able to resolve and call the command.
+         * @endcode
+         */
+        virtual bool RunActiveCommand()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
+
+        /**
+         * @brief Sets up the software and hardware assets used by the module.
+         *
+         * Kernel class calls this method after receiving the reset command and during initial controller Setup()
+         * function runtime. Use this method to set up the pins used by the Module, alongside any other hardware or
+         * software assets.
+         *
+         * @attention Ideally, this method should not contain any logic that can fail or block. Many core dependencies,
+         * such as USB / UART communication, are initialized during setup, which may interfere with handling setup
+         * errors.
+         *
+         * @returns bool @b true if the setup method ran successfully and @b false otherwise. The Kernel will attempt
+         * to handle errors, but there is no guarantee it will succeed.
+         *
+         * @code
+         * const uint8_t output_pin = 12; // Assume this was defined as a compile time constant class attribute.
+         * pinModeFast(output_pin, OUTPUT);  // Sets the output pin as output.
+         * return true;  // The method ahs to return the boolean success code.
+         * @endcode
+         */
+        virtual bool SetupModule()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
+
+        /**
+         * @brief Resets all custom structures and objects of the class instance to pre-specified default values.
+         *
+         * Kernel class calls this method after receiving the reset command. Use this method to reset parameter objects
+         * and class attributes to default values.
+         *
+         * @warning Although this method is written in a way that implies it can return error or success codes, it
+         * should generally not be possible for this method to fail.
+         *
+         * @returns bool @b true if all custom assets have been reset to default values and @b false otherwise.
+         *
+         * @code
+         * uint8_t custom_parameters_object[3] = {5, 5, 5}; // Assume this object was created at class instantiation.
+         * custom_parameters_object[0] = 0;  // Reset the first byte of the object to zero.
+         * custom_parameters_object[1] = 0;  // Reset the second byte of the object to zero.
+         * custom_parameters_object[2] = 0;  // Reset the third byte of the object to zero.
+         * @endcode
+         */
+        virtual bool ResetCustomAssets()
+        {
+            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
+            // construct the virtual table for the Module parent class. While this is not a solution of the root
+            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
+            // (aka: 'shenanigan fix').
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
+            return false;
+        };
+
+        /**
+         * @brief A pure virtual destructor method to ensure proper cleanup.
+         *
+         * Currently, there are no extra cleanup steps other than class deletion itself, which also does not happen
+         * as everything in the codebase so far is static. Generally safe to reimplement without additional logic.
+         */
+        virtual ~Module() = default;
+
+    protected:
+        /// Represents the type (family) of the module. All modules in the family share the same type code.
+        const uint8_t _module_type;
+
+        /// The specific ID of the module. This code has to be unique within the module family, as it identifies
+        /// specific module instance.
+        const uint8_t _module_id;
+
+        /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
+        /// the connected Ataraxis system.
+        Communication& _communication;
+
+        /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
+        /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
+        /// structure dynamically enables or disables output pin activity.
+        const shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 
         // UTILITY METHODS.
         // These methods are designed to help developers with writing custom modules. They
@@ -591,15 +935,14 @@ class Module
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param object Additional data object to be sent along with the message. Currently, all data messages
          * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
-         * object to include. By default, this is set to placeholder byte value 255, which is always parsed as
-         * placeholder and will be ignored upon reception.
+         * object to include.
          * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
          * the type of the object. Do not overwrite this argument.
          */
         template <typename ObjectType>
         void SendData(
             const uint8_t event_code,
-            const ObjectType& object = communication_assets::kDataPlaceholder,
+            const ObjectType& object,
             const size_t object_size = sizeof(ObjectType)
         )
         {
@@ -638,339 +981,6 @@ class Module
             module_status = static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError);
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
-
-        // CORE METHODS.
-        // These methods are used by the Kernel class to integrate the Module into the broader runtime
-        // flow managed by the Kernel. Some methods from this section make use of the module_status class field to
-        // provide additional information about the method runtime outcome.
-
-        /**
-         * @brief Returns the code of the currently active (running) command.
-         *
-         * If there are no active commands, the returned code will be 0.
-         *
-         * The Kernel class uses this accessor method to infer when the Module is ready to execute the next
-         * queued command (if available).
-         */
-        [[nodiscard]]
-        uint8_t GetActiveCommand() const
-        {
-            return execution_parameters.command;
-        }
-
-        /**
-         * @brief Queues the input command to be executed by the Module instance.
-         *
-         * This method queues the command code to be executed and sets the runtime parameters for the command. Once
-         * a command is queued in this way, the Module will execute it as soon as it is done with any currently
-         * running command, ignoring any recursive (cyclic) flags it had before. The Kernel class uses this method to
-         * queue commands received from the connected Ataraxis system for execution.
-         *
-         * @note This method is explicitly written in a way that allows replacing any already queued command. Since the
-         * Module buffer is designed to only hold 1 command a time, this allows replacing the queued command in response
-         * to external events.
-         *
-         * @warning This method does not check whether the input command code is valid. It only saves it to the
-         * appropriate field of the execution_parameters structure. The validity check should be carried out by the
-         * virtual RunActiveCommand() method.
-         *
-         * @param command The byte-code of the command to execute.
-         * @param noblock Determines whether the queued command will be executed in blocking or non-blocking mode.
-         * Non-blocking execution requires the command to make use of the class utility functions that support
-         * non-blocking delays.
-         * @param cycle Determines whether to execute the command once or run it recurrently (cyclically).
-         * @param cycle_delay The number of microseconds to delay between command repetitions when it is executed
-         * cyclically (recurrently).
-         */
-        void QueueCommand(const uint8_t command, const bool noblock, const bool cycle, const uint32_t cycle_delay)
-        {
-            execution_parameters.next_command    = command;      // Sets the command to be executed
-            execution_parameters.next_noblock    = noblock;      // Sets the noblock flag for the command
-            execution_parameters.run_recurrently = cycle;        // Sets the recurrent runtime flag for the command
-            execution_parameters.recurrent_delay = cycle_delay;  // Sets the recurrent delay for the command
-            execution_parameters.new_command     = true;         // Notifies other class methods this is a new command
-        }
-
-        /**
-         * @brief If the module does not have an active command, activates the next queued command.
-         *
-         * If a new command is available, preferentially executes that command. If new command is not available, but
-         * recursive command execution is enabled, repeats the previous command. When repeating previous commands, the
-         * method checks whether the specified 'recurrent_delay' of microseconds has passed since the last command
-         * activation, before (re)activating the command. The Kernel uses this method to set up the command to be
-         * executed when RunActiveCommand() method is called.
-         *
-         * @notes Any queued command is considered new until this method activates that command. All following
-         * command reactivations are considered recurrent.
-         *
-         * @returns bool @b true if a command has been activated and @b false otherwise. Additional information
-         * regarding method runtime status can be obtained from the module_status attribute.
-         */
-        bool ResolveActiveCommand()
-        {
-            // If the command field is not 0, this means there is already an active command being executed and no
-            // further action is necessary. Returns false to indicate no command was activated.
-            if (execution_parameters.command != 0)
-            {
-                module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandAlreadyRunning);
-                return false;
-            }
-
-            // If the next_command field is set to 0, this means that the module does not have any new or recurrent
-            // commands to execute. Returns false to indicate no command was activated.
-            if (execution_parameters.next_command == 0)
-            {
-                module_status = static_cast<uint8_t>(kCoreStatusCodes::kNoQueuedCommands);
-                return false;
-            }
-
-            // If the new_command flag is set to true activates the queued command.
-            if (execution_parameters.new_command)
-            {
-                // Transfers the command and the noblock flag from buffer fields to active fields
-                execution_parameters.command = execution_parameters.next_command;
-                execution_parameters.noblock = execution_parameters.next_noblock;
-
-                // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
-                // should start with stage 1 and deadlock if the stage is kept at 0 (default reset state)
-                execution_parameters.stage = 1;
-
-                // Removes the new_command flag to indicate that the new command has been consumed
-                execution_parameters.new_command = false;
-
-                // Resets recurrent timer to 0 whenever a command is activated
-                execution_parameters.recurrent_timer = 0;
-
-                // Returns 'true' to indicate that a new command was activated
-                module_status = static_cast<uint8_t>(kCoreStatusCodes::kNewCommandActivated);
-                return true;
-            }
-
-            // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
-            // number of microseconds has passed, re-activates the previously executed command.
-            if (execution_parameters.run_recurrently &&
-                execution_parameters.recurrent_timer > execution_parameters.recurrent_delay &&
-                execution_parameters.next_command != 0)
-            {
-                // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
-                execution_parameters.command         = execution_parameters.next_command;
-                execution_parameters.noblock         = execution_parameters.next_noblock;
-                execution_parameters.stage           = 1;
-                execution_parameters.recurrent_timer = 0;
-                module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentCommandActivated);
-                return true;
-            }
-
-            // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
-            // Returns false to indicate that no command was activated.
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentTimerNotExpired);
-            return false;
-        }
-
-        /**
-         * @brief Resets the class execution_parameters structure to default values.
-         *
-         * This method is designed for Teensy boards that do not reset on UART / USB cycling. The Kernel uses this
-         * method to reset the Module between runtimes and when it receives the Reset command.
-         */
-        void ResetExecutionParameters()
-        {
-            // Sets execution_parameters to a default instance of ExecutionControlParameters structure
-            execution_parameters = ExecutionControlParameters();
-        }
-
-        /**
-         * @brief Aborts the currently active command by forcibly terminating its concurrent runtime.
-         *
-         * This method is used to cancel an actively running command, provided it is executed in non-blocking mode.
-         * Kernel class uses this command to 'soft' reset the Module when it receives the Reset command.
-         *
-         * @warning This method will not be able to abort blocking commands! Aborting blocking commands requires
-         * software or hardware interrupt functionality and is currently not supported by the Ataraxis framework.
-         */
-        void AbortCommandExecution()
-        {
-            CompleteCommand();
-        }
-
-        /**
-         * @brief Returns the ID of the Module instance.
-         */
-        [[nodiscard]]
-        uint8_t GetModuleID() const
-        {
-            return _module_id;
-        }
-
-        /**
-         * @brief Returns the type (family ID) of the Module instance.
-         */
-        [[nodiscard]]
-        uint8_t GetModuleType() const
-        {
-            return _module_type;
-        }
-
-        // VIRTUAL METHODS.
-        // Like Core methods, the virtual methods provide the Kernel class with the API to interface
-        // with the Module class instance. Unlike Core methods, these methods provide access to the custom portion
-        // of each Module class instance. Therefore, these methods need to be implemented separately for each class
-        // derived from the base Module class.
-
-        /**
-         * @brief Overwrites the object used to store custom addressable parameters of the class instance with the data
-         * received from the connected Ataraxis system.
-         *
-         * Kernel class calls this method when it receives a Parameters message targeted at the specific (base)
-         * Module-derived class instance. This method is expected to call the ExtractParameters() method of the
-         * bound Communication class (_communication attribute) to parse the received data into the Module's custom
-         * parameters object. Commonly, the parameter object is a Structure, but it can also be any valid C++ data
-         * object.
-         *
-         * @returns bool @b true if new parameters were parsed successfully and @b false otherwise. The Kernel class
-         * will handle both return codes as needed.
-         *
-         * This is an example of how to implement this method (what to put in the method's body):
-         * @code
-         * uint8_t custom_parameters_object[3] = {0, 0, 0}; // Assume this object was created at class instantiation.
-         * bool status = _communication.ExtractParameters(custom_parameters_object);  // Writes data into the object.
-         * return status;  // Kernel class resolves both error and success outcomes.
-         * @endcode
-         */
-        virtual bool SetCustomParameters()
-        {
-            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
-            // construct the virtual table for the Module parent class. While this is not a solution of the root
-            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
-            // (aka: 'shenanigan fix').
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
-            return false;
-        };
-
-        /**
-         * @brief Calls the specific method associated with the currently active command code.
-         *
-         * Kernel class calls this method cyclically for every managed Module class instance. This method is expected to
-         * contain conditional switch-based logic to call the appropriate custom class method, based on the active
-         * command code. Overall, this method provides a stable API that allows Kernel to work with any custom Module
-         * logic.
-         *
-         * @returns bool @b true if active command was executed successfully and @b false otherwise. Note, successful
-         * execution does not mean that the command was completed. Non-blocking commands may need multiple calls to this
-         * method to complete.
-         *
-         * This is an example of how to implement this method (what to put in the method's body):
-         * @code
-         * uint8_t active_command = GetActiveCommand();  // Returns the code of the currently active command.
-         * switch (active_command) {
-         *  case 5:
-         *      // If command 5 runs into an error, it should use the SendData() method to send the error message to the
-         *      // connected system. All commands are expected to have 'void' return type.
-         *      command_5();
-         *  case 9:
-         *      // All commands should not take any arguments. Any static or dynamic runtime parameters should be
-         *      // accessible through custom class instance attributes.
-         *      command_9();
-         *  default:
-         *      // If this method does not recognize the active command code, it should return false. The Kernel class
-         *      // will then handle this as an error case.
-         *      return false;
-         * }
-         * return true; // This method statically returns 'true' whenever it is able to resolve and call the command.
-         * @endcode
-         */
-        virtual bool RunActiveCommand()
-        {
-            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
-            // construct the virtual table for the Module parent class. While this is not a solution of the root
-            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
-            // (aka: 'shenanigan fix').
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
-            return false;
-        };
-
-        /**
-         * @brief Sets up the software and hardware assets used by the module.
-         *
-         * Kernel class calls this method after receiving the reset command and during initial controller Setup()
-         * function runtime. Use this method to set up the pins used by the Module, alongside any other hardware or
-         * software assets.
-         *
-         * @attention Ideally, this method should not contain any logic that can fail or block. Many core dependencies,
-         * such as USB / UART communication, are initialized during setup, which may interfere with handling setup
-         * errors.
-         *
-         * @returns bool @b true if the setup method ran successfully and @b false otherwise. The Kernel will attempt
-         * to handle errors, but there is no guarantee it will succeed.
-         *
-         * @code
-         * const uint8_t output_pin = 12; // Assume this was defined as a compile time constant class attribute.
-         * pinModeFast(output_pin, OUTPUT);  // Sets the output pin as output.
-         * return true;  // The method ahs to return the boolean success code.
-         * @endcode
-         */
-        virtual bool SetupModule()
-        {
-            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
-            // construct the virtual table for the Module parent class. While this is not a solution of the root
-            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
-            // (aka: 'shenanigan fix').
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
-            return false;
-        };
-
-        /**
-         * @brief Resets all custom structures and objects of the class instance to pre-specified default values.
-         *
-         * Kernel class calls this method after receiving the reset command. Use this method to reset parameter objects
-         * and class attributes to default values.
-         *
-         * @warning Although this method is written in a way that implies it can return error or success codes, it
-         * should generally not be possible for this method to fail.
-         *
-         * @returns bool @b true if all custom assets have been reset to default values and @b false otherwise.
-         *
-         * @code
-         * uint8_t custom_parameters_object[3] = {5, 5, 5}; // Assume this object was created at class instantiation.
-         * custom_parameters_object[0] = 0;  // Reset the first byte of the object to zero.
-         * custom_parameters_object[1] = 0;  // Reset the second byte of the object to zero.
-         * custom_parameters_object[2] = 0;  // Reset the third byte of the object to zero.
-         * @endcode
-         */
-        virtual bool ResetCustomAssets()
-        {
-            // For some reason unless all 'virtual' methods have a fallback implementation, the linker is unable to
-            // construct the virtual table for the Module parent class. While this is not a solution of the root
-            // problem (likely GCC over-optimizes things at compilation), this allows the code to compile and link
-            // (aka: 'shenanigan fix').
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kNotImplemented);
-            return false;
-        };
-
-        /**
-         * @brief A pure virtual destructor method to ensure proper cleanup.
-         *
-         * Currently, there are no extra cleanup steps other than class deletion itself, which also does not happen
-         * as everything in the codebase so far is static. Generally safe to reimplement without additional logic.
-         */
-        virtual ~Module() = default;
-
-    protected:
-        /// Represents the type (family) of the module. All modules in the family share the same type code.
-        const uint8_t _module_type;
-
-        /// The specific ID of the module. This code has to be unique within the module family, as it identifies
-        /// specific module instance.
-        const uint8_t _module_id;
-
-        /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
-        /// the connected Ataraxis system.
-        Communication& _communication;
-
-        /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
-        /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
-        /// structure dynamically enables or disables output pin activity.
-        const shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 };
 
 #endif  //AXMC_MODULE_H

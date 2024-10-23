@@ -168,30 +168,6 @@ class Communication
         {}
 
         /**
-         * @brief Resets the transmission_buffer and any TransportLayer and Communication class tracker variables
-         * implicated in the data transmission process.
-         *
-         * @note This method is called by all other class methods where necessary and does not need to be called
-         * manually. It is kept public to support testing.
-         */
-        void ResetTransmissionState()
-        {
-            _transport_layer.ResetTransmissionBuffer();
-        }
-
-        /**
-         * @brief Resets the reception_buffer and any AtaraxisTransportLayer and Communication class tracker
-         * variables implicated in the data reception process.
-         *
-         * @note This method is called by all other class methods where necessary and does not need to be called
-         * manually. It is kept public to support testing.
-         */
-        void ResetReceptionState()
-        {
-            _transport_layer.ResetReceptionBuffer();
-        }
-
-        /**
          * @brief Returns the latest status code of the TransportLayer class used by the Communication class.
          *
          * This method is used by the Kernel class when handling Communication class errors. Specifically, knowing the
@@ -254,9 +230,6 @@ class Communication
             const size_t object_size = sizeof(ObjectType)
         )
         {
-            // Clears out the transmission buffer to prepare it for sending the message
-            ResetTransmissionState();
-
             // Packages data into the message structure
             communication_assets::DataMessage message{};
             message.command = command;
@@ -336,9 +309,6 @@ class Communication
             // Casts protocol code to the kProtocols enumeration to simplify the 'if' check below
             const auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
 
-            // Resets transmission buffer to prepare it for sending the message
-            ResetTransmissionState();
-
             // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
             if (protocol == communication_assets::kProtocols::kReceptionCode ||
                 protocol == communication_assets::kProtocols::kIdentification)
@@ -408,8 +378,6 @@ class Communication
          */
         bool ReceiveMessage()
         {
-            ResetReceptionState();  // Resets the reception buffer before reading a new message.
-
             // Attempts to receive the next available message
             if (_transport_layer.ReceiveData())
             {

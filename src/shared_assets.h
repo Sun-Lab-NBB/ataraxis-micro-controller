@@ -137,7 +137,6 @@ namespace shared_assets
         kCommunicationParameterSizeMismatchError =
             160,  ///< The number of extracted parameter bytes does not match the size of the input structure.
         kCommunicationParametersExtracted = 161,  ///< Parameter data has been successfully extracted.
-
     };
 
     /**
@@ -162,59 +161,6 @@ namespace shared_assets
             /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Same as action_lock,
             /// this only works for digital and analog writing methods inherited from the base Module class.
             bool ttl_lock = true;
-    };
-
-    /**
-     * @struct StaticRuntimeParameters
-     * @brief Stores global runtime parameters that should be defined at compile time.
-     *
-     * These parameters broadly affect the runtime of all library classes. Critically, this includes the Communication
-     * class that provides the bidirectional communication interface between the Controller and other Ataraxis
-     * infrastructures. To enable this use-pattern, the structure has to be fully resolved at compile time.
-     *
-     * @attention This structure has to be instantiated inside the main.cpp file, using sensible values. If this
-     * structure is not configured appropriately, the controller will likely not be usable at all. Codebase
-     * re-upload is required ot alter the fields of this structure after instantiation.
-     */
-    struct StaticRuntimeParameters
-    {
-            /**
-             * @brief The baudrate (data transmission rate) of the Serial port used for the bidirectional serial
-             * communication with other Ataraxis systems.
-             *
-             * @note All Teensy boards default to the maximum USB rate, which is most likely 480 Mbit/sec, ignoring the
-             * baudrate setting. Most Arduino boards have much lower baud rates as they use a UART interface instead
-             * of the USB and the maximum baudrate will depend on the particular board.
-             *
-             * @attention For systems that actually do use baudrate, the value specified here should be the same as
-             * used by communication recipient. Additionally, the appropriate controller baudrate depends on the
-             * Controller's CPU clock speed. Selecting an incompatible baudrate is likely to result in transmission
-             * errors!
-             *
-             * To select the baudrate compatible with your Controller hardware, you can use this helpful calculator:
-             * @a https://wormfood.net/avrbaudcalc.php.
-             */
-            uint32_t baudrate = 115200;
-
-            /**
-             * @brief Bit-resolution of ADC (Analog-to-Digital) readouts.
-             *
-             * Arduino 32-bit boards support 12, 8-bit boards support 10. Teensy boards support up to 16 in hardware.
-             * It is generally advised not to exceed 12/13 bits as higher values are typically made unusable by noise.
-             *
-             * This parameter is used during the main setup() method runtime to statically set the resolution of each
-             * analog pin used by Core and Module-derived custom classes.
-             */
-            uint8_t analog_resolution = 12;
-
-            /**
-             * @brief The interval, in milliseconds, with which to transmit controller ID data when in Idle mode.
-             *
-             * When not actively in use, the controllers periodically transmit the ID message over the Serial interface.
-             * This functionality is designed to help identify connected controllers from other Ataraxis systems.
-             * Primarily, it is used by Teensy boards that do not reset upon serial connection.
-             */
-            uint32_t idle_message_interval = 1000000;  // In milliseconds
     };
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
@@ -296,6 +242,8 @@ namespace communication_assets
      */
     enum class kProtocols : uint8_t
     {
+        kUndefined = 0,  // Not a valid protocol code. This is used to initialize the Communication class.
+
         /// Command message protocol.
         kCommand = 1,
 
@@ -417,11 +365,7 @@ namespace communication_assets
             /// size of the ObjectType template parameter.
             uint8_t object_size;
    
-    } __attribute__((packed));  
-
-    /// Stores the placeholder object that is used for data and error messages that do not include a valid
-    /// object. The receiver will discard this object upon reception.
-    constexpr uint8_t kDataPlaceholder = 255;
+    } __attribute__((packed));
     
 }  // namespace communication_assets
 

@@ -36,39 +36,41 @@
 // Dependencies
 #include "Arduino.h"
 #include "communication.h"
-#include "module.h"
-#include "modules/io_communication.h"
 #include "kernel.h"
+#include "module.h"
+#include "modules/ttl_module.h"
 #include "shared_assets.h"
 
-shared_assets:: DynamicRuntimeParameters DynamicRuntimeParameters;
-
-constexpr shared_assets::StaticRuntimeParameters kStaticRuntimeParameters = {
-    .baudrate = 115200,
-    .analog_resolution = 12,
-    .idle_message_interval = 1000000,
-};
+// Pre-initializes global assets
+shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters;  // Shared controller-wide parameters
+constexpr uint8_t kControllerID = 101;                             // Unique ID for the controller
 
 // NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
-Communication axmc_communication(Serial);
+Communication axmc_communication(Serial);  // Shared class that manages all incoming and outgoing communications
 
-IOCommunication<1, 2> io_instance(4, 5, axmc_communication, DynamicRuntimeParameters);
-IOCommunication<1, 2> io_instance_2(6, 7, axmc_communication, DynamicRuntimeParameters);
+// Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
+// a treadmill motor.
+TTLModule<1, 2> mesoscope_ttl(4, 5, axmc_communication, DynamicRuntimeParameters);
 
-Module* modules[] = {&io_instance, &io_instance_2};
+// Packages all modules into an array to be managed by the Kernel class.
+Module* modules[] = {&mesoscope_ttl};
 
-Kernel<123, 2> kernel_instance(axmc_communication, DynamicRuntimeParameters, modules);
+// Instantiates the Kernel class using the assets instantiated above.
+Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);
 
+// This function is only executed once for each power cycle. For most Ataraxis runtimes, only 3 major setup functions
+// need to be executed here.
 void setup()
 {
-    Serial.begin(115200);
-    kernel_instance.SetupModules();
-    // io_instance.QueueCommand(3, true, true, 5000000);
-    // io_instance_2.QueueCommand(4,false,false,1000);
+    Serial.begin(115200);  // Initializes the serial port at 115200 bauds, the baudrate is ignored for teensy boards.
+    // Sets ADC resolution to 12 bits. Teensies can support 16 bits too, but 12 often produces cleaner readouts.
+    analogReadResolution(12);
+    axmc_kernel.Setup();  // Carries out the rest of the setup depending on the module configuration.
 }
 
+// This function is executed continuously while the controller is powered. Since Kernel manages the runtime, only the
+// RuntimeCycle() function needs to be called here.
 void loop()
 {
-    kernel_instance.ReceiveData();
-    // kernel_instance.RunCommands();
+    axmc_kernel.RuntimeCycle();
 }
