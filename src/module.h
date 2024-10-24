@@ -140,6 +140,9 @@ class Module
             kNoQueuedCommands          = 5,  ///< The module does not have any new or recurrent commands to activate.
             kRecurrentTimerNotExpired  = 6,  ///< The module's recurrent activation timeout has not expired yet
             kNotImplemented            = 7,  ///< Derived class has not implemented the called virtual method
+            kParametersSet     = 8,   ///< The custom parameters of the module were overwritten with PC-sent data.
+            kSetupComplete     = 9,   ///< Module hardware was successfully configured.
+            kModuleAssetsReset = 10,  ///< All custom assets of the module ahs been reset.
         };
 
         /// Stores the most recent module status code.
@@ -238,18 +241,15 @@ class Module
          *
          * @notes Any queued command is considered new until this method activates that command. All following
          * command reactivations are considered recurrent.
-         *
-         * @returns bool @b true if a command has been activated and @b false otherwise. Additional information
-         * regarding method runtime status can be obtained from the module_status attribute.
          */
-        bool ResolveActiveCommand()
+        void ResolveActiveCommand()
         {
             // If the command field is not 0, this means there is already an active command being executed and no
             // further action is necessary. Returns false to indicate no command was activated.
             if (execution_parameters.command != 0)
             {
                 module_status = static_cast<uint8_t>(kCoreStatusCodes::kCommandAlreadyRunning);
-                return false;
+                return;
             }
 
             // If the next_command field is set to 0, this means that the module does not have any new or recurrent
@@ -257,7 +257,7 @@ class Module
             if (execution_parameters.next_command == 0)
             {
                 module_status = static_cast<uint8_t>(kCoreStatusCodes::kNoQueuedCommands);
-                return false;
+                return;
             }
 
             // If the new_command flag is set to true activates the queued command.
@@ -279,7 +279,7 @@ class Module
 
                 // Returns 'true' to indicate that a new command was activated
                 module_status = static_cast<uint8_t>(kCoreStatusCodes::kNewCommandActivated);
-                return true;
+                return;
             }
 
             // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
@@ -294,13 +294,12 @@ class Module
                 execution_parameters.stage           = 1;
                 execution_parameters.recurrent_timer = 0;
                 module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentCommandActivated);
-                return true;
+                return;
             }
 
             // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
             // Returns false to indicate that no command was activated.
             module_status = static_cast<uint8_t>(kCoreStatusCodes::kRecurrentTimerNotExpired);
-            return false;
         }
 
         /**
@@ -940,11 +939,7 @@ class Module
          * the type of the object. Do not overwrite this argument.
          */
         template <typename ObjectType>
-        void SendData(
-            const uint8_t event_code,
-            const ObjectType& object,
-            const size_t object_size = sizeof(ObjectType)
-        )
+        void SendData(const uint8_t event_code, const ObjectType& object, const size_t object_size = sizeof(ObjectType))
         {
             // Packages and sends the data to the connected system via the Communication class
             const bool success = _communication.SendDataMessage(

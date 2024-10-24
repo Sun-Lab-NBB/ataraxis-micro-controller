@@ -38,6 +38,7 @@
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
+#include "modules/encoder_module.h"
 #include "modules/ttl_module.h"
 #include "shared_assets.h"
 
@@ -50,10 +51,11 @@ Communication axmc_communication(Serial);  // Shared class that manages all inco
 
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
-TTLModule<1, 2> mesoscope_ttl(4, 5, axmc_communication, DynamicRuntimeParameters);
+TTLModule<1, 2> mesoscope_ttl(2, 1, axmc_communication, DynamicRuntimeParameters);
+EncoderModule<10, 11, false> wheel_encoder(3, 1, axmc_communication, DynamicRuntimeParameters);
 
 // Packages all modules into an array to be managed by the Kernel class.
-Module* modules[] = {&mesoscope_ttl};
+Module* modules[] = {&mesoscope_ttl, &wheel_encoder};
 
 // Instantiates the Kernel class using the assets instantiated above.
 Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);

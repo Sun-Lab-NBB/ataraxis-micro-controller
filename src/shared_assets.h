@@ -364,9 +364,12 @@ namespace communication_assets
             /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
             /// size of the ObjectType template parameter.
             uint8_t object_size;
-   
+
     } __attribute__((packed));
-    
+
+    /// A placeholder value that can be used for DataMessages without a meaningful DataObject.
+    constexpr uint8_t kDataPlaceholder = 255;
+
 }  // namespace communication_assets
 
 #endif  //AXMC_SHARED_ASSETS_H
