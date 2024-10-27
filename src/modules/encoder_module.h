@@ -1,7 +1,10 @@
 /**
  * @file
- * @brief The header file for the EncoderModule class, which allows interfacing with a Quadrature encoder to
- * continuously read its pulse vector data.
+ * @brief The header file for the EncoderModule class, which allows interfacing with am encoder and using its pulse
+ * counter to track the direction and displacement of circular motion.
+ *
+ * @attention This file is written in a way that is NOT compatible with any other library that uses AttachInterrupt().
+ * Disable the 'ENCODER_USE_INTERRUPTS' macro to make this file compatible with other interrupt libraries.
  */
 
 #ifndef AXMC_ENCODER_MODULE_H
@@ -16,26 +19,40 @@
 #include "shared_assets.h"
 
 /**
- * @brief Provides access to the quadrature encoder pulse counter.
+ * @brief Internally binds an Encoder class instance and enables accessing its movement direction and displacement.
  *
- * This module is specifically designed to interface with quadrature encoder and track the directional change in overall
- * encoder pulses between class method calls. In turn, this offers a way to precisely monitor the displacement and
- * directional vector of a rotating object connected to the encoder.
+ * This module is specifically designed to interface with quadrature encoders and track the direction and number of
+ * encoder pulses between class method calls. In turn, this allows monitoring the displacement and directional vector
+ * of a rotating object connected to the encoder.
  *
- * Largely, this class is an API wrapper around the Paul Stoffregen's Encoder library.
+ * @note Largely, this class is an API wrapper around the Paul Stoffregen's Encoder library, and it relies on efficient
+ * interrupt logic to increase encoder tracking precision. To achieve the best performance, make sure both Pin A and
+ * Pin B are hardware interrupt pins.
  *
  * @tparam kPinA the digital interrupt pin connected to the 'A' channel of the quadrature encoder.
  * @tparam kPinB the digital interrupt pin connected to the 'B' channel of the quadrature encoder.
- * @param invertDirection if true, inverts the interpretation of the pin trigger order. By default, when pin 2 is
- * triggered before pin 1, the counter decreases and when pin 1 is triggered before pin 2, it increases. Setting this
- * flag to true makes the counter decrease when pin 1 is triggered before pin 2, and increase when pin 2 is triggered
- * before pin 1. This is the same as reversing the CCW / CW direction of the encoder.
+ * @param kInvertDirection if set to true, inverts the sign of the value returned by the encoder. By default, when
+ * Pin B is triggered before Pin A, the pulse counter decreases, which corresponds to CW movement. When pin A is
+ * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
+ * this relationship, which is helpful to account for the mounting and wiring of the encoder.
  */
 template <const uint8_t kPinA, const uint8_t kPinB, const bool kInvertDirection>
 class EncoderModule final : public Module
 {
         // Verifies that the quadrature pins are different.
-        static_assert(kPinA != kPinB, "The two encoder interrupt pins cannot be the same.");
+        static_assert(kPinA != kPinB, "The two EncoderModule interrupt pins cannot be the same.");
+
+        static_assert(
+            kPinA != LED_BUILTIN,
+            "LED-connected pin is reserved for LED manipulation. Please select a different "
+            "pin A for EncoderModule class."
+        );
+
+        static_assert(
+            kPinB != LED_BUILTIN,
+            "LED-connected pin is reserved for LED manipulation. Please select a different "
+            "pin B for EncoderModule class."
+        );
 
     public:
         /// Assigns meaningful names to byte status-codes used to track module states. Note, this enumeration has to
@@ -44,15 +61,15 @@ class EncoderModule final : public Module
         enum class kCustomStatusCodes : uint8_t
         {
             kStandBy  = 51,  ///< The code used to initialize custom status tracker.
-            kCCWDelta = 52,  ///< The encoder was moved in the CCW direction by the included number of pulses.
-            kCWDelta  = 53,  ///< The encoder was moved in the CW direction by the included number of pulses.
+            kCCWDelta = 52,  ///< The encoder was moved in the CCW direction.
+            kCWDelta  = 53,  ///< The encoder was moved in the CW.
             kNoDelta  = 54,  ///< The encoder did not move.
         };
 
         /// Assigns meaningful names to module command byte-codes.
         enum class kModuleCommands : uint8_t
         {
-            kReadEncoderData =
+            kReadEncoder =
                 1,  ///< Gets the encoder direction and displacement in pulses, relative to the previous reading.
             kResetEncoder = 2,  ///< Resets the encoder's position to 0.
         };
@@ -132,12 +149,10 @@ class EncoderModule final : public Module
 
         /// Reads the current encoder position, resets the encoder, and sends the result to the PC. The position is
         /// measured by the number and vector of pulses since the last encoder reset. Note, the result will be
-        /// transformed into an absolute value and its direction can be inferred from the event status of the sent
-        /// message.
+        /// transformed into an absolute value and its direction can be inferred from the event status of the
+        /// message transmitted to PC.
         void ReadEncoder()
         {
-            // Note, this is technically a 1-stage command.
-
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
             // relative to the previous reset command or the initialization of the encoder.
             const int32_t flipped_value = _encoder.readAndReset() * (kInvertDirection ? -1 : 1);
@@ -150,17 +165,17 @@ class EncoderModule final : public Module
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kNoDelta);
             }
 
-            // If the value is negative, this is interpreted as the CCW movement direction.
+            // If the value is negative, this is interpreted as the CW movement direction.
             else if (flipped_value < 0)
             {
-                // If reporting the CCW movement is allowed, updates the status as necessary
-                if (_custom_parameters.report_CCW)
+                // If reporting the CW movement is allowed, updates the status as necessary
+                if (_custom_parameters.report_CW)
                 {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kCCWDelta);
+                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kCWDelta);
                     delta         = static_cast<uint32_t>(abs(flipped_value));  // Overwrites the delta
                 }
 
-                // Otherwise, discards the CCW movement and instead updates the status to indicate there is no change
+                // Otherwise, discards the CW movement and instead updates the status to indicate there is no change
                 // in the encoder position relative to the last call to this method.
                 else
                 {
@@ -168,13 +183,13 @@ class EncoderModule final : public Module
                 }
             }
 
-            // Finally, if the value is positive, this is interpreted as the CW movement direction.
+            // Finally, if the value is positive, this is interpreted as the CCW movement direction.
             else
             {
-                // If reporting the CW movement is allowed, updates the status as necessary
-                if (_custom_parameters.report_CW)
+                // If reporting the CCW movement is allowed, updates the status as necessary
+                if (_custom_parameters.report_CCW)
                 {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kCWDelta);
+                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kCCWDelta);
                     delta         = static_cast<uint32_t>(abs(flipped_value));
                 }
 
@@ -193,7 +208,7 @@ class EncoderModule final : public Module
             CompleteCommand();
         }
 
-        /// Resets the encoder pulse counter back to 0. This can be sued to reset the encoder without reading its data.
+        /// Resets the encoder pulse counter back to 0. This can be used to reset the encoder without reading its data.
         void ResetEncoder()
         {
             _encoder.write(0);  // Resets the encoder tracker back to 0 pulses.
