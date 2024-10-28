@@ -1301,7 +1301,7 @@ void TestSerializedTransferProtocolPostambleTimeoutError(void)
 // tested by their respective test functions. Also, does not test errors that are generally impossible 
 // to encounter without modifying the class code, such as COBS or CRC failing and and causing a 
 // TransmissionError.
-void TestSendDataMessagePackingError(void)
+void TestSendDataMessagePackingErrorLargePayload(void)
 {
     // Mocking a transport layer and communication class setup
     StreamMock<60> mock_port;
@@ -1324,7 +1324,7 @@ void TestSendDataMessagePackingError(void)
 }
 
 //kCommunicationTransmitted
-void TestSendDataMessageTransmitted(void)
+void TestSendDataMessageTransmittedConstantValueObject(void)
 {
 
     StreamMock<60> mock_port;
@@ -1369,10 +1369,9 @@ void TestSendDataMessageTransmittedArray(void)
 
 void TestSendDataMessageTransmittedStruct(void)
 {
-    // A custom struct being sent
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
-
+    // A custom struct being sent
     struct TestStructure
     {
         uint8_t id = 1;
@@ -1399,7 +1398,7 @@ void TestSendDataMessageTransmittedStruct(void)
 // errors that are generally impossible to encounter without modifying the class code, such as
 // buffer not being large enough to hold the total two byte values protocol_code and code and 
 // throwing a PackingError.
-void TestSendServiceMessageTransmitted(void){
+void TestSendServiceMessageTransmittedReceptionCode(void){
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
 
@@ -1413,8 +1412,22 @@ void TestSendServiceMessageTransmitted(void){
     );
 }
 
+void TestSendServiceMessageTransmittedIdleCode(void){
+    StreamMock<60> mock_port;
+    Communication comm_class(mock_port);
+
+    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kIdle);
+    const uint8_t code = 112;      // Example service code
+    comm_class.SendServiceMessage(protocol_code, code);
+
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        comm_class.communication_status
+    );
+}
+
 // kCommunicationInvalidProtocolError for kCommand Protocol
-void TestSendServiceMessageCommandProtocol(void) {
+void TestSendServiceMessageInvalidProtocolErrorCommandProtocol(void) {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
 
@@ -1431,7 +1444,7 @@ void TestSendServiceMessageCommandProtocol(void) {
 }
 
 // kCommunicationInvalidProtocolError for kUndefined Protocol
-void TestSendServiceMessageUndefinedProtocol(void) {
+void TestSendServiceInvalidProtocolErrorUndefinedProtocol(void) {
     // Arrange: Mock the transport layer and set up the Communication class
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -1449,7 +1462,7 @@ void TestSendServiceMessageUndefinedProtocol(void) {
 }
 
 // kCommunicationInvalidProtocolError for kParameters Protocol
-void TestSendServiceMessageParametersProtocol(void) {
+void TestSendServiceMessageInvalidProtocolErrorParametersProtocol(void) {
     // Arrange: Mock the transport layer and set up the Communication class
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -1467,7 +1480,7 @@ void TestSendServiceMessageParametersProtocol(void) {
 }
 
 // kCommunicationInvalidProtocolError for kData Protocol
-void TestSendServiceMessageInvalidProtocalError1(void) {
+void TestSendServiceMessageInvalidProtocalErrorDataProtocol(void) {
     // Arrange: Mock the transport layer and set up the Communication class
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -1484,7 +1497,7 @@ void TestSendServiceMessageInvalidProtocalError1(void) {
     );
 }
 //kCommunicationInvalidProtocolError
-void TestSendServiceMessageInvalidProtocalError2(void){
+void TestSendServiceMessageInvalidProtocalErrorArbitraryNumberProtocol(void){
     // Mocking a transport layer and communication class setup
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -1519,14 +1532,14 @@ void TestSendServiceMessageTransmissionError(void){
 // Tests the errors associated with the ReceiveMessage() method of the Communucation class
 // These tests focuses specifically on errors raised by only this method; COBS and CRC errors should be
 // tested by their respective test functions.
-void TestReceiveMessageInvalidProtocolError(void) {
+void TestReceiveMessageInvalidProtocolErrorArbitraryProtocolValue(void) {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
+
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
-    uint8_t test_buffer[16] = {129, 10, 0, 1000, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
+    uint8_t test_buffer[16] = {129, 10, 0, 100, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; // 100 is an invalid protocol code
 
     // Simulates COBS encoding the buffer.
     uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
@@ -1539,7 +1552,7 @@ void TestReceiveMessageInvalidProtocolError(void) {
 
     uint16_t test_buffer_uint16[16] = {0}; 
     for (size_t i = 0; i < sizeof(test_buffer); ++i) {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);  // Zero-extend each `uint8_t` value
+        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
     }
 
     memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
@@ -1553,18 +1566,20 @@ void TestReceiveMessageInvalidProtocolError(void) {
 }
 
 
-void TestReceiveMessageInvalidParsingError(void) {
+void TestReceiveMessageInvalidParsingErrorCommandMessgaeMissingParameter(void) {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
-    COBSProcessor<1, 2> cobs_class;  
-    memset(&comm_class.command_message, 0, sizeof(communication_assets::CommandMessage));
-    comm_class.command_message.cycle_duration = 0xFFFFFFFFFF;
+    COBSProcessor<1, 2> cobs_class; 
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
-    // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
+    memset(&comm_class.command_message, 0, sizeof(communication_assets::CommandMessage));
+    comm_class.command_message.cycle_duration = 0xFFFFFF;
+
+    // Instantiates a CommandMessage with invalid structure. The Message is too small to contain all required parameters
+    // The correct layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
     // CYCLE , TIME1,  TIME2, TIME3, TIME4 , DELIMITER, CRC[2]
     uint8_t test_buffer[16] = {129, 10, 0, 1, 2, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0}; 
+
      // Simulates COBS encoding the buffer.
     uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
 
@@ -1589,7 +1604,7 @@ void TestReceiveMessageInvalidParsingError(void) {
     );
 }
 
-void TestReceiveMessageReceivedCommand(void) {
+void TestReceiveMessageReceivedCommandMessage(void) {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
@@ -1599,7 +1614,6 @@ void TestReceiveMessageReceivedCommand(void) {
     memset(&comm_class.command_message, 0, sizeof(communication_assets::CommandMessage));
     comm_class.command_message.cycle_duration = 0xFFFFFFFFFF;
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
     // CYCLE , TIME1,  TIME2, TIME3, TIME4 , DELIMITER, CRC[2]
     uint8_t test_buffer[17] = {129, 11, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0};  // Placeholder
@@ -1647,7 +1661,6 @@ void TestReceiveMessageReceivedParameterMessage(void) {
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
     uint8_t test_buffer[16] = {129, 10, 0, 2, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
 
@@ -1684,15 +1697,16 @@ void TestReceiveMessageReceivedParameterMessage(void) {
     }
 }
 
-void TestReceiveMessageReceptionError(void) {
+void TestReceiveMessageReceptionErrorCommandMessageMissingParameter(void) {
     // Inititlaiziton 
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
-    // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PAYLOAD[10], DELIMITER, CRC[2]
+    // Instantiates a CommandMessage with invalid structure. The Message is too small to contain all required parameters
+    // The correct layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
+    // CYCLE , TIME1,  TIME2, TIME3, TIME4 , DELIMITER, CRC[2]
     // Wrong payloadsize
     uint8_t test_buffer[16] = {129, 11, 0, 1, 2, 3, 0, 0, 6, 0, 8, 0, 0, 0, 0, 0};  // Placeholder
 
@@ -1705,14 +1719,11 @@ void TestReceiveMessageReceptionError(void) {
     // Adds the CRC to the end of the buffer.
     crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
 
-    // Converts the test_buffer (uint8_t array) into a uint16_t array for compatibility with the rx_buffer.
-    uint16_t test_buffer_uint16[16] = {0};  // Temporary array for conversion
+    uint16_t test_buffer_uint16[16] = {0}; 
     for (size_t i = 0; i < sizeof(test_buffer); ++i) {
-    // Each uint8_t value is stored in its own uint16_t
     test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
     }
 
-    // Copies the fully encoded package into the rx_buffer to simulate packet reception and test ReceiveData() method.
     memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
 
     comm_class.ReceiveMessage();
@@ -1723,14 +1734,12 @@ void TestReceiveMessageReceptionError(void) {
     );
 }
 
-void TestReceiveMessageReceptionError2(void) {
-    // Inititlaiziton 
+void TestReceiveMessageReceptionErrorNoCRCandCOBSCalculation(void) {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PAYLOAD[10], DELIMITER, CRC[2]
     uint8_t test_buffer[16] = {129, 11, 0, 1, 2, 3, 0, 0, 6, 0, 8, 0, 0, 0, 0, 0};  // Placeholder
 
@@ -1738,9 +1747,8 @@ void TestReceiveMessageReceptionError2(void) {
     uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
 
     // Converts the test_buffer (uint8_t array) into a uint16_t array for compatibility with the rx_buffer.
-    uint16_t test_buffer_uint16[16] = {0};  // Temporary array for conversion
+    uint16_t test_buffer_uint16[16] = {0};  
     for (size_t i = 0; i < sizeof(test_buffer); ++i) {
-    // Each uint8_t value is stored in its own uint16_t
     test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
     }
     
@@ -1774,14 +1782,13 @@ void TestReceiveMessageReceivedNoBytesToReceive(void) {
 // Tests the errors associated with the ExtractParameter() method of the Communucation class
 // These tests focuses specifically on errors raised by only this method; COBS and CRC errors should be
 // tested by their respective test functions.
-void TestExtractParametersArray(void)
+void TestExtractParametersArrayDestination(void)
 {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
     uint8_t test_buffer[16] = {129, 10, 0, 2, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
 
@@ -1812,14 +1819,13 @@ void TestExtractParametersArray(void)
     );
 }
 
-void TestExtractParametersStruct(void)
+void TestExtractParametersStructDestination(void)
 {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
     uint8_t test_buffer[16] = {129, 10, 0, 2, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
 
@@ -1857,13 +1863,12 @@ void TestExtractParametersStruct(void)
     );
 }
 
-void TestExtractParametersSizeMismatch(void) {
+void TestExtractParametersSizeMismatchDestinationSizeLarger(void) {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
     uint8_t test_buffer[16] = {129, 10, 0, 2, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
 
@@ -1885,6 +1890,50 @@ void TestExtractParametersSizeMismatch(void) {
     memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
 
     comm_class.ReceiveMessage();
+    // Input struture with larger size than transmitted data
+    struct DataMessage {
+        uint8_t id = 0;
+        uint8_t data[10] = {0};
+    } data_message;
+
+    bool success = comm_class.ExtractParameters(data_message);
+
+    TEST_ASSERT_FALSE(success);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParameterSizeMismatchError),
+        comm_class.communication_status
+    );
+}
+
+void TestExtractParametersSizeMismatchDestinationSizeSmaller(void) {
+    StreamMock<254> mock_port; 
+    Communication comm_class(mock_port);
+    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
+    COBSProcessor<1, 2> cobs_class;  
+
+    // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
+    uint8_t test_buffer[16] = {129, 10, 0, 2, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
+
+    // Simulates COBS encoding the buffer.
+    uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
+
+    // Calculates the CRC for the COBS-encoded buffer.
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
+
+    // Adds the CRC to the end of the buffer. The insertion location has to be statically shifted to account for the
+    // metadata preamble bytes
+    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
+
+    uint16_t test_buffer_uint16[16] = {0}; 
+    for (size_t i = 0; i < sizeof(test_buffer); ++i) {
+        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+    }
+
+    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
+
+    comm_class.ReceiveMessage();
+    
+    // Input struture with smaller size than transmitted data
     struct DataMessage {
         uint8_t id = 0;
         uint8_t data = 0;
@@ -1899,13 +1948,13 @@ void TestExtractParametersSizeMismatch(void) {
     );
 }
 
-void TestExtractParametersParsingError(void) {
+void TestExtractParametersParsingErrorLargeTransmittedData(void) {
     StreamMock<254> mock_port; 
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class;  
 
-    // Instantiates an array to simulate the _transmission_buffer after the data has been added to it.
+    // Instantiates an array with larger size than the max payload size
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL,  MODULE, ID, RETURN_CODE , OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
     // uint8_t test_buffer[16] = {129, 10, 0, 2, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0}; 
     uint8_t test_buffer[266] = {0}; 
@@ -1987,35 +2036,38 @@ int RunUnityTests(void)
     RUN_TEST(TestSerializedTransferProtocolDelimiterFoundTooEarlyError);
 
     // SendDataMessage 
-    RUN_TEST(TestSendDataMessagePackingError);
-    RUN_TEST(TestSendDataMessageTransmitted);
+    RUN_TEST(TestSendDataMessagePackingErrorLargePayload);
+    RUN_TEST(TestSendDataMessageTransmittedConstantValueObject);
     RUN_TEST(TestSendDataMessageTransmittedArray);
     RUN_TEST(TestSendDataMessageTransmittedStruct);
     // RUN_TEST(TestSendDataMessageTransmissionError); //idk how to test
 
     //SendServiceMessage
-    RUN_TEST(TestSendServiceMessageTransmitted);
+    RUN_TEST(TestSendServiceMessageTransmittedReceptionCode);
+    RUN_TEST(TestSendServiceMessageTransmittedIdleCode);
     RUN_TEST(TestSendServiceMessageTransmissionError);
-    RUN_TEST(TestSendServiceMessageCommandProtocol);
-    RUN_TEST(TestSendServiceMessageInvalidProtocalError1);
-    RUN_TEST(TestSendServiceMessageInvalidProtocalError2);
-    RUN_TEST(TestSendServiceMessageUndefinedProtocol); //invalidprotocol
-    RUN_TEST(TestSendServiceMessageParametersProtocol); //invalidprotocol
+    RUN_TEST(TestSendServiceMessageInvalidProtocolErrorCommandProtocol);
+    RUN_TEST(TestSendServiceInvalidProtocolErrorUndefinedProtocol); 
+    RUN_TEST(TestSendServiceMessageInvalidProtocolErrorParametersProtocol);
+    RUN_TEST(TestSendServiceMessageInvalidProtocalErrorDataProtocol);
+    RUN_TEST(TestSendServiceMessageInvalidProtocalErrorArbitraryNumberProtocol);
+
 
     // ReceiveMessage
-    RUN_TEST(TestReceiveMessageInvalidProtocolError);
-    RUN_TEST(TestReceiveMessageInvalidParsingError);
-    RUN_TEST(TestReceiveMessageReceivedCommand);
+    RUN_TEST(TestReceiveMessageInvalidProtocolErrorArbitraryProtocolValue);
+    RUN_TEST(TestReceiveMessageInvalidParsingErrorCommandMessgaeMissingParameter);
+    RUN_TEST(TestReceiveMessageReceivedCommandMessage);
     RUN_TEST(TestReceiveMessageReceivedParameterMessage);
-    RUN_TEST(TestReceiveMessageReceptionError);
-    RUN_TEST(TestReceiveMessageReceptionError2);
+    RUN_TEST(TestReceiveMessageReceptionErrorCommandMessageMissingParameter);
+    RUN_TEST(TestReceiveMessageReceptionErrorNoCRCandCOBSCalculation);
     RUN_TEST(TestReceiveMessageReceivedNoBytesToReceive);
 
     //ExtractParameter
-    RUN_TEST(TestExtractParametersArray);
-    RUN_TEST(TestExtractParametersStruct);
-    RUN_TEST(TestExtractParametersSizeMismatch);
-    RUN_TEST(TestExtractParametersParsingError);
+    RUN_TEST(TestExtractParametersArrayDestination);
+    RUN_TEST(TestExtractParametersStructDestination);
+    RUN_TEST(TestExtractParametersSizeMismatchDestinationSizeSmaller);
+    RUN_TEST(TestExtractParametersSizeMismatchDestinationSizeLarger);
+    RUN_TEST(TestExtractParametersParsingErrorLargeTransmittedData);
 
     return UNITY_END();
 }
