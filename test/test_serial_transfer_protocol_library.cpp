@@ -1512,22 +1512,6 @@ void TestSendServiceMessageInvalidProtocalErrorArbitraryNumberProtocol(void){
     );
 }
 
-//kCommunicationTransmissionError
-void TestSendServiceMessageTransmissionError(void){
-   // Mocking a transport layer and communication class setup
-    StreamMock<60> mock_port;
-    Communication comm_class(mock_port);
-
-    // Using kReceptionCode as protocol_code
-    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kReceptionCode);
-    const uint8_t code = 112;
-    comm_class.SendServiceMessage(protocol_code, code);
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
-        comm_class.communication_status
-    );
-}
 
 // Tests the errors associated with the ReceiveMessage() method of the Communucation class
 // These tests focuses specifically on errors raised by only this method; COBS and CRC errors should be
@@ -2040,12 +2024,10 @@ int RunUnityTests(void)
     RUN_TEST(TestSendDataMessageTransmittedConstantValueObject);
     RUN_TEST(TestSendDataMessageTransmittedArray);
     RUN_TEST(TestSendDataMessageTransmittedStruct);
-    // RUN_TEST(TestSendDataMessageTransmissionError); //idk how to test
 
     //SendServiceMessage
     RUN_TEST(TestSendServiceMessageTransmittedReceptionCode);
     RUN_TEST(TestSendServiceMessageTransmittedIdleCode);
-    RUN_TEST(TestSendServiceMessageTransmissionError);
     RUN_TEST(TestSendServiceMessageInvalidProtocolErrorCommandProtocol);
     RUN_TEST(TestSendServiceInvalidProtocolErrorUndefinedProtocol); 
     RUN_TEST(TestSendServiceMessageInvalidProtocolErrorParametersProtocol);
