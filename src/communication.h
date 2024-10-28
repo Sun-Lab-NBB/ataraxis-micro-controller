@@ -249,6 +249,12 @@ class Communication
             {
                 next_index = _transport_layer.WriteData(message, next_index);
             }
+            
+            // Writes message object if the protocol number was successfully written
+            if (next_index != 0)
+            {
+                next_index = _transport_layer.WriteData(object, next_index);
+            }
 
             // Writes the data object if the protocol number was successfully written
             if (next_index != 0)
@@ -337,7 +343,7 @@ class Communication
                     return true;
                 }
 
-                // If write operation fails, returns with an error status
+                // If send operation fails, returns with an error status
                 communication_status =
                     static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmissionError);
                 return false;
@@ -410,7 +416,7 @@ class Communication
                     }
 
                     // If any of the reading method calls failed, breaks with an error status.
-                    // If data attempting to receive is not in valid message structure.
+                    // Also if data attempting to receive is not in valid message structure.
                     if (next_index == 0)
                     {
                         communication_status =
