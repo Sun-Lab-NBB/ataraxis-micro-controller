@@ -2024,7 +2024,6 @@ int RunUnityTests(void)
     RUN_TEST(TestSendDataMessageTransmittedConstantValueObject);
     RUN_TEST(TestSendDataMessageTransmittedArray);
     RUN_TEST(TestSendDataMessageTransmittedStruct);
-    // RUN_TEST(TestSendDataMessageTransmissionError); //idk how to test
 
     //SendServiceMessage
     RUN_TEST(TestSendServiceMessageTransmittedReceptionCode);
