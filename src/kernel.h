@@ -134,12 +134,12 @@ class Kernel
          */
         enum class kKernelCommands : uint8_t
         {
-            kStandby            = 0,  ///< Standby code used during class initialization. Not externally addressable.
-            kSetup              = 1,  /// Module setup command. Not externally addressable.
-            kReceiveData        = 2,  /// Receive data command. Not externally addressable.
-            kResetController    = 3,  /// Resets the software and hardware state of all modules. Externally addressable.
-            kIdentifyController = 4,  /// Transmits the ID of the controller back to caller. Externally addressable.
-            kRunModuleCommands  = 5,  /// Executes active module commands. Not externally addressable.
+            kStandby         = 0,  ///< Standby code used during class initialization. Not externally addressable.
+            kSetup           = 1,  ///< Module setup command. Not externally addressable.
+            kReceiveData     = 2,  ///< Receive data command. Not externally addressable.
+            kResetController = 3,  ///< Resets the software and hardware state of all modules. Externally addressable.
+            kIdentifyController = 4,  ///< Transmits the ID of the controller back to caller. Externally addressable.
+            kRunModuleCommands  = 5,  ///< Executes active module commands. Not externally addressable.
         };
 
         /// Communicates the most recent status of the Kernel. Primarily, this variable is used during class method
@@ -635,7 +635,7 @@ class Kernel
                 // Since Kernel ID is already included in the data message, only adds the extraction error code from
                 // the communication class
                 const uint8_t error = _communication.communication_status;  // Parameter extraction error code
-                kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersError);
+                kernel_status       = static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersError);
                 SendData(kernel_status, error);
                 return;
             }
@@ -672,9 +672,8 @@ class Kernel
                         // If parameter setting fails, sends an error message to the PC and aborts the runtime.
                         // Includes ID information about the payload addressee and extraction error code from the
                         // communication class.
-                        const uint8_t errors[3] =
-                            {target_type, target_id, _communication.communication_status};
-                        kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError);
+                        const uint8_t errors[3] = {target_type, target_id, _communication.communication_status};
+                        kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError);
                         SendData(kernel_status, errors);  // Sends the error data to the PC
                         return false;
                     }
