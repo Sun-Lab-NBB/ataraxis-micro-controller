@@ -116,12 +116,11 @@ class Kernel
             kModuleCommandQueued      = 14,  ///< The received command was queued to be executed by the Module.
             kCommandTargetNotFound    = 15,  ///< The addressee of the command message could not be found.
             kServiceSendingError      = 16,  ///< Error sending a service message to the connected system.
-            kModuleResetError         = 17,  ///< Unable to reset the custom assets of a module.
-            kControllerIDSent         = 18,  ///< The requested controller ID was sent ot to the connected system.
-            kModuleCommandError       = 19,  ///< Error executing an active module command.
-            kModuleCommandsCompleted  = 20,  ///< All active module commands have been executed.
-            kModuleAssetResetError    = 21,  ///< Resetting custom assets of a module failed.
-            kModuleCommandsReset      = 22,  ///< Module command structure has been reset. Queued commands cleared.
+            kControllerIDSent         = 17,  ///< The requested controller ID was sent ot to the connected system.
+            kModuleCommandError       = 18,  ///< Error executing an active module command.
+            kModuleCommandsCompleted  = 19,  ///< All active module commands have been executed.
+            kModuleAssetResetError    = 20,  ///< Resetting custom assets of a module failed.
+            kModuleCommandsReset      = 21,  ///< Module command structure has been reset. Queued commands cleared.
         };
 
         /**
@@ -734,7 +733,7 @@ class Kernel
          * execution.
          *
          * Unlike Kernel commands, Module commands are not immediately executed once they are received. Instead, they
-         * are queued to be executed whenever the next module command cycle occur and the target module is done
+         * are queued to be executed whenever the next module command cycle occurs and the target module is done
          * executing any already active command.
          *
          * @param target_type: The type of the adressed module.
@@ -825,8 +824,8 @@ class Kernel
                 }
             }
 
-            //Adjusts the status and tracked command and terminates the method runtime.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandError);
+            //Adjusts the status and terminates the method runtime.
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandsCompleted);
         }
 };
 
