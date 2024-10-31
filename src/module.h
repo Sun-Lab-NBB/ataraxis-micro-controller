@@ -143,6 +143,8 @@ class Module
             kParametersSet     = 8,   ///< The custom parameters of the module were overwritten with PC-sent data.
             kSetupComplete     = 9,   ///< Module hardware was successfully configured.
             kModuleAssetsReset = 10,  ///< All custom assets of the module ahs been reset.
+            kStateSendingError = 11,  ///< An error has occurred when sending State to the connected Ataraxis system.
+            kCommandCompleted  = 12,  ///< Currently active command has been completed and will not be cycled again.
         };
 
         /// Stores the most recent module status code.
@@ -228,6 +230,18 @@ class Module
             execution_parameters.run_recurrently = cycle;        // Sets the recurrent runtime flag for the command
             execution_parameters.recurrent_delay = cycle_delay;  // Sets the recurrent delay for the command
             execution_parameters.new_command     = true;         // Notifies other class methods this is a new command
+        }
+
+        /// The Kernel uses this method when it receives a module-addressed command with code 0 (reset command).
+        /// Upon receiving command 0, the Kernel clears out the command queue and allows any currently active command
+        /// to complete gracefully.
+        void ResetCommandQueue()
+        {
+            execution_parameters.next_command    = 0;      // Sets the command to be executed
+            execution_parameters.next_noblock    = false;  // Sets the noblock flag for the command
+            execution_parameters.run_recurrently = false;  // Sets the recurrent runtime flag for the command
+            execution_parameters.recurrent_delay = 0;      // Sets the recurrent delay for the command
+            execution_parameters.new_command     = false;  // Notifies other class methods this is a new command
         }
 
         /**
@@ -377,7 +391,7 @@ class Module
          * This is an example of how to implement this method (what to put in the method's body):
          * @code
          * uint8_t custom_parameters_object[3] = {0, 0, 0}; // Assume this object was created at class instantiation.
-         * bool status = _communication.ExtractParameters(custom_parameters_object);  // Writes data into the object.
+         * bool status = _communication.ExtractModuleParameters(custom_parameters_object);  // Reads data.
          * return status;  // Kernel class resolves both error and success outcomes.
          * @endcode
          */
@@ -578,6 +592,14 @@ class Module
         {
             execution_parameters.command = 0;  // Removes active command code
             execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
+
+            // Resolves and, if necessary, notifies the PC that the active command has been completed. This is only done
+            // for commands that have finished their runtime. Specifically, recurrent commands do not report completion
+            // until they are canceled or replaced by a new command. One-shot commands always report completion.
+            if (execution_parameters.new_command || execution_parameters.next_command == 0)
+            {
+                SendState(static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
+            }
         }
 
         /**
@@ -720,129 +742,6 @@ class Module
         }
 
         /**
-         * @brief Checks if the evaluated @b analog sensor pin detects a value that is within the specified boundaries.
-         *
-         * Both lower and upper boundaries are inclusive: if the sensor value matches either boundary, it is considered
-         * a passing condition. Depending on configuration, the method can block in-place until the escape condition is
-         * met or be used as a simple check of whether the condition is met.
-         *
-         * @note It is highly advised to use this method with a range of acceptable inputs. While it is possible to
-         * set the lower_boundary and upper_boundary to the same number, this will likely not work as expected. This is
-         * because analog sensor readouts tend to naturally fluctuate within a certain range.
-         *
-         * @param sensor_pin The number of the analog pin connected to the sensor.
-         * @param lower_boundary The lower boundary for the sensor value. If sensor readout is at or above this value,
-         * the method returns with a success code (provided upper_boundary condition is met). Minimum valid boundary
-         * is 0.
-         * @param upper_boundary The upper boundary for the sensor value. If sensor readout is at or below this value,
-         * the method returns with a success code (provided lower_boundary condition is met). Maximum valid boundary
-         * is 65535.
-         * @param timeout The number of microseconds since the last reset of the delay_timer, to wait before forcibly
-         * terminating method runtime. Typically, delay_timer is reset when advancing command execution stage. This
-         * prevents controller deadlocks.
-         * @param pool_size The number of sensor readouts to average before comparing the value to the boundaries.
-         *
-         * @returns integer code @b 1 if the analog sensor readout is within the specified boundaries and integer code
-         * @b 0 otherwise. If timeout number of microseconds has passed since the module's delay_timer has been reset,
-         * returns integer code @b 2 to indicate timeout condition.
-         */
-        [[nodiscard]]
-        uint8_t WaitForAnalogThreshold(
-            const uint8_t sensor_pin,
-            const uint16_t lower_boundary,
-            const uint16_t upper_boundary,
-            const uint32_t timeout,
-            const uint16_t pool_size = 0
-        ) const
-        {
-            // Gets the analog sensor value
-            uint16_t value = GetRawAnalogReadout(sensor_pin, pool_size);
-
-            // If the analog value is within the boundaries, returns with a success code
-            if (value >= lower_boundary && value <= upper_boundary) return 1;
-
-            // If the command that called this method runs in non-blocking mode, returns with the failure code based on
-            // whether timeout has been exceeded or not.
-            if (execution_parameters.noblock)
-            {
-                // If the delay timer exceeds timeout, returns with code 2 to indicate timeout condition
-                if (execution_parameters.delay_timer > timeout) return 2;
-
-                // Otherwise, returns 0 to indicate threshold check failure
-                return 0;
-            }
-
-            // If the command that calls this method runs in blocking mode, blocks until the sensor readout satisfies
-            // the conditions or timeout is reached.
-            while (execution_parameters.delay_timer < timeout)
-            {
-                // Repeatedly evaluates the sensor readout. If it matches escape conditions, returns with code 1.
-                value = GetRawAnalogReadout(sensor_pin, pool_size);
-                if (value >= lower_boundary && value <= upper_boundary) return 1;
-            }
-
-            // The only way to escape the loop above is to encounter the timeout condition. Blocking calls do not
-            // return code 0.
-            return 2;
-        }
-
-        /**
-         * @brief Checks if the evaluated @b digital sensor pin detects a value that matches the specified threshold.
-         *
-         * Depending on configuration, the method can block in-place until the escape condition is met or be used as a
-         * simple check of whether the condition is met.
-         *
-         * @param sensor_pin The number of the digital pin connected to the sensor.
-         * @param threshold A boolean @b true or @b false which is used as a threshold for the pin value.
-         * @param timeout The number of microseconds since the last reset of the delay_timer, to wait before forcibly
-         * terminating method runtime. Typically, delay_timer is reset when advancing command execution stage. This
-         * prevents controller deadlocks.
-         * @param pool_size The number of sensor readouts to average before comparing the value to the threshold.
-         *
-         * @returns integer code @b 1 if the digital sensor readout matches the threshold and integer code @b 0
-         * otherwise. If timeout number of microseconds has passed since the module's delay_timer has been reset,
-         * returns integer code @b 2 to indicate timeout condition.
-         */
-        [[nodiscard]]
-        uint8_t WaitForDigitalThreshold(
-            const uint8_t sensor_pin,
-            const bool threshold,
-            const uint32_t timeout,
-            const uint16_t pool_size = 0
-        ) const
-        {
-            // Gets the digital sensor value
-            bool value = GetRawDigitalReadout(sensor_pin, pool_size);
-
-            // If the digital value matches target state (HIGH or LOW), returns with success code
-            if (value == threshold) return 1;
-
-            // If the command that called this method runs in non-blocking mode, returns with the failure code based on
-            // whether timeout has been exceeded or not.
-            if (execution_parameters.noblock)
-            {
-                // If the delay timer exceeds timeout, returns with code 2 to indicate timeout condition
-                if (execution_parameters.delay_timer > timeout) return 2;
-
-                // Otherwise, returns 0 to indicate threshold check failure
-                return 0;
-            }
-
-            // If the command that calls this method runs in blocking mode, blocks until the sensor readout satisfies
-            // the conditions or timeout is reached.
-            while (execution_parameters.delay_timer < timeout)
-            {
-                // Repeatedly evaluates the sensor readout. If it matches escape conditions, returns with code 1.
-                value = GetRawDigitalReadout(sensor_pin, pool_size);
-                if (value == threshold) return 1;
-            }
-
-            // The only way to escape the loop above is to encounter the timeout condition. Blocking calls do not
-            // return code 0.
-            return 2;
-        }
-
-        /**
          * @brief Sets the input digital pin to the specified value (High or Low).
          *
          * This utility method is used to control the value of a digital pin configured to output a constant High or Low
@@ -912,8 +811,79 @@ class Module
         }
 
         /**
-         * @brief Packages and sends the provided event_code and data object to the connected Ataraxis system via
-         * the Communication class instance.
+         * @brief Packages and sends the provided event_code and data object to the PC via the Communication class
+         * instance.
+         *
+         * This method simplifies sending data through the Communication class by automatically resolving most of the
+         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
+         * the necessary data. In turn, this allows custom module developers to focus on custom module code, abstracting
+         * away interaction with the Communication class. The Kernel class performs a similar role with respect to
+         * receiving and parsing command and parameters data.
+         *
+         * @note It is highly recommended to use this utility method for sending data to the connected system instead of
+         * using the Communication class directly. If the data you are sending does not need a data object, use
+         * SendState() for a more optimal message format.
+         *
+         * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
+         * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
+         * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
+         * this method to avoid interference!
+         *
+         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
+         * automatically by the template constructor.
+         * @param event_code The byte-code specifying the event that triggered the data message.
+         * @param prototype The prototype byte-code specifying the structure of the data object. Currently, all data
+         * objects have to use one of the supported prototype structures. If you need to add additional prototypes,
+         * modify the kPrototypes enumeration available from the communication_assets namespace.
+         * @param object Additional data object to be sent along with the message. Currently, all data messages
+         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
+         * object to include. If your message does not require a data object, use SendState() method instead.
+         */
+        template <typename ObjectType>
+        void SendData(const uint8_t event_code, const communication_assets::kPrototypes prototype, const ObjectType& object)
+        {
+            // Packages and sends the data to the connected system via the Communication class
+            const bool success = _communication.SendDataMessage(
+                _module_type,
+                _module_id,
+                execution_parameters.command,
+                event_code,
+                prototype,
+                object
+            );
+
+            // If the message was sent, ends the runtime
+            if (success) return;
+
+            // If the message was not sent attempts sending an error message. For this, combines the latest status of
+            // the Communication class (likely an error code) and the TransportLayer status code into a 2-byte array.
+            // This will be the data object transmitted with the error message.
+            const uint8_t errors[2] = {_communication.communication_status, _communication.GetTransportLayerStatus()};
+
+            // Attempts sending the error message. Uses the unique DataSendingError event code and the object
+            // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError);
+            _communication.SendDataMessage(
+                _module_type,
+                _module_id,
+                execution_parameters.command,
+                module_status,
+                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                errors
+            );
+
+            // As a fallback in case the error message does not reach the connected system, sets the class status to
+            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
+            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+
+            digitalWriteFast(LED_BUILTIN, HIGH);
+        }
+
+        /**
+         * @brief Packages and sends the provided event_code to the PC via the Communication class instance.
+         *
+         * This method is very similar to SendData(), but is optimized to transmit messages that do not use custom
+         * data objects.
          *
          * This method simplifies sending data through the Communication class by automatically resolving most of the
          * payload metadata. This method guarantees that the formed payload follows the correct format and contains
@@ -929,27 +899,13 @@ class Module
          * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
          * this method to avoid interference!
          *
-         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
-         * automatically by the template constructor.
          * @param event_code The byte-code specifying the event that triggered the data message.
-         * @param object Additional data object to be sent along with the message. Currently, all data messages
-         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
-         * object to include.
-         * @param object_size The size of the transmitted object, in bytes. This is calculated automatically based on
-         * the type of the object. Do not overwrite this argument.
          */
-        template <typename ObjectType>
-        void SendData(const uint8_t event_code, const ObjectType& object, const size_t object_size = sizeof(ObjectType))
+        void SendState(const uint8_t event_code)
         {
             // Packages and sends the data to the connected system via the Communication class
-            const bool success = _communication.SendDataMessage(
-                _module_type,
-                _module_id,
-                execution_parameters.command,
-                event_code,
-                object,
-                object_size
-            );
+            const bool success =
+                _communication.SendStateMessage(_module_type, _module_id, execution_parameters.command, event_code);
 
             // If the message was sent, ends the runtime
             if (success) return;
@@ -961,19 +917,19 @@ class Module
 
             // Attempts sending the error message. Uses the unique DataSendingError event code and the object
             // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
+            module_status = static_cast<uint8_t>(kCoreStatusCodes::kStateSendingError);
             _communication.SendDataMessage(
                 _module_type,
                 _module_id,
                 execution_parameters.command,
-                static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError),
-                errors,
-                sizeof(errors)
+                module_status,
+                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                errors
             );
 
             // As a fallback in case the error message does not reach the connected system, sets the class status to
             // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
             // unhandled runtime error. The Kernel class manages the indicator inactivation.
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError);
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 };

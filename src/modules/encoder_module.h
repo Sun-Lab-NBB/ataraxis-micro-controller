@@ -92,7 +92,7 @@ class EncoderModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractParameters(_custom_parameters)) return false;
+            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
             module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
             return true;
         }
@@ -105,7 +105,7 @@ class EncoderModule final : public Module
             switch (static_cast<kModuleCommands>(GetActiveCommand()))
             {
                 // ReadEncoder
-                case kModuleCommands::kReadEncoderData: ReadEncoder(); return true;
+                case kModuleCommands::kReadEncoder: ReadEncoder(); return true;
                 // ResetEncoder
                 case kModuleCommands::kResetEncoder: ResetEncoder(); return true;
                 // Unrecognized command
@@ -204,7 +204,7 @@ class EncoderModule final : public Module
 
             // Sends the encoder data to the PC. Uses module_status to indicate the movement direction and the delta to
             // communicate the encoder displacement.
-            SendData(module_status, delta);
+            SendData(module_status, communication_assets::kPrototypes::kOneUnsignedLong, delta);
             CompleteCommand();
         }
 

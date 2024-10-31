@@ -137,6 +137,8 @@ namespace shared_assets
         kCommunicationParameterSizeMismatchError =
             160,  ///< The number of extracted parameter bytes does not match the size of the input structure.
         kCommunicationParametersExtracted = 161,  ///< Parameter data has been successfully extracted.
+        kCommunicationParameterExtractionInvalidMessage =
+            162,  ///< Unable to extract module parameters, since the class stores a different message type in buffer.
     };
 
     /**
@@ -242,16 +244,17 @@ namespace communication_assets
      */
     enum class kProtocols : uint8_t
     {
-        kUndefined = 0,  // Not a valid protocol code. This is used to initialize the Communication class.
+        /// Not a valid protocol code. This is used to initialize the Communication class.
+        kUndefined = 0,
 
-        /// Command message protocol.
-        kCommand = 1,
+        /// Module-addressed commands that should be repeated (executed recurrently).
+        KRecurrentModuleCommand = 1,
 
-        /// Parameters message protocol.
-        kParameters = 2,
+        /// Module-addressed parameter messages.
+        kModuleParameters = 2,
 
-        /// Data message protocol. This protocol is used for all types of data messages, including error messages.
-        kData = 3,
+        /// Module-sent data messages. This protocol is used for all types of data messages, including error messages.
+        kModuleData = 3,
 
         /// Reception acknowledgement protocol. This is a minimalistic protocol used to notify the sender that the
         /// controller received the Command or Parameters message.
@@ -261,19 +264,58 @@ namespace communication_assets
         /// to other Ataraxis systems, so that the individual controllers can be identified. This is primarily used to
         /// determine the USB ports used by specific controllers.
         kIdentification = 5,
+
+        /// Module-sent State message protocol. This is similar to DataMessage, but optimized for messages that only
+        /// need to communicate one state event-code with no additional data (e.g.: single-shot command completion).
+        kModuleState = 6,
+
+        /// Module-addressed commands that should not be repeated (executed only once).
+        kNonRecurrentModuleCommand = 7,
+
+        /// Kernel-addressed commands. Kernel commands are always non-repeatable.
+        kKernelCommand = 8,
+
+        /// Kernel-addressed parameter messages. Kernel parameters structure is the globally shared
+        /// DynamicRuntimeParameters structure.
+        kKernelParameters = 9,
+
+        /// Kernel-sent Data message protocol.
+        kKernelData = 10,
+
+        /// Kernel-sent State message protocol.
+        kKernelState = 11,
+
+        /// Module-addressed command that clears all queued commands (including recurrent commands) from the queue.
+        kResetModuleCommandQueue = 12,
     };
 
     /**
-     * @struct CommandMessage
-     * @brief The payload structure used by the incoming Command messages.
+     * @enum kPrototypes
+     * @breif Stores prototype codes used by the Communication class to specify the data structure object that can be
+     * used to parse DataMessage objects.
      *
-     * When Communication class encounters a message with the first value (assumed to be the protocol ID) set to
-     * 1, it parses the message using this structure. Command messages are designed to trigger specific module runtimes.
-     * These runtimes may be further configured by setting module parameters via the Parameters message.
-     *
-     * @notes Currently, controllers can only receive Command messages, but they cannot send them.
+     * Since most transmitted data objects use a small set of data structures, it is possible to uniquely map each
+     * used data object structure to a unique prototype code. In turn, this allows optimizing data reception and logging
+     * on the PC side.
      */
-    struct CommandMessage
+    enum class kPrototypes : uint8_t
+    {
+        /// A single uint8_t object.
+        kOneUnsignedByte = 1,
+        /// An array made up of two uint8_t objects.
+        kTwoUnsignedBytes = 2,
+        /// An array made up of three uint8_t objects.
+        kThreeUnsignedBytes = 3,
+        /// A single uint32_t object.
+        kOneUnsignedLong = 4,
+    };
+
+    /**
+     * @struct RecurrentModuleCommandMessage
+     * @brief The payload structure used by the incoming Command messages addressed to Modules and specifying the
+     * command that needs to be called repeatedly (recurrently).
+     */
+    struct RecurrentModuleCommandMessage
     {
             /// The type-code of the module to which the command is addressed.
             uint8_t module_type = 0;
@@ -304,18 +346,73 @@ namespace communication_assets
     } __attribute__((packed));
 
     /**
-     * @struct ParameterMessage
-     * @brief The payload structure used by the incoming Parameter messages.
-     *
-     * When Communication class encounters a message with the first value (assumed to be the protocol ID) set to
-     * 2, it parses the message using this structure. Parameter messages are used to flexibly configure the addressed
-     * module by overwriting its parameter (RuntimeParameters) structure with the object provided in the message.
+     * @struct NonRecurrentModuleCommand
+     * @brief The payload structure used by the incoming Command messages addressed to Modules and specifying the
+     * command that needs to run once (non-recurrently).
+     */
+    struct NonRecurrentModuleCommand
+    {
+            /// The type-code of the module to which the command is addressed.
+            uint8_t module_type = 0;
+
+            /// The specific module ID within the broader module family specified by module_type.
+            uint8_t module_id = 0;
+
+            /// When this field is set to a value other than 0, the Communication class will send this code back to the
+            /// sender upon successfully processing the received command. This is to notify the sender that the command
+            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            uint8_t return_code = 0;
+
+            /// The unique code of the command to execute.
+            uint8_t command = 0;
+
+            /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
+            /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise,
+            /// the controller will run other commands concurrently, while waiting for the block to complete.
+            bool noblock = false;
+    } __attribute__((packed));
+
+    /**
+     * @struct KernelCommandMessage
+     * @brief The payload structure used by the incoming Command messages addressed to Kernel class.
+     */
+    struct KernelCommandMessage
+    {
+            /// When this field is set to a value other than 0, the Communication class will send this code back to the
+            /// sender upon successfully processing the received command. This is to notify the sender that the command
+            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            uint8_t return_code = 0;
+
+            /// The unique code of the command to execute.
+            uint8_t command = 0;
+    } __attribute__((packed));
+
+    /// The payload structure used by the Module-addressed QueueReset commands. This is a special command that clears
+    /// the command queue of the target module, which allows resetting cyclically executed commands and preventing
+    /// queued commands form running.
+    struct ResetModuleCommandQueueMessage
+    {
+            /// The type-code of the module to which the command is addressed.
+            uint8_t module_type = 0;
+
+            /// The specific module ID within the broader module family specified by module_type.
+            uint8_t module_id = 0;
+
+            /// When this field is set to a value other than 0, the Communication class will send this code back to the
+            /// sender upon successfully processing the received command. This is to notify the sender that the command
+            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            uint8_t return_code = 0;
+    } __attribute__((packed));
+
+    /**
+     * @struct ModuleParametersMessage
+     * @brief The payload structure used by the incoming Module-adressed Parameter messages.
      *
      * @notes Parameters are stored in a module-type-specific structure, whose layout will not be known at the time the
-     * data is parsed. Instead, Kernel class will use the 'object_size' field and the module ID information from this
-     * header structure to extract and interpret the parameter data.
+     * data is parsed. Instead, Kernel class will use the module ID information from this header structure to extract
+     * and interpret the parameter data by calling the target Module's parsing API method.
      */
-    struct ParameterMessage
+    struct ModuleParametersMessage
     {
             /// The type-code of the module to which the parameter configuration is addressed.
             uint8_t module_type = 0;
@@ -327,27 +424,41 @@ namespace communication_assets
             /// sender upon successfully processing the received command. This is to notify the sender that the command
             /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
             uint8_t return_code = 0;
-
-            /// Stores the number of bytes (byte-size) of the parameter structure included with the message.
-            uint8_t object_size = 0;
     } __attribute__((packed));
 
     /**
-     * @struct DataMessage
-     * @brief The payload structure used by the outgoing Data messages.
+     * @struct KernelParametersMessage
+     * @brief The payload structure used by the incoming Kernel-adressed Parameter messages.
      *
-     * When the Communication class sends the Data message, it uses this message structure, preceded by
-     * protocol value 3. Data messages are used to communicate all controller-originating information, such as
-     * runtime data and error messages to other Ataraxis systems.
-     *
-     * @notes Data message parameters are stored in a module-type-specific structure, whose layout will not be known at
-     * the time the data is parsed. This structure is the complete message. It only includes metadata about the data
-     * being sent (e.g., type, module ID, command, etc.), but it does not include the actual data object (`object`). The
-     * data object itself is handled separately and is appended to the payload after the `DataMessage` metadata is 
-     * packed.
-     *
+     * @notes Unlike ModuleParametersMessage, KernelParametersMessage only writes to one structure, which is known at
+     * compile-time. Therefore, this message is capable of fully resolving the incoming payload in one step.
      */
-    struct DataMessage
+    struct KernelParametersMessage
+    {
+            /// When this field is set to a value other than 0, the Communication class will send this code back to the
+            /// sender upon successfully processing the received command. This is to notify the sender that the command
+            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            uint8_t return_code = 0;
+
+            /// Since Kernel parameter structure is known at compile-time, this message structure automatically knows
+            /// the shape of the transmitted parameters' data.
+            shared_assets::DynamicRuntimeParameters dynamic_parameters;
+    } __attribute__((packed));
+
+    /**
+     * @struct ModuleDataMessage
+     * @brief The payload structure used by the outgoing Module Data messages.
+     *
+     * @attention For messages that only need to transmit an event-code, use ModuleStateMessage structure for better
+     * efficiency.
+     *
+     * @notes This message structure only includes the ID metadata about the data being sent (e.g., module type), but
+     * it does not include the actual data object. The data object itself is handled separately and is appended to the
+     * payload after the `DataMessage` metadata is packed. It is critical that the appended object matches the prototype
+     * referenced by the 'prototype' field value. The referenced prototype will be used to read the data object on the
+     * PC side and, if invalid, the object will not be read correctly.
+     */
+    struct ModuleDataMessage
     {
             /// The type-code of the module which sent the data message.
             uint8_t module_type;
@@ -361,14 +472,76 @@ namespace communication_assets
             /// The unique code of the event within the command runtime that prompted the data transmission.
             uint8_t event;
 
-            /// The size of the transmitted data object in bytes. This field is automatically calculated based on the
-            /// size of the ObjectType template parameter.
-            uint8_t object_size;
+            /// The byte-code of the prototype object that can be used to decode the object data included with this
+            /// message. The PC will read the object data into the prototype object specified by this code.
+            uint8_t prototype;
 
     } __attribute__((packed));
 
-    /// A placeholder value that can be used for DataMessages without a meaningful DataObject.
-    constexpr uint8_t kDataPlaceholder = 255;
+    /**
+     * @struct KernelDataMessage
+     * @brief The payload structure used by the outgoing Kernel Data messages.
+     *
+     * @attention For messages that only need to transmit an event-code, use KernelStateMessage structure for better
+     * efficiency.
+     *
+     * @notes This message structure only includes the ID metadata about the data being sent (e.g., active command
+     * code), but it does not include the actual data object. The data object itself is handled separately and is
+     * appended to the payload after the `DataMessage` metadata is packed. It is critical that the appended object
+     * matches the prototype referenced by the 'prototype' field value. The referenced prototype will be used to read
+     * the data object on the PC side and, if invalid, the object will not be read correctly.
+     * */
+    struct KernelDataMessage
+    {
+            /// The unique code of the command the kernel was executing when it sent the data message.
+            uint8_t command;
+
+            /// The unique code of the event within the command runtime that prompted the data transmission.
+            uint8_t event;
+
+            /// The byte-code of the prototype object that can be used to decode the object data included with this
+            /// message. The PC will read the object data into the prototype object specified by this code.
+            uint8_t prototype;
+
+    } __attribute__((packed));
+
+    /**
+     * @struct ModuleStateMessage
+     * @brief The payload structure used by the outgoing Module State messages.
+     *
+     * @attention For messages that need to transmit a data object in addition to the state event-code, use
+     * ModuleDataMessage structure.
+     */
+    struct ModuleStateMessage
+    {
+            /// The type-code of the module which sent the data message.
+            uint8_t module_type;
+
+            /// The specific module ID within the broader module family specified by module_type.
+            uint8_t module_id;
+
+            /// The unique code of the command the module was executing when it sent the data message.
+            uint8_t command;
+
+            /// The unique code of the event within the command runtime that prompted the data transmission.
+            uint8_t event;
+    } __attribute__((packed));
+
+    /**
+     * @struct KernelStateMessage
+     * @brief The payload structure used by the outgoing Kernel State messages.
+     *
+     * @attention For messages that need to transmit a data object in addition to the state event-code, use
+     * KernelDataMessage structure.
+     */
+    struct KernelStateMessage
+    {
+            /// The unique code of the command the kernel was executing when it sent the data message.
+            uint8_t command;
+
+            /// The unique code of the event within the command runtime that prompted the data transmission.
+            uint8_t event;
+    } __attribute__((packed));
 
 }  // namespace communication_assets
 

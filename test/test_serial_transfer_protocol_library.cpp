@@ -1432,7 +1432,7 @@ void TestSendServiceMessageInvalidProtocolErrorCommandProtocol(void) {
     Communication comm_class(mock_port);
 
     // Using kCommand as protocol_code
-    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kCommand);
+    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::KRecurrentModuleCommand);
     const uint8_t code = 112;  // Example service code
 
     comm_class.SendServiceMessage(protocol_code, code);
@@ -1467,7 +1467,7 @@ void TestSendServiceMessageInvalidProtocolErrorParametersProtocol(void) {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
 
-    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kParameters);
+    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kModuleParameters);
     const uint8_t code = 112;  // Example service code
 
     // Using kParameters as protocol_code
@@ -1485,7 +1485,7 @@ void TestSendServiceMessageInvalidProtocalErrorDataProtocol(void) {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
 
-    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kData);
+    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kModuleData);
     const uint8_t code = 112;  // Example service code
 
     // Using kData as protocol_code
@@ -1556,8 +1556,8 @@ void TestReceiveMessageInvalidParsingErrorCommandMessgaeMissingParameter(void) {
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class; 
 
-    memset(&comm_class.command_message, 0, sizeof(communication_assets::CommandMessage));
-    comm_class.command_message.cycle_duration = 0xFFFFFF;
+    memset(&comm_class.recurrent_module_command_message, 0, sizeof(communication_assets::RecurrentModuleCommandMessage));
+    comm_class.recurrent_module_command_message.cycle_duration = 0xFFFFFF;
 
     // Instantiates a CommandMessage with invalid structure. The Message is too small to contain all required parameters
     // The correct layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
@@ -1595,8 +1595,8 @@ void TestReceiveMessageReceivedCommandMessage(void) {
     COBSProcessor<1, 2> cobs_class;  
 
    // Zero out command_message fields
-    memset(&comm_class.command_message, 0, sizeof(communication_assets::CommandMessage));
-    comm_class.command_message.cycle_duration = 0xFFFFFFFFFF;
+    memset(&comm_class.recurrent_module_command_message, 0, sizeof(communication_assets::RecurrentModuleCommandMessage));
+    comm_class.recurrent_module_command_message.cycle_duration = 0xFFFFFFFFFF;
 
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
     // CYCLE , TIME1,  TIME2, TIME3, TIME4 , DELIMITER, CRC[2]
@@ -1625,17 +1625,17 @@ void TestReceiveMessageReceivedCommandMessage(void) {
         static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.command_message.module_type);       // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.command_message.module_id);         // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, comm_class.command_message.return_code);       // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(5, comm_class.command_message.command);           // Check command
-    TEST_ASSERT_FALSE(comm_class.command_message.noblock);                    // Check noblock
-    TEST_ASSERT_FALSE(comm_class.command_message.cycle);                      // Check cycle
-    TEST_ASSERT_EQUAL_UINT32(0, comm_class.command_message.cycle_duration);   // Check cycle_duration
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.recurrent_module_command_message.module_type);       // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.recurrent_module_command_message.module_id);         // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(4, comm_class.recurrent_module_command_message.return_code);       // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(5, comm_class.recurrent_module_command_message.command);           // Check command
+    TEST_ASSERT_FALSE(comm_class.recurrent_module_command_message.noblock);                    // Check noblock
+    TEST_ASSERT_FALSE(comm_class.recurrent_module_command_message.cycle);                      // Check cycle
+    TEST_ASSERT_EQUAL_UINT32(0, comm_class.recurrent_module_command_message.cycle_duration);   // Check cycle_duration
     
     // Ensure other fields that should not have been modified remain unchanged
-    for (size_t i = sizeof(communication_assets::CommandMessage); i < sizeof(comm_class.command_message); ++i) {
-        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.command_message)[i]);
+    for (size_t i = sizeof(communication_assets::RecurrentModuleCommandMessage); i < sizeof(comm_class.recurrent_module_command_message); ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.recurrent_module_command_message)[i]);
     }
 }
 
@@ -1671,13 +1671,13 @@ void TestReceiveMessageReceivedParameterMessage(void) {
         static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.parameter_header.module_type);       // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.parameter_header.module_id);         // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, comm_class.parameter_header.return_code);       // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_parameter_header.module_type);       // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_parameter_header.module_id);         // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(4, comm_class.module_parameter_header.return_code);       // Check return_code
     
     // Ensure other fields that should not have been modified remain unchanged
-    for (size_t i = sizeof(communication_assets::CommandMessage); i < sizeof(comm_class.command_message); ++i) {
-        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.command_message)[i]);
+    for (size_t i = sizeof(communication_assets::RecurrentModuleCommandMessage); i < sizeof(comm_class.recurrent_module_command_message); ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.recurrent_module_command_message)[i]);
     }
 }
 
@@ -1795,7 +1795,7 @@ void TestExtractParametersArrayDestination(void)
     comm_class.ReceiveMessage();
 
     uint8_t extract_into[5] = {0};
-    comm_class.ExtractParameters(extract_into);
+    comm_class.ExtractModuleParameters(extract_into);
 
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted),
@@ -1839,7 +1839,7 @@ void TestExtractParametersStructDestination(void)
 
 
     // Call the ExtractParameters function, expecting a successful extraction
-    comm_class.ExtractParameters(test_structure);
+    comm_class.ExtractModuleParameters(test_structure);
     
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted),
@@ -1880,7 +1880,7 @@ void TestExtractParametersSizeMismatchDestinationSizeLarger(void) {
         uint8_t data[10] = {0};
     } data_message;
 
-    bool success = comm_class.ExtractParameters(data_message);
+    bool success = comm_class.ExtractModuleParameters(data_message);
 
     TEST_ASSERT_FALSE(success);
     TEST_ASSERT_EQUAL_UINT8(
@@ -1923,7 +1923,7 @@ void TestExtractParametersSizeMismatchDestinationSizeSmaller(void) {
         uint8_t data = 0;
     } data_message;
 
-    bool success = comm_class.ExtractParameters(data_message);
+    bool success = comm_class.ExtractModuleParameters(data_message);
 
     TEST_ASSERT_FALSE(success);
     TEST_ASSERT_EQUAL_UINT8(
@@ -1970,7 +1970,7 @@ void TestExtractParametersParsingErrorLargeTransmittedData(void) {
     comm_class.ReceiveMessage();
 
     uint8_t extract_into[255] = {0};
-    comm_class.ExtractParameters(extract_into);
+    comm_class.ExtractModuleParameters(extract_into);
 
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError),

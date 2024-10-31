@@ -75,7 +75,7 @@ class TTLModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractParameters(_custom_parameters)) return false;
+            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
             module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
             return true;
         }
@@ -146,7 +146,7 @@ class TTLModule final : public Module
             if (!kOutput)
             {
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendData(module_status, communication_assets::kDataPlaceholder);
+                SendState(module_status);
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -156,13 +156,13 @@ class TTLModule final : public Module
                 if (DigitalWrite(kPin, HIGH, true))
                 {
                     module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputOn);  // Records the status
-                    SendData(module_status, communication_assets::kDataPlaceholder);  // Informs the PC about pin status
+                    SendState(module_status);  // Informs the PC about pin status
                     AdvanceCommandStage();                                            // Advances to the next stage
                 }
                 else
                 {
                     module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);  // Records the status
-                    SendData(module_status, communication_assets::kDataPlaceholder);  // Informs the PC about pin status
+                    SendState(module_status);  // Informs the PC about pin status
                     CompleteCommand();  // Since the output pin is locked, the command is essentially aborted
                 }
             }
@@ -182,7 +182,7 @@ class TTLModule final : public Module
                 {
                     module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);
                 }
-                SendData(module_status, communication_assets::kDataPlaceholder);  // Informs the PC about pin status
+                SendState(module_status);  // Informs the PC about pin status
                 CompleteCommand();                                                // Finishes command execution
             }
         }
@@ -195,7 +195,7 @@ class TTLModule final : public Module
             if (!kOutput)
             {
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendData(module_status, communication_assets::kDataPlaceholder);
+                SendState(module_status);
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -209,7 +209,7 @@ class TTLModule final : public Module
             {
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);
             }
-            SendData(module_status, communication_assets::kDataPlaceholder);  // Informs the PC about pin status
+            SendState(module_status);  // Informs the PC about pin status
             CompleteCommand();                                                // Finishes command execution
         }
 
@@ -221,7 +221,7 @@ class TTLModule final : public Module
             if (!kOutput)
             {
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendData(module_status, communication_assets::kDataPlaceholder);
+                SendState(module_status);
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -236,7 +236,7 @@ class TTLModule final : public Module
             {
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);  // Records the status
             }
-            SendData(module_status, communication_assets::kDataPlaceholder);  // Informs the PC about pin status
+            SendState(module_status);  // Informs the PC about pin status
             CompleteCommand();                                                // Finishes command execution
         }
 
@@ -249,7 +249,7 @@ class TTLModule final : public Module
             if (kOutput)
             {
                 module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendData(module_status, communication_assets::kDataPlaceholder);
+                SendState(module_status);
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -260,13 +260,13 @@ class TTLModule final : public Module
             {
                 module_status          = static_cast<uint8_t>(kCustomStatusCodes::kInputOn);  // Records the new status
                 _previous_input_status = module_status;
-                SendData(module_status, communication_assets::kDataPlaceholder);
+                SendState(module_status);
             }
             else if (!current_state && _previous_input_status != static_cast<uint8_t>(kCustomStatusCodes::kInputOff))
             {
                 module_status          = static_cast<uint8_t>(kCustomStatusCodes::kInputOff);  // Records the new status
                 _previous_input_status = module_status;
-                SendData(module_status, communication_assets::kDataPlaceholder);
+                SendState(module_status);
             }
 
             // To optimize communication, only sends data to the PC if the status has changed.

@@ -93,7 +93,7 @@ class SolenoidValveModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractParameters(_custom_parameters)) return false;
+            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
             module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
             return true;
         }
