@@ -114,7 +114,7 @@ class Kernel
             kModuleAssetResetError    = 20,  ///< Resetting custom assets of a module failed.
             kModuleCommandsReset      = 21,  ///< Module command structure has been reset. Queued commands cleared.
             kStateSendingError        = 22,  ///< SendState() method failed due to a data sending error.
-            kResetQueueCommandTargetNotFound =
+            kResetModuleQueueTargetNotFound =
                 23  ///< The addressee of the Module command queue reset command is not found
         };
 
@@ -851,7 +851,7 @@ class Kernel
                 _communication.module_reset_command_queue_message.module_type,
                 _communication.module_reset_command_queue_message.module_id
             };
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kResetQueueCommandTargetNotFound);
+            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kResetModuleQueueTargetNotFound);
             SendData(kernel_status, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
         }
 
