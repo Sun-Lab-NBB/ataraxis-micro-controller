@@ -122,28 +122,23 @@ namespace shared_assets
      */
     enum class kCommunicationCodes : uint8_t
     {
-        kCommunicationStandby =
-            151,  ///< Standby placeholder used to initialize the Communication class status tracker.
-        kCommunicationReceptionError = 152,  ///< Communication class ran into an error when receiving a message.
-        kCommunicationParsingError = 153,  ///< Communication class ran into an error when parsing (reading) a message.
-        kCommunicationPackingError = 154,  ///< Communication class ran into an error when writing a message to payload.
-        kCommunicationTransmissionError = 155,  ///< Communication class ran into an error when transmitting a message.
-        kCommunicationTransmitted       = 156,  ///< Communication class successfully transmitted a message.
-        kCommunicationReceived          = 157,  ///< Communication class successfully received a message.
-        kCommunicationInvalidProtocolError =
-            158,  ///< The received or transmitted protocol code is not valid for that type of operation.
-        kCommunicationNoBytesToReceive =
-            159,  ///< Communication class did not receive enough bytes to process the message. This is NOT an error.
-        kCommunicationParameterSizeMismatchError =
-            160,  ///< The number of extracted parameter bytes does not match the size of the input structure.
-        kCommunicationParametersExtracted = 161,  ///< Parameter data has been successfully extracted.
-        kCommunicationParameterExtractionInvalidMessage =
-            162,  ///< Unable to extract module parameters, since the class stores a different message type in buffer.
+        kStandby             = 151,  ///< The default value used to initialize the communication_status variable.
+        kReceptionError      = 152,  ///< Communication class ran into an error when receiving a message.
+        kParsingError        = 153,  ///< Communication class ran into an error when parsing (reading) a message.
+        kPackingError        = 154,  ///< Communication class ran into an error when writing a message to payload.
+        kMessageError        = 155,  ///< Communication class ran into an error when transmitting a message.
+        kMessageSent         = 156,  ///< Communication class successfully transmitted a message.
+        kMessageReceived     = 157,  ///< Communication class successfully received a message.
+        kInvalidProtocol     = 158,  ///< The message protocol code is not valid for the type of operation (Rx or Tx).
+        kNoBytesToReceive    = 159,  ///< Communication class did not receive enough bytes to process the message.
+        kParameterMismatch   = 160,  ///< The size of the received parameters structure does not match expectation.
+        kParametersExtracted = 161,  ///< Parameter data has been successfully extracted.
+        kExtractionForbidden = 162,  ///< Attempted to extract parameters from message other than ModuleParameters.
     };
 
     /**
      * @struct DynamicRuntimeParameters
-     * @brief Stores global runtime parameters addressable through the Communication interface.
+     * @brief Stores global runtime parameters shared by all core classes and addressable through the Kernel class.
      *
      * These parameters broadly affect the runtime of all classes derived from the base Module class. They are
      * addressable through the Kernel class using the Communication interface.
@@ -247,46 +242,52 @@ namespace communication_assets
         /// Not a valid protocol code. This is used to initialize the Communication class.
         kUndefined = 0,
 
-        /// Module-addressed commands that should be repeated (executed recurrently).
-        KRecurrentModuleCommand = 1,
+        /// Protocol for receiving Module-addressed commands that should be repeated (executed recurrently).
+        KRepeatedModuleCommand = 1,
 
-        /// Module-addressed parameter messages.
-        kModuleParameters = 2,
+        /// Protocol for receiving Module-addressed commands that should not be repeated (executed only once).
+        kOneOffModuleCommand = 2,
 
-        /// Module-sent data messages. This protocol is used for all types of data messages, including error messages.
-        kModuleData = 3,
+        /// Protocol for receiving Module-addressed commands that remove all queued commands
+        /// (including recurrent commands). This command is actually fulfilled by the Kernel that directly manipulates
+        /// the local queue of the targeted Module.
+        kDequeueModuleCommand = 3,
 
-        /// Reception acknowledgement protocol. This is a minimalistic protocol used to notify the sender that the
-        /// controller received the Command or Parameters message.
-        kReceptionCode = 4,
+        /// Protocol for receiving Kernel-addressed commands. All Kernel commands are always non-repeatable (one-shot).
+        kKernelCommand = 4,
 
-        /// Identification protocol. This is a service message protocol that transmits the unique ID of the controller
-        /// to other Ataraxis systems, so that the individual controllers can be identified. This is primarily used to
-        /// determine the USB ports used by specific controllers.
-        kIdentification = 5,
+        /// Protocol for receiving Module-addressed parameters. This relies on transmitting arbitrary sized parameter
+        /// objects and requires each module to define a function for handling these parameters.
+        kModuleParameters = 5,
 
-        /// Module-sent State message protocol. This is similar to DataMessage, but optimized for messages that only
-        /// need to communicate one state event-code with no additional data (e.g.: single-shot command completion).
-        kModuleState = 6,
+        /// Protocol for receiving Kernel-addressed parameters. The parameters transmitted via these messages will be
+        /// used to overwrite the fields of the global DynamicRuntimeParameters structure shared by all Modules.
+        kKernelParameters = 6,
 
-        /// Module-addressed commands that should not be repeated (executed only once).
-        kNonRecurrentModuleCommand = 7,
+        /// Protocol for sending Module data or error messages that include an arbitrary data object in addition to
+        /// event state-code.
+        kModuleData = 7,
 
-        /// Kernel-addressed commands. Kernel commands are always non-repeatable.
-        kKernelCommand = 8,
+        /// Protocol for sending Kernel data or error messages that include an arbitrary data object in addition to
+        /// event state-code.
+        kKernelData = 8,
 
-        /// Kernel-addressed parameter messages. Kernel parameters structure is the globally shared
-        /// DynamicRuntimeParameters structure.
-        kKernelParameters = 9,
+        /// Protocol for sending Module data or error messages that do not include additional data objects. These
+        /// messages are optimized for delivering single event state-codes.
+        kModuleState = 9,
 
-        /// Kernel-sent Data message protocol.
-        kKernelData = 10,
+        /// Protocol for sending Kernel data or error messages that do not include additional data objects. These
+        /// messages are optimized for delivering single event state-codes.
+        kKernelState = 10,
 
-        /// Kernel-sent State message protocol.
-        kKernelState = 11,
+        /// Protocol used to acknowledge the reception of command and parameter messages. This is a minimalistic
+        /// service protocol used to notify the PC that the controller received the message.
+        kReceptionCode = 11,
 
-        /// Module-addressed command that clears all queued commands (including recurrent commands) from the queue.
-        kResetModuleCommandQueue = 12,
+        /// Protocol used to identify the controller to the PC. This is a service message protocol that transmits the
+        /// unique ID of the controller to the PC. This is primarily used to determine the USB ports used by specific
+        /// controllers.
+        kIdentification = 12,
     };
 
     /**

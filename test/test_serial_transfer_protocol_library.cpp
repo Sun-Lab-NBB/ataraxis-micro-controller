@@ -1318,7 +1318,7 @@ void TestSendDataMessagePackingErrorLargePayload(void)
 
     TEST_ASSERT_FALSE(result);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationPackingError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError),
         comm_class.communication_status
     );
 }
@@ -1339,7 +1339,7 @@ void TestSendDataMessageTransmittedConstantValueObject(void)
 
     TEST_ASSERT_TRUE(result);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
 }
@@ -1362,7 +1362,7 @@ void TestSendDataMessageTransmittedArray(void)
     // Assert that the message was successfully sent
     TEST_ASSERT_TRUE(result);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
 }
@@ -1387,7 +1387,7 @@ void TestSendDataMessageTransmittedStruct(void)
     // Assert that the message was successfully sent
     TEST_ASSERT_TRUE(result);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
 }
@@ -1407,7 +1407,7 @@ void TestSendServiceMessageTransmittedReceptionCode(void){
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
 }
@@ -1421,7 +1421,7 @@ void TestSendServiceMessageTransmittedIdleCode(void){
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
 }
@@ -1432,13 +1432,13 @@ void TestSendServiceMessageInvalidProtocolErrorCommandProtocol(void) {
     Communication comm_class(mock_port);
 
     // Using kCommand as protocol_code
-    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::KRecurrentModuleCommand);
+    const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::KRepeatedModuleCommand);
     const uint8_t code = 112;  // Example service code
 
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 }
@@ -1456,7 +1456,7 @@ void TestSendServiceInvalidProtocolErrorUndefinedProtocol(void) {
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 }
@@ -1474,7 +1474,7 @@ void TestSendServiceMessageInvalidProtocolErrorParametersProtocol(void) {
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 }
@@ -1492,7 +1492,7 @@ void TestSendServiceMessageInvalidProtocalErrorDataProtocol(void) {
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 }
@@ -1507,7 +1507,7 @@ void TestSendServiceMessageInvalidProtocalErrorArbitraryNumberProtocol(void){
     comm_class.SendServiceMessage(protocol_code, code);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 }
@@ -1544,7 +1544,7 @@ void TestReceiveMessageInvalidProtocolErrorArbitraryProtocolValue(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 }
@@ -1583,7 +1583,7 @@ void TestReceiveMessageInvalidParsingErrorCommandMessgaeMissingParameter(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError),
         comm_class.communication_status
     );
 }
@@ -1622,7 +1622,7 @@ void TestReceiveMessageReceivedCommandMessage(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceived),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(2, comm_class.recurrent_module_command_message.module_type);       // Check module_type
@@ -1668,7 +1668,7 @@ void TestReceiveMessageReceivedParameterMessage(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceived),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_parameter_header.module_type);       // Check module_type
@@ -1713,7 +1713,7 @@ void TestReceiveMessageReceptionErrorCommandMessageMissingParameter(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceptionError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kReceptionError),
         comm_class.communication_status
     );
 }
@@ -1743,7 +1743,7 @@ void TestReceiveMessageReceptionErrorNoCRCandCOBSCalculation(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceptionError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kReceptionError),
         comm_class.communication_status
     );
 }
@@ -1758,7 +1758,7 @@ void TestReceiveMessageReceivedNoBytesToReceive(void) {
     comm_class.ReceiveMessage();
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationNoBytesToReceive),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive),
         comm_class.communication_status
     );
 }
@@ -1798,7 +1798,7 @@ void TestExtractParametersArrayDestination(void)
     comm_class.ExtractModuleParameters(extract_into);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParametersExtracted),
         comm_class.communication_status
     );
 }
@@ -1842,7 +1842,7 @@ void TestExtractParametersStructDestination(void)
     comm_class.ExtractModuleParameters(test_structure);
     
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParametersExtracted),
         comm_class.communication_status
     );
 }
@@ -1884,7 +1884,7 @@ void TestExtractParametersSizeMismatchDestinationSizeLarger(void) {
 
     TEST_ASSERT_FALSE(success);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParameterSizeMismatchError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParameterMismatch),
         comm_class.communication_status
     );
 }
@@ -1927,7 +1927,7 @@ void TestExtractParametersSizeMismatchDestinationSizeSmaller(void) {
 
     TEST_ASSERT_FALSE(success);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParameterSizeMismatchError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParameterMismatch),
         comm_class.communication_status
     );
 }
@@ -1973,7 +1973,7 @@ void TestExtractParametersParsingErrorLargeTransmittedData(void) {
     comm_class.ExtractModuleParameters(extract_into);
 
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError),
+        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError),
         comm_class.communication_status
     );
 }

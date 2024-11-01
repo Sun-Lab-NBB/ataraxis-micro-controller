@@ -352,7 +352,7 @@ class Kernel
                         RunKernelCommand();
                         break;
 
-                    case communication_assets::kProtocols::kResetModuleCommandQueue:
+                    case communication_assets::kProtocols::kDequeueModuleCommand:
                         if (const uint8_t return_code = _communication.module_reset_command_queue_message.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
@@ -362,7 +362,7 @@ class Kernel
                         ClearModuleCommandQueue();
                         break;
 
-                    case communication_assets::kProtocols::kNonRecurrentModuleCommand:
+                    case communication_assets::kProtocols::kOneOffModuleCommand:
                         if (const uint8_t return_code = _communication.non_recurrent_module_command_message.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
@@ -376,7 +376,7 @@ class Kernel
                         );
                         break;
 
-                    case communication_assets::kProtocols::KRecurrentModuleCommand:
+                    case communication_assets::kProtocols::KRepeatedModuleCommand:
                         if (const uint8_t return_code = _communication.recurrent_module_command_message.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
@@ -648,7 +648,7 @@ class Kernel
                 // was no data to receive. Determines which of the two cases occurred here and resolves it
                 // appropriately.
                 if (_communication.communication_status ==
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationNoBytesToReceive))
+                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive))
                 {
                     // This is a non-error clause, sometimes there is no data to receive as none was sent.
                     kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kNoDataToReceive);

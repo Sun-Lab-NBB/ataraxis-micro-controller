@@ -123,7 +123,7 @@ class Communication
 {
     public:
         /// Tracks the most recent class runtime status.
-        uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationStandby);
+        uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kStandby);
 
         /// Stores the protocol code of the last received message.
         uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
@@ -301,8 +301,7 @@ class Communication
             // If any of the write operations above fail, breaks the runtime with an error status.
             if (next_index == 0)
             {
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationPackingError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
@@ -310,13 +309,12 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If write operation fails, returns with an error status
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmissionError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageError);
                 return false;
             }
 
             // If write operation succeeds, returns with a success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted);
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
@@ -404,8 +402,7 @@ class Communication
             // If any of the write operations above fail, breaks the runtime with an error status.
             if (next_index == 0)
             {
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationPackingError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
@@ -413,13 +410,12 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If write operation fails, returns with an error status
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmissionError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageError);
                 return false;
             }
 
             // If write operation succeeds, returns with a success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted);
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
@@ -466,8 +462,7 @@ class Communication
                 // of which of the two writing calls failed.
                 if (next_index == 0)
                 {
-                    communication_status =
-                        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationPackingError);
+                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                     return false;
                 }
 
@@ -475,20 +470,17 @@ class Communication
                 if (_transport_layer.SendData())
                 {
                     // If write operation succeeds, returns with a success code
-                    communication_status =
-                        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmitted);
+                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
                     return true;
                 }
 
                 // If send operation fails, returns with an error status
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationTransmissionError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageError);
                 return false;
             }
 
             // If input protocol code is not one of the valid Service protocol codes, aborts with an error
-            communication_status =
-                static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError);
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol);
             return false;
         }
 
@@ -532,14 +524,12 @@ class Communication
                 if (_transport_layer.transfer_status !=
                     static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kNoBytesToParseFromBuffer))
                 {
-                    communication_status =
-                        static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceptionError);
+                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kReceptionError);
                     return false;
                 }
 
                 // Otherwise, returns with a specialized status that indicates non-error-failure.
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationNoBytesToReceive);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive);
                 return false;
             }
 
@@ -549,18 +539,18 @@ class Communication
             {
                 // Pre-sets the status to the success code, assuming the switch below will resolve the message. This
                 // makes the code below more readable.
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationReceived);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageReceived);
 
                 // Uses efficient switch logic to resolve and handle the data based on the protocol code
                 switch (static_cast<communication_assets::kProtocols>(protocol_code))
                 {
                     // Recurrent Module Command. This is likely one of the larger messages.
-                    case communication_assets::kProtocols::KRecurrentModuleCommand:
+                    case communication_assets::kProtocols::KRepeatedModuleCommand:
                         if (_transport_layer.ReadData(recurrent_module_command_message, next_index)) return true;
                         break;
 
                     // Non-recurrent Module Command. This message is half the size of the recurrent command message.
-                    case communication_assets::kProtocols::kNonRecurrentModuleCommand:
+                    case communication_assets::kProtocols::kOneOffModuleCommand:
                         if (_transport_layer.ReadData(non_recurrent_module_command_message, next_index)) return true;
                         break;
 
@@ -585,21 +575,20 @@ class Communication
                         break;
 
                     // Module command Queue reset command.
-                    case communication_assets::kProtocols::kResetModuleCommandQueue:
+                    case communication_assets::kProtocols::kDequeueModuleCommand:
                         if (_transport_layer.ReadData(module_reset_command_queue_message, next_index)) return true;
                         break;
 
                     default:
                         // If input protocol code is not one of the valid protocols, aborts with an error status.
                         communication_status =
-                            static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationInvalidProtocolError
-                            );
+                            static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol);
                         return false;
                 }
             }
 
             // If any of the reading method calls failed (returns a next_index == 0), returns the error status
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError);
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
             return false;
         }
 
@@ -645,9 +634,7 @@ class Communication
             // buffer is a ModuleParameters message.
             if (protocol_code != static_cast<uint8_t>(communication_assets::kProtocols::kModuleParameters))
             {
-                communication_status = static_cast<uint8_t>(
-                    shared_assets::kCommunicationCodes::kCommunicationParameterExtractionInvalidMessage
-                );
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kExtractionForbidden);
                 return false;
             }
 
@@ -657,20 +644,18 @@ class Communication
             if (static_cast<uint8_t>(bytes_to_read) !=
                 _transport_layer.get_rx_payload_size() - sizeof(communication_assets::ModuleParametersMessage) - 1)
             {
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParameterSizeMismatchError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParameterMismatch);
                 return false;
             }
 
             if (const uint16_t next_index = _transport_layer.ReadData(prototype, kParameterObjectIndex);
                 next_index != 0)
             {
-                communication_status =
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParametersExtracted);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParametersExtracted);
                 return true;  // Successfully extracted parameters.
             }
 
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kCommunicationParsingError);
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
             return false;  // Failed to extract parameters.
         }
 
