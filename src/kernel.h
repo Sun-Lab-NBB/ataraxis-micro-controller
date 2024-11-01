@@ -320,7 +320,7 @@ class Kernel
                     case communication_assets::kProtocols::kKernelParameters:
                         // If the PC requested the acknowledgement code, notifies the PC that the message was received
                         // by sending back the included return code.
-                        if (const uint8_t return_code = _communication.kernel_parameters_message.return_code)
+                        if (const uint8_t return_code = _communication.kernel_parameters.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
@@ -332,7 +332,7 @@ class Kernel
 
                     // Module-adressed parameters
                     case communication_assets::kProtocols::kModuleParameters:
-                        if (const uint8_t return_code = _communication.module_parameter_header.return_code)
+                        if (const uint8_t return_code = _communication.module_parameter.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
@@ -343,7 +343,7 @@ class Kernel
                         break;
 
                     case communication_assets::kProtocols::kKernelCommand:
-                        if (const uint8_t return_code = _communication.kernel_command_message.return_code)
+                        if (const uint8_t return_code = _communication.kernel_command.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
@@ -353,7 +353,7 @@ class Kernel
                         break;
 
                     case communication_assets::kProtocols::kDequeueModuleCommand:
-                        if (const uint8_t return_code = _communication.module_reset_command_queue_message.return_code)
+                        if (const uint8_t return_code = _communication.module_dequeue.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
@@ -373,21 +373,22 @@ class Kernel
                             _communication.non_recurrent_module_command_message.module_id,
                             _communication.non_recurrent_module_command_message.command,
                             _communication.non_recurrent_module_command_message.noblock
+                            // Disables command cycling (repetition)
                         );
                         break;
 
                     case communication_assets::kProtocols::KRepeatedModuleCommand:
-                        if (const uint8_t return_code = _communication.recurrent_module_command_message.return_code)
+                        if (const uint8_t return_code = _communication.module_command.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
                         QueueModuleCommand(
-                            _communication.recurrent_module_command_message.module_type,
-                            _communication.recurrent_module_command_message.module_id,
-                            _communication.recurrent_module_command_message.command,
-                            _communication.recurrent_module_command_message.noblock,
-                            _communication.recurrent_module_command_message.cycle,
-                            _communication.recurrent_module_command_message.cycle_delay
+                            _communication.module_command.module_type,
+                            _communication.module_command.module_id,
+                            _communication.module_command.command,
+                            _communication.module_command.noblock,
+                            true,  // Enables command cycling (repetition).
+                            _communication.module_command.cycle_delay
                         );
                         break;
 
@@ -681,7 +682,7 @@ class Kernel
         {
             // Extracts the received parameter data into the DynamicRuntimeParameters structure shared by all
             // modules and Kernel class. Updates the structure by reference.
-            _dynamic_parameters = _communication.kernel_parameters_message.dynamic_parameters;
+            _dynamic_parameters = _communication.kernel_parameters.dynamic_parameters;
             kernel_status       = static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersSet);
         }
 
@@ -699,8 +700,8 @@ class Kernel
             {
                 // If a Module class is found with matching type and id, calls its SetCustomParameters() method to
                 // handle the received parameters' payload.
-                if (_modules[i]->GetModuleType() == _communication.module_parameter_header.module_type &&
-                    _modules[i]->GetModuleID() == _communication.module_parameter_header.module_id)
+                if (_modules[i]->GetModuleType() == _communication.module_parameter.module_type &&
+                    _modules[i]->GetModuleID() == _communication.module_parameter.module_id)
                 {
                     // Calls the Module API method that processes the parameter object included with the message
                     if (!_modules[i]->SetCustomParameters())
@@ -709,8 +710,8 @@ class Kernel
                         // Includes ID information about the payload addressee and extraction error code from the
                         // communication class.
                         const uint8_t errors[3] = {
-                            _communication.module_parameter_header.module_type,
-                            _communication.module_parameter_header.module_id,
+                            _communication.module_parameter.module_type,
+                            _communication.module_parameter.module_id,
                             _communication.communication_status
                         };
                         kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError);
@@ -731,8 +732,8 @@ class Kernel
             // If this point is reached, the parameter payload addressee was not found. Sends an error message
             // to the PC and reruns the loop.
             const uint8_t errors[2] = {
-                _communication.module_parameter_header.module_type,
-                _communication.module_parameter_header.module_id,
+                _communication.module_parameter.module_type,
+                _communication.module_parameter.module_id,
             };  // payload ID information
             kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kParametersTargetNotFound);
             SendData(kernel_status, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
@@ -744,7 +745,7 @@ class Kernel
         void RunKernelCommand()
         {
             // Resolves and executes the specific command code communicated by the message:
-            switch (auto command = static_cast<kKernelCommands>(_communication.kernel_command_message.command))
+            switch (auto command = static_cast<kKernelCommands>(_communication.kernel_command.command))
             {
                 case kKernelCommands::kResetController:
                     kernel_command = static_cast<uint8_t>(command);  // Adjusts executed command status
@@ -758,7 +759,7 @@ class Kernel
 
                 default:
                     // If the command code was not matched with any valid code, sends an error message.
-                    const uint8_t errors[1] = {_communication.kernel_command_message.command};
+                    const uint8_t errors[1] = {_communication.kernel_command.command};
                     kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kKernelCommandUnknown);
                     SendData(kernel_status, communication_assets::kPrototypes::kOneUnsignedByte, errors);
             }
@@ -836,8 +837,8 @@ class Kernel
             {
                 // If a Module class is found with matching type and id, queues the command to be executed by the
                 // target module.
-                if (_modules[i]->GetModuleType() == _communication.module_reset_command_queue_message.module_type &&
-                    _modules[i]->GetModuleID() == _communication.module_reset_command_queue_message.module_id)
+                if (_modules[i]->GetModuleType() == _communication.module_dequeue.module_type &&
+                    _modules[i]->GetModuleID() == _communication.module_dequeue.module_id)
                 {
                     _modules[i]->ResetCommandQueue();
                     kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandsReset);
@@ -848,8 +849,8 @@ class Kernel
             // If this point is reached, the reset command payload addressee was not found. Sends an error message
             // to the PC and reruns the loop.
             const uint8_t errors[2] = {
-                _communication.module_reset_command_queue_message.module_type,
-                _communication.module_reset_command_queue_message.module_id
+                _communication.module_dequeue.module_type,
+                _communication.module_dequeue.module_id
             };
             kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kResetModuleQueueTargetNotFound);
             SendData(kernel_status, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);

@@ -106,9 +106,9 @@ static constexpr uint16_t kSerialBufferSize = 64;
  * @brief Exposes methods that allow establishing and maintaining bidirectional serialized communication with other
  * Ataraxis systems via the internal binding of the TransportLayer library.
  *
- * This class handles all communications between the Microcontroller and the rest of the Ataraxis infrastructure over
- * the USB (preferred) or UART serial interface. To do so, the class statically extends the TransportLayer class
- * methods to enforce the consistent communication structure used by the Ataraxis project.
+ * This class handles all communications between the Microcontroller and the PC over the USB (preferred) or UART serial
+ * interface. To do so, the class statically extends the TransportLayer class methods to enforce the consistent
+ * communication structure used by the Ataraxis project.
  *
  * @note This class is intended to be used both by custom modules (classes derived from the base Module class) and
  * the Kernel class. Overall, this class defines and maintains a rigid payload microstructure that acts on top of the
@@ -128,28 +128,26 @@ class Communication
         /// Stores the protocol code of the last received message.
         uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
 
-        /// Stores parsed command data from the last received Module-addressed Recurrent Command message.
-        communication_assets::RecurrentModuleCommandMessage recurrent_module_command_message;
+        /// Stores the last received Module-addressed command message data. Note, this structure is used by both
+        /// Repeated (recurrent) and OneOff (non-recurrent) commands. If the cycle_duration is set to 0, this structure
+        /// stores a non-recurrent command. Otherwise, the structure stores a recurrent command. Using the same
+        /// structure for both commands improves code readability and conserves memory.
+        communication_assets::RepeatedModuleCommand module_command;
 
-        /// Stores parsed command data from the last received Module-addressed Non-Recurrent Command message.
-        communication_assets::NonRecurrentModuleCommand non_recurrent_module_command_message;
+        /// Stores the last received Kernel-addressed command message data.
+        communication_assets::KernelCommand kernel_command;
 
-        /// Stores parsed command data from the last received Kernel-addressed Command message.
-        communication_assets::KernelCommandMessage kernel_command_message;
+        /// Stores the last received Module-addressed dequeue message data.
+        communication_assets::DequeueModuleCommand module_dequeue;
 
-        /// Stores parsed header data from the last received Module-addressed Parameter message. This is not the
-        /// complete message! The parameter object has to be parsed separately by calling ExtractModuleParameters()
-        /// method.
-        communication_assets::ModuleParametersMessage module_parameter_header;
+        /// Stores the last received Module-addressed parameters message header data. Note, the parameter object
+        /// is not contained in this structure! Instead, it has to be parsed separately by calling the
+        /// ExtractModuleParameters() method.
+        communication_assets::ModuleParameters module_parameter;
 
-        /// Stores the parsed data from the last received Kernel-addressed Parameter message. Unlike
-        /// module_parameter_header, this structure contains the entire message contents.
-        communication_assets::KernelParametersMessage kernel_parameters_message;
-
-        /// Stores the parsed data from the last received Module-addressed Reset Command Queue message.
-        /// This is a special form of module-targeted command used to reset the queued commands for the addressed
-        /// module.
-        communication_assets::ResetModuleCommandQueueMessage module_reset_command_queue_message;
+        /// Stores the last received Kernel-addressed parameters message data. This structure stores the entire
+        /// message, including the parameter object.
+        communication_assets::KernelParameters kernel_parameters;
 
         /**
          * @brief Instantiates a new Communication class object.
@@ -262,7 +260,7 @@ class Communication
             // Determines the protocol and message structure to use
             if (module_type == 0 && module_id == 0)
             {
-                communication_assets::KernelDataMessage message {};
+                communication_assets::KernelData message {};
                 message.command   = command;
                 message.event     = event_code;
                 message.prototype = static_cast<uint8_t>(prototype);
@@ -278,7 +276,7 @@ class Communication
             }
             else
             {
-                communication_assets::ModuleDataMessage message {};
+                communication_assets::ModuleData message {};
                 message.module_id   = module_id;
                 message.module_type = module_type;
                 message.command     = command;
@@ -309,7 +307,7 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If write operation fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
@@ -368,7 +366,7 @@ class Communication
             // Determines the protocol and message structure to use
             if (module_type == 0 && module_id == 0)
             {
-                communication_assets::KernelStateMessage message {};
+                communication_assets::KernelState message {};
                 message.command = command;
                 message.event   = event_code;
 
@@ -383,7 +381,7 @@ class Communication
             }
             else
             {
-                communication_assets::ModuleStateMessage message {};
+                communication_assets::ModuleState message {};
                 message.module_id   = module_id;
                 message.module_type = module_type;
                 message.command     = command;
@@ -410,7 +408,7 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If write operation fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
@@ -475,7 +473,7 @@ class Communication
                 }
 
                 // If send operation fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageError);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
@@ -546,7 +544,7 @@ class Communication
                 {
                     // Recurrent Module Command. This is likely one of the larger messages.
                     case communication_assets::kProtocols::KRepeatedModuleCommand:
-                        if (_transport_layer.ReadData(recurrent_module_command_message, next_index)) return true;
+                        if (_transport_layer.ReadData(module_command, next_index)) return true;
                         break;
 
                     // Non-recurrent Module Command. This message is half the size of the recurrent command message.
@@ -556,7 +554,7 @@ class Communication
 
                     // Kernel Command. This is one of the smallest messages.
                     case communication_assets::kProtocols::kKernelCommand:
-                        if (_transport_layer.ReadData(kernel_command_message, next_index)) return true;
+                        if (_transport_layer.ReadData(kernel_command, next_index)) return true;
                         break;
 
                     // Module Parameters. Note, the reception cannot be completed until the target module is resolve and
@@ -565,18 +563,18 @@ class Communication
                         // Reads the HEADER of the message into the storage structure. This gives Kernel class enough
                         // information to address the message, but this is NOT the whole message. To retrieve parameter
                         // data bundled with the message, use ExtractModuleParameters() method.
-                        if (_transport_layer.ReadData(module_parameter_header, next_index)) return true;
+                        if (_transport_layer.ReadData(module_parameter, next_index)) return true;
                         break;
 
                     // Kernel Parameters. Unlike module parameters, the exact object prototype for the Kernel is known.
                     // Therefore, this step parses the whole message data.
                     case communication_assets::kProtocols::kKernelParameters:
-                        if (_transport_layer.ReadData(kernel_parameters_message, next_index)) return true;
+                        if (_transport_layer.ReadData(kernel_parameters, next_index)) return true;
                         break;
 
                     // Module command Queue reset command.
                     case communication_assets::kProtocols::kDequeueModuleCommand:
-                        if (_transport_layer.ReadData(module_reset_command_queue_message, next_index)) return true;
+                        if (_transport_layer.ReadData(module_dequeue, next_index)) return true;
                         break;
 
                     default:
@@ -642,7 +640,7 @@ class Communication
             // with the message. The '-1' accounts for the protocol code (first variable of each message) that precedes
             // the message structure.
             if (static_cast<uint8_t>(bytes_to_read) !=
-                _transport_layer.get_rx_payload_size() - sizeof(communication_assets::ModuleParametersMessage) - 1)
+                _transport_layer.get_rx_payload_size() - sizeof(communication_assets::ModuleParameters) - 1)
             {
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParameterMismatch);
                 return false;
@@ -662,7 +660,7 @@ class Communication
     private:
         /// Stores the minimum valid incoming payload size. Currently, this is the size of the KernelCommandMessage
         /// (2 bytes) + 1 Protocol byte. This value is used to optimize incoming message reception behavior.
-        static constexpr uint16_t kMinimumPayloadSize = sizeof(communication_assets::KernelCommandMessage) + 1;
+        static constexpr uint16_t kMinimumPayloadSize = sizeof(communication_assets::KernelCommand) + 1;
 
         /// Stores the size of the CRC Checksum postamble in bytes. This is directly dependent on the variable type used
         /// for the PolynomialType template parameter when specializing the TransportLayer class. At the time of
@@ -692,7 +690,7 @@ class Communication
         /// Parameter messages are different from other messages, as the parameter object itself is not part of the
         /// message structure. However, the message header has a fixed size, so the first parameter data index
         /// is static: it is the size of the ParameterMessage structure and Protocol byte (1).
-        static constexpr uint16_t kParameterObjectIndex = sizeof(communication_assets::ModuleParametersMessage) + 1;
+        static constexpr uint16_t kParameterObjectIndex = sizeof(communication_assets::ModuleParameters) + 1;
 
         /// The bound TransportLayer instance that abstracts low-level data communication steps. This class statically
         /// specializes and initializes the TransportLayer to use sensible defaults. It is highly advised not to alter
