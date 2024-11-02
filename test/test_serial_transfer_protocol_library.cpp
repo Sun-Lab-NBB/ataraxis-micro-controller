@@ -1556,8 +1556,8 @@ void TestReceiveMessageInvalidParsingErrorCommandMessgaeMissingParameter(void) {
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);  
     COBSProcessor<1, 2> cobs_class; 
 
-    memset(&comm_class.module_command, 0, sizeof(communication_assets::RepeatedModuleCommand));
-    comm_class.module_command.cycle_duration = 0xFFFFFF;
+    memset(&comm_class.repeated_module_command, 0, sizeof(communication_assets::RepeatedModuleCommand));
+    comm_class.repeated_module_command.cycle_duration = 0xFFFFFF;
 
     // Instantiates a CommandMessage with invalid structure. The Message is too small to contain all required parameters
     // The correct layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
@@ -1595,8 +1595,8 @@ void TestReceiveMessageReceivedCommandMessage(void) {
     COBSProcessor<1, 2> cobs_class;  
 
    // Zero out command_message fields
-    memset(&comm_class.module_command, 0, sizeof(communication_assets::RepeatedModuleCommand));
-    comm_class.module_command.cycle_duration = 0xFFFFFFFFFF;
+    memset(&comm_class.repeated_module_command, 0, sizeof(communication_assets::RepeatedModuleCommand));
+    comm_class.repeated_module_command.cycle_duration = 0xFFFFFFFFFF;
 
     // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCAL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
     // CYCLE , TIME1,  TIME2, TIME3, TIME4 , DELIMITER, CRC[2]
@@ -1625,17 +1625,17 @@ void TestReceiveMessageReceivedCommandMessage(void) {
         static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_command.module_type);       // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_command.module_id);         // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, comm_class.module_command.return_code);       // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(5, comm_class.module_command.command);           // Check command
-    TEST_ASSERT_FALSE(comm_class.module_command.noblock);                    // Check noblock
-    TEST_ASSERT_FALSE(comm_class.module_command.cycle);                      // Check cycle
-    TEST_ASSERT_EQUAL_UINT32(0, comm_class.module_command.cycle_duration);   // Check cycle_duration
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);       // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.repeated_module_command.module_id);         // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(4, comm_class.repeated_module_command.return_code);       // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(5, comm_class.repeated_module_command.command);           // Check command
+    TEST_ASSERT_FALSE(comm_class.repeated_module_command.noblock);                    // Check noblock
+    TEST_ASSERT_FALSE(comm_class.repeated_module_command.cycle);                      // Check cycle
+    TEST_ASSERT_EQUAL_UINT32(0, comm_class.repeated_module_command.cycle_duration);   // Check cycle_duration
     
     // Ensure other fields that should not have been modified remain unchanged
-    for (size_t i = sizeof(communication_assets::RepeatedModuleCommand); i < sizeof(comm_class.module_command); ++i) {
-        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.module_command)[i]);
+    for (size_t i = sizeof(communication_assets::RepeatedModuleCommand); i < sizeof(comm_class.repeated_module_command); ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.repeated_module_command)[i]);
     }
 }
 
@@ -1676,8 +1676,8 @@ void TestReceiveMessageReceivedParameterMessage(void) {
     TEST_ASSERT_EQUAL_UINT8(4, comm_class.module_parameter.return_code);       // Check return_code
     
     // Ensure other fields that should not have been modified remain unchanged
-    for (size_t i = sizeof(communication_assets::RepeatedModuleCommand); i < sizeof(comm_class.module_command); ++i) {
-        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.module_command)[i]);
+    for (size_t i = sizeof(communication_assets::RepeatedModuleCommand); i < sizeof(comm_class.repeated_module_command); ++i) {
+        TEST_ASSERT_EQUAL_UINT8(0xFF, reinterpret_cast<uint8_t*>(&comm_class.repeated_module_command)[i]);
     }
 }
 

@@ -363,32 +363,32 @@ class Kernel
                         break;
 
                     case communication_assets::kProtocols::kOneOffModuleCommand:
-                        if (const uint8_t return_code = _communication.non_recurrent_module_command_message.return_code)
+                        if (const uint8_t return_code = _communication.one_off_module_command.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
 
                         QueueModuleCommand(
-                            _communication.non_recurrent_module_command_message.module_type,
-                            _communication.non_recurrent_module_command_message.module_id,
-                            _communication.non_recurrent_module_command_message.command,
-                            _communication.non_recurrent_module_command_message.noblock
+                            _communication.one_off_module_command.module_type,
+                            _communication.one_off_module_command.module_id,
+                            _communication.one_off_module_command.command,
+                            _communication.one_off_module_command.noblock
                             // Disables command cycling (repetition)
                         );
                         break;
 
                     case communication_assets::kProtocols::KRepeatedModuleCommand:
-                        if (const uint8_t return_code = _communication.module_command.return_code)
+                        if (const uint8_t return_code = _communication.repeated_module_command.return_code)
                         {
                             SendServiceMessage(reception_protocol, return_code);
                         }
                         QueueModuleCommand(
-                            _communication.module_command.module_type,
-                            _communication.module_command.module_id,
-                            _communication.module_command.command,
-                            _communication.module_command.noblock,
+                            _communication.repeated_module_command.module_type,
+                            _communication.repeated_module_command.module_id,
+                            _communication.repeated_module_command.command,
+                            _communication.repeated_module_command.noblock,
                             true,  // Enables command cycling (repetition).
-                            _communication.module_command.cycle_delay
+                            _communication.repeated_module_command.cycle_delay
                         );
                         break;
 

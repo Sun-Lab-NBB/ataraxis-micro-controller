@@ -128,11 +128,11 @@ class Communication
         /// Stores the protocol code of the last received message.
         uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
 
-        /// Stores the last received Module-addressed command message data. Note, this structure is used by both
-        /// Repeated (recurrent) and OneOff (non-recurrent) commands. If the cycle_duration is set to 0, this structure
-        /// stores a non-recurrent command. Otherwise, the structure stores a recurrent command. Using the same
-        /// structure for both commands improves code readability and conserves memory.
-        communication_assets::RepeatedModuleCommand module_command;
+        /// Stores the last received Module-addressed recurrent (repeated) command message data.
+        communication_assets::RepeatedModuleCommand repeated_module_command;
+
+        /// Stores the last received Module-addressed non-recurrent (one-off) command message data.
+        communication_assets::OneOffModuleCommand one_off_module_command;
 
         /// Stores the last received Kernel-addressed command message data.
         communication_assets::KernelCommand kernel_command;
@@ -195,38 +195,30 @@ class Communication
         }
 
         /**
-         * @brief Packages the input data into the appropriate DataMessage structure and sends it over to the
-         * connected Ataraxis system.
+         * @brief Packages the input data into the ModuleData or KernelData structure and sends it to the connected PC.
          *
-         * This method is used for sending both data and error messages. The message will be interpreted according to
-         * the bundled event_code. This library treats errors as generic event instances, same as data or 'success'
-         * messages.
+         * This method is used for sending both data and error messages. This library treats errors as generic event
+         * instances, same as data or success-state messages.
          *
-         * @warning If you only need to communicate the event-code state without any additional data, use
-         * SendStateMessage() for more optimal transmission protocol!
+         * @warning If you only need to communicate the state event-code without any additional data, use
+         * SendStateMessage() method for more optimal transmission protocol!
          *
-         * Data messages consist of a rigid header structure that addresses the data payload and a flexible
-         * data object, that stores additional information to be sent along with the message. Messages designed to not
-         * include a data object are still required to provide a placeholder object to use this method.
-         *
-         * @note This method automatically determines whether to use KernelDataMessage or ModuleDataMessage structure,
-         * based on the value of the module_type and module_id parameters. When both are set to 0, KernelDataMessage is
-         * used.
+         * @note This method automatically determines whether to use KernelData or ModuleData structure, based on the
+         * value of the module_type and module_id parameters. When both are set to 0, KernelData is used.
          *
          * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
          * automatically by the template constructor.
          * @param module_type The byte-code specifying the type of the module that sent the data message. Set to 0 when
-         * sending the data from Kernel.
+         * sending data from the Kernel.
          * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * sent the data. Set to 0 when sending the data from Kernel.
-         * @param command The byte-code specifying the command executed by the module that sent the data message.
+         * sent the data. Set to 0 when sending the data from the Kernel.
+         * @param command The byte-code specifying the command executed by the class that sent the data message.
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param prototype The byte-code specifying the prototype object that can be used to deserialize the included
          * object data. For this to work as expected, the microcontroller and the PC need to share the same
-         * code-to-prototype mapping.
-         * @param object Additional data object to be sent along with the message. Currently, all data messages
-         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
-         * object to include.
+         * prototype_code to object mapping.
+         * @param object Additional data object to be sent along with the message. Currently, only one object is
+         * supported per each Data message.
          *
          * @returns True if the message was successfully sent, false otherwise.
          *
@@ -254,90 +246,85 @@ class Communication
             const ObjectType& object
         )
         {
-            uint16_t
-                next_index;  // This index is used to sequentially write the necessary data into the payload buffer.
+            // This index is used to sequentially write the necessary data into the payload buffer.
+            uint16_t next_index = 0;
 
-            // Determines the protocol and message structure to use
+            // If both module_type and module_id are set to 0, assumes the caller is Kernel and uses KernelData
+            // protocol.
             if (module_type == 0 && module_id == 0)
             {
-                communication_assets::KernelData message {};
-                message.command   = command;
-                message.event     = event_code;
-                message.prototype = static_cast<uint8_t>(prototype);
-
-                // Constructs the payload by writing the protocol code
-                next_index = _transport_layer.WriteData(
+                // Constructs the message header
+                const communication_assets::KernelData message {
                     static_cast<uint8_t>(communication_assets::kProtocols::kKernelData),
-                    kProtocolIndex
-                );
+                    command,
+                    event_code,
+                    static_cast<uint8_t>(prototype)
+                };
 
-                // Writes the message payload header if the protocol number was successfully written
-                if (next_index != 0) next_index = _transport_layer.WriteData(message, next_index);
+                // Writes the message into the payload buffer
+                next_index = _transport_layer.WriteData(message);
             }
+
+            // Otherwise, assumes the caller is a Module and uses ModuleData protocol.
             else
             {
-                communication_assets::ModuleData message {};
-                message.module_id   = module_id;
-                message.module_type = module_type;
-                message.command     = command;
-                message.event       = event_code;
-                message.prototype   = static_cast<uint8_t>(prototype);
-
-                // Constructs the payload by writing the protocol code
-                next_index = _transport_layer.WriteData(
+                // Constructs the message header
+                const communication_assets::ModuleData message {
                     static_cast<uint8_t>(communication_assets::kProtocols::kModuleData),
-                    kProtocolIndex
-                );
+                    module_type,
+                    module_id,
+                    command,
+                    event_code,
+                    static_cast<uint8_t>(prototype)
+                };
 
-                // Writes the message payload header if the protocol number was successfully written
-                if (next_index != 0) next_index = _transport_layer.WriteData(message, next_index);
+                // Writes the message into the payload buffer
+                next_index = _transport_layer.WriteData(message);
             }
 
-            // Writes the data object if the header was successfully written
+            // Writes the data object if the message header was successfully written to the buffer, as indicated by a
+            // non-zero next_index value
             if (next_index != 0) next_index = _transport_layer.WriteData(object, next_index);
 
-            // If any of the write operations above fail, breaks the runtime with an error status.
+            // If any writing attempt from above fails, breaks the runtime with an error status.
             if (next_index == 0)
             {
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
-            // Sends data to the PC
+            // If the data was written to the buffer, sends it to the PC
             if (!_transport_layer.SendData())
             {
-                // If write operation fails, returns with an error status
+                // If data sending fails, returns with an error status
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
-            // If write operation succeeds, returns with a success code
+            // Returns with a success code
             communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
         /**
-         * @brief Packages the input data into a StateMessage structure and sends it over to the connected Ataraxis
-         * system.
+         * @brief Packages the input data into the ModuleState or KernelState structure and sends it to the connected
+         * PC.
          *
-         * @note This method is a more efficient for of DataMessage structure that does not use additional data objects.
-         * Otherwise, the two message layouts are very similar, but optimized for slightly different ways of reporting
-         * data (with or without objects).
+         * @note This method is a more efficient version of Data message structures that does not use additional data
+         * objects. Otherwise, the two structure types are very similar in scope.
          *
-         * This method is used for sending both data and error messages. The message will be interpreted according to
-         * the bundled event_code. This library treats errors as generic event instances, same as data or 'success'
-         * messages.
+         * This method is used for sending both 'success' and 'error' state messages.
          *
-         * @note This method automatically determines whether to use KernelStateMessage or ModuleStateMessage structure,
-         * based on the value of the module_type and module_id parameters. When both are set to 0, KernelStateMessage is
+         * @note This method automatically determines whether to use KernelState or ModuleState message structure,
+         * based on the value of the module_type and module_id parameters. When both are set to 0, KernelState is
          * used.
          *
-         * @param module_type The byte-code specifying the type of the module that sent the data message. Set to 0 when
+         * @param module_type The byte-code specifying the type of the module that sent the state message. Set to 0 when
          * sending the state from Kernel.
          * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * sent the data. Set to 0 when sending the state from Kernel.
-         * @param command The byte-code specifying the command executed by the module that sent the data message.
-         * @param event_code The byte-code specifying the event that triggered the data message.
+         * sent the state message. Set to 0 when sending the state from Kernel.
+         * @param command The byte-code specifying the command executed by the module that sent the state message.
+         * @param event_code The byte-code specifying the event that triggered the state message.
          *
          * @returns True if the message was successfully sent, false otherwise.
          *
@@ -350,7 +337,7 @@ class Communication
          * const uint8_t module_id = 12;          // Example module ID
          * const uint8_t command = 88;            // Example command code
          * const uint8_t event_code = 221;        // Example event code
-         * comm_class.SendDataMessage(module_type, module_id, command, event_code);
+         * comm_class.SendStateMessage(module_type, module_id, command, event_code);
          * @endcode
          */
         bool SendStateMessage(
@@ -360,67 +347,64 @@ class Communication
             const uint8_t event_code
         )
         {
-            uint16_t
-                next_index;  // This index is used to sequentially write the necessary data into the payload buffer.
+            // This index is used to sequentially write the necessary data into the payload buffer.
+            uint16_t next_index = 0;
 
-            // Determines the protocol and message structure to use
+            // If both module_type and module_id are set to 0, assumes the caller is Kernel and uses KernelStatus
+            // protocol.
             if (module_type == 0 && module_id == 0)
             {
-                communication_assets::KernelState message {};
-                message.command = command;
-                message.event   = event_code;
-
-                // Constructs the payload by writing the protocol code
-                next_index = _transport_layer.WriteData(
+                // Constructs the message header
+                const communication_assets::KernelState message {
                     static_cast<uint8_t>(communication_assets::kProtocols::kKernelState),
-                    kProtocolIndex
-                );
+                    command,
+                    event_code
+                };
 
-                // Writes the message payload if the protocol number was successfully written
-                if (next_index != 0) next_index = _transport_layer.WriteData(message, next_index);
+                // Writes the message into the payload buffer
+                next_index = _transport_layer.WriteData(message);
             }
+
+            // Otherwise, assumes the caller is a Module and uses ModuleState protocol.
             else
             {
-                communication_assets::ModuleState message {};
-                message.module_id   = module_id;
-                message.module_type = module_type;
-                message.command     = command;
-                message.event       = event_code;
-
-                // Constructs the payload by writing the protocol code
-                next_index = _transport_layer.WriteData(
+                // Constructs the message header
+                const communication_assets::ModuleState message {
                     static_cast<uint8_t>(communication_assets::kProtocols::kModuleState),
-                    kProtocolIndex
-                );
+                    module_id,
+                    module_type,
+                    command,
+                    event_code
+                };
 
-                // Writes the message payload if the protocol number was successfully written
-                if (next_index != 0) next_index = _transport_layer.WriteData(message, next_index);
+                // Writes the message into the payload buffer
+                next_index = _transport_layer.WriteData(message);
             }
 
-            // If any of the write operations above fail, breaks the runtime with an error status.
+            // If any writing attempt from above fails, breaks the runtime with an error status.
             if (next_index == 0)
             {
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
-            // Sends data to the PC
+            // If the data was written to the buffer, sends it to the PC
             if (!_transport_layer.SendData())
             {
-                // If write operation fails, returns with an error status
+                // If data sending fails, returns with an error status
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
-            // If write operation succeeds, returns with a success code
+            // Returns with a success code
             communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
         /**
-         * @brief Sends the input service_code to the connected Ataraxis system using the requested protocol code.
+         * @brief Uses the requested protocol to send the input service_code to the PC.
          *
-         * This method is used to transmit all Service messages. Service messages use the same minimalistic one-byte
+         * This method is used to transmit all Service messages. All service messages use the same minimalistic one-byte
          * payload structure, but the meaning of the transmitted byte-code depends on the used protocol.
          *
          * @note Currently, this method only supports kIdentification and kReceptionCode protocols from the
@@ -443,38 +427,33 @@ class Communication
          */
         bool SendServiceMessage(const uint8_t protocol_code, const uint8_t service_code)
         {
-            // Casts protocol code to the kProtocols enumeration to simplify the 'if' check below
-            const auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
-
             // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
-            if (protocol == communication_assets::kProtocols::kReceptionCode ||
+            if (const auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
+                protocol == communication_assets::kProtocols::kReceptionCode ||
                 protocol == communication_assets::kProtocols::kIdentification)
             {
-                // Writes message payload. Note, unlike other messages, the bytes are written directly to the buffer,
-                // without using the structure system. Structure would only unnecessarily complicate the procedure
-                // here.
-                uint16_t next_index = _transport_layer.WriteData(protocol, kProtocolIndex);
-                if (next_index != 0) next_index = _transport_layer.WriteData(service_code, next_index);
+                // Constructs the message array. This is qualitatively similar to how the rest of the message structures
+                // work, but it is easier to use an array here.
+                const uint8_t message[2] = {protocol_code, service_code};
 
-                // If write operation fails, breaks the runtime with an error status. This will be executed regardless
-                // of which of the two writing calls failed.
-                if (next_index == 0)
+                // If writing the dat to transmission buffer, breaks the runtime with an error status.
+                if (const uint16_t next_index = _transport_layer.WriteData(message); next_index == 0)
                 {
                     communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                     return false;
                 }
 
-                // Sends data to the other Ataraxis system
-                if (_transport_layer.SendData())
+                // Sends the data to the PC
+                if (!_transport_layer.SendData())
                 {
-                    // If write operation succeeds, returns with a success code
-                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
-                    return true;
+                    // If send operation fails, returns with an error status
+                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                    return false;
                 }
 
-                // If send operation fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
-                return false;
+                // Returns with a success code
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+                return true;
             }
 
             // If input protocol code is not one of the valid Service protocol codes, aborts with an error
@@ -483,23 +462,22 @@ class Communication
         }
 
         /**
-         * @brief Receives the next available message from the connected Ataraxis system.
+         * @brief Parses the next available message received from the PC and stored inside the serial port reception
+         * buffer.
          *
-         * This method will only attempt message reception if the Serial interface buffer, managed by the
+         * This method will only attempt message reception (parsing) if the Serial interface buffer, managed by the
          * TransportLayer class, has the minimum number of bytes required to represent the smallest possible message.
-         * If possible, the method will parse as much of the received message into the appropriate class attribute as
-         * possible.
          *
-         * @note If this method returns true, use protocol class attribute to access the protocol code of the parsed
-         * message. Based on the protocol code, use command_message or parameter_header attributes to access the
-         * parsed message data.
+         * @note If this method returns true, use 'protocol_code' class attribute to access the protocol code of the
+         * parsed message. Based on the protocol code, use the appropriate class attribute to access the parsed message
+         * data.
          *
          * @attention If the received message is a ModuleParameters message, call ExtractModuleParameters() method to
          * finalize message parsing. This method DOES NOT extract Module parameter data from the received message.
          *
          * @returns True if a message was successfully received and parsed, false otherwise. Note, if this method
-         * returns false, this does not necessarily indicate runtime error. Use communication_status attribute to
-         * determine the  cause of the failure. kCommunicationNoBytesToReceive status code from
+         * returns false, this does not necessarily indicate runtime error. Use 'communication_status' class attribute
+         * to determine the cause of the failure. kCommunicationNoBytesToReceive status code from
          * shared_assets::kCommunicationCodes indicates a non-error failure.
          *
          * Example usage:
@@ -526,39 +504,41 @@ class Communication
                     return false;
                 }
 
-                // Otherwise, returns with a specialized status that indicates non-error-failure.
+                // Otherwise, returns with a status that indicates non-error failure.
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive);
                 return false;
             }
 
-            // If the message is received and decoded, parses the protocol code of the received message. If
-            // protocol code was parsed, uses it to read message ID data into an appropriate structure
-            if (const uint16_t next_index = _transport_layer.ReadData(protocol_code, kProtocolIndex); next_index != 0)
+            // If the message is received and decoded, extracts the protocol code of the received message and uses it to
+            // parse the rest of the message
+            if (const uint16_t next_index = _transport_layer.ReadData(protocol_code); next_index != 0)
             {
-                // Pre-sets the status to the success code, assuming the switch below will resolve the message. This
-                // makes the code below more readable.
+                // Pre-sets the status to the success code, assuming the switch below will resolve the message.
+                // The status will be overridden as necessary if the switch statement fails for any reason.
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageReceived);
 
                 // Uses efficient switch logic to resolve and handle the data based on the protocol code
                 switch (static_cast<communication_assets::kProtocols>(protocol_code))
                 {
-                    // Recurrent Module Command. This is likely one of the larger messages.
                     case communication_assets::kProtocols::KRepeatedModuleCommand:
-                        if (_transport_layer.ReadData(module_command, next_index)) return true;
+                        // The 'if' checks for the implicit 'next_index' returned by the REadData() method to not be 0.
+                        // 0 indicates that the data was not read successfully. Any other number indicates successful
+                        // read operation. Inlining everything makes the code more readable.
+                        if (_transport_layer.ReadData(repeated_module_command, next_index)) return true;
                         break;
 
-                    // Non-recurrent Module Command. This message is half the size of the recurrent command message.
                     case communication_assets::kProtocols::kOneOffModuleCommand:
-                        if (_transport_layer.ReadData(non_recurrent_module_command_message, next_index)) return true;
+                        if (_transport_layer.ReadData(one_off_module_command, next_index)) return true;
                         break;
 
-                    // Kernel Command. This is one of the smallest messages.
+                    case communication_assets::kProtocols::kDequeueModuleCommand:
+                        if (_transport_layer.ReadData(module_dequeue, next_index)) return true;
+                        break;
+
                     case communication_assets::kProtocols::kKernelCommand:
                         if (_transport_layer.ReadData(kernel_command, next_index)) return true;
                         break;
 
-                    // Module Parameters. Note, the reception cannot be completed until the target module is resolve and
-                    // is used to call the ExtractModuleParameters() method
                     case communication_assets::kProtocols::kModuleParameters:
                         // Reads the HEADER of the message into the storage structure. This gives Kernel class enough
                         // information to address the message, but this is NOT the whole message. To retrieve parameter
@@ -566,15 +546,8 @@ class Communication
                         if (_transport_layer.ReadData(module_parameter, next_index)) return true;
                         break;
 
-                    // Kernel Parameters. Unlike module parameters, the exact object prototype for the Kernel is known.
-                    // Therefore, this step parses the whole message data.
                     case communication_assets::kProtocols::kKernelParameters:
                         if (_transport_layer.ReadData(kernel_parameters, next_index)) return true;
-                        break;
-
-                    // Module command Queue reset command.
-                    case communication_assets::kProtocols::kDequeueModuleCommand:
-                        if (_transport_layer.ReadData(module_dequeue, next_index)) return true;
                         break;
 
                     default:
@@ -585,7 +558,7 @@ class Communication
                 }
             }
 
-            // If any of the reading method calls failed (returns a next_index == 0), returns the error status
+            // If any of the data reading method calls failed (returned a next_index == 0), returns with error status
             communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
             return false;
         }
@@ -594,17 +567,17 @@ class Communication
          * @brief Extracts the parameter data transmitted with the ModuleParameters message and uses it to set the input
          * structure values.
          *
-         * This method executed the second step of the ModuleParameter reception process. It uses the data parsed by the
-         * ReceiveMessage() method to extract the necessary number of bytes to fill the input structure with data.
-         * Kernel class uses this method to set the target Module's parameter structure to use the new data.
+         * This method executes the second step of the ModuleParameter message reception process. It extracts the
+         * necessary number of bytes to overwrite the input structure's memory with incoming message data. Kernel
+         * class uses this method to set the target Module's parameter structure to use the new data.
          *
          * @warning This method will fail if it is called for any other message type, including KernelParameters
          * message.
          *
          * @tparam ObjectType The type of the input structure object. This is resolved automatically and allows using
-         * this method regardless of the input structure layout.
-         * @param prototype The data structure instance which needs to be filled with received parameter values.
-         * @param bytes_to_read The number of bytes that make up the structure. This is used as an extra safety check to
+         * this method with most valid objet structures.
+         * @param prototype The data structure instance whose memory needs to be overwritten with received data.
+         * @param bytes_to_read The number of bytes that make up the prototype. This is used as an extra safety check to
          * ensure the parameter data extracted from the message (whose size is known) matches the size expected by the
          * structure.
          *
@@ -646,15 +619,17 @@ class Communication
                 return false;
             }
 
-            if (const uint16_t next_index = _transport_layer.ReadData(prototype, kParameterObjectIndex);
-                next_index != 0)
+            // If both checks above are passed, extracts the parameter data from the incoming message into the provided
+            // structure (by reference). If ReadData() returns 0 (false), the extraction has failed.
+            if (!_transport_layer.ReadData(prototype, kParameterObjectIndex))
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParametersExtracted);
-                return true;  // Successfully extracted parameters.
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
+                return false;
             }
 
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
-            return false;  // Failed to extract parameters.
+            // Returns with success code
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParametersExtracted);
+            return true;  // Successfully extracted parameters.
         }
 
     private:
@@ -682,14 +657,11 @@ class Communication
         static constexpr uint16_t kMaximumPayloadSize =  // NOLINT(*-dynamic-static-initializers)
             min(kSerialBufferSize - kReservedNonPayloadSize, 254);
 
-        /// Stores the index of the protocol code in the incoming message payload sequence. The protocol code should
-        /// always occupy the first byte of each received and transmitted payload.
-        static constexpr uint16_t kProtocolIndex = 0;
-
-        /// Stores the first index of the Parameter message object data in the incoming message payload sequence.
-        /// Parameter messages are different from other messages, as the parameter object itself is not part of the
-        /// message structure. However, the message header has a fixed size, so the first parameter data index
-        /// is static: it is the size of the ParameterMessage structure and Protocol byte (1).
+        /// Stores the first index of the parameter object in the incoming ModuleParameters message payload.
+        /// Since Module-addressed parameter objects can vary to a great extent, they are retrieved in two steps. The
+        /// first step parses the message header and identifies the target module. The second step asks the module to
+        /// extract the parameter data, since the module knows what data structure to expect. This index is used to
+        /// continue reading message data from the point where the parser finished reading the message header.
         static constexpr uint16_t kParameterObjectIndex = sizeof(communication_assets::ModuleParameters) + 1;
 
         /// The bound TransportLayer instance that abstracts low-level data communication steps. This class statically

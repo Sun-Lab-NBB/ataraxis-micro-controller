@@ -54,7 +54,6 @@
  * - elapsedMillis.h for millisecond and microsecond timers.
  * - communication.h for Communication class, which is used to send module runtime data to the connected system.
  * - shared_assets.h for globally shared static message byte-codes and parameter structures.
- *
  */
 
 #ifndef AXMC_MODULE_H
@@ -840,7 +839,8 @@ class Module
          * object to include. If your message does not require a data object, use SendState() method instead.
          */
         template <typename ObjectType>
-        void SendData(const uint8_t event_code, const communication_assets::kPrototypes prototype, const ObjectType& object)
+        void
+        SendData(const uint8_t event_code, const communication_assets::kPrototypes prototype, const ObjectType& object)
         {
             // Packages and sends the data to the connected system via the Communication class
             const bool success = _communication.SendDataMessage(
