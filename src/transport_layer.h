@@ -1108,7 +1108,7 @@ class TransportLayer
                 if (allow_start_byte_errors)
                 {
                     transfer_status =
-                        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketStartByteNotFoundError);
+                        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketStartByteNotFound);
                 }
                 else
                 {

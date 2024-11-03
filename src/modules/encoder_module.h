@@ -92,9 +92,7 @@ class EncoderModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
-            return true;
+            return _communication.ExtractModuleParameters(_custom_parameters);
         }
 
         /// Executes the currently active command. Unlike other overloaded API methods, this one does not set the
@@ -118,17 +116,12 @@ class EncoderModule final : public Module
         {
             // Since Encoder class carries out the necessary hardware setup, this method re-initializes the encoder to
             // repeat the hardware setup.
-            _encoder      = Encoder(kPinA, kPinB);
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kSetupComplete);  // Records the status
-            return true;
-        }
+            _encoder = Encoder(kPinA, kPinB);
 
-        /// Resets the custom_parameters structure fields to their default values.
-        bool ResetCustomAssets() override
-        {
+            // Resets the custom_parameters structure fields to their default values.
             _custom_parameters.report_CCW = true;  // Defaults to report changes in the CCW direction.
             _custom_parameters.report_CW  = true;  // Defaults to report changes in the CW direction.
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kModuleAssetsReset);  // Records the status
+
             return true;
         }
 
@@ -156,55 +149,32 @@ class EncoderModule final : public Module
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
             // relative to the previous reset command or the initialization of the encoder.
             const int32_t flipped_value = _encoder.readAndReset() * (kInvertDirection ? -1 : 1);
-            uint32_t delta              = 0;  // Stores the absolute displacement in encoder pulses.
 
             // If encoder has not moved since the last call to this method, sets the status to indicate there was no
             // change in encoder position.
-            if (flipped_value == 0)
-            {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kNoDelta);
-            }
+            if (flipped_value == 0) return;
 
             // If the value is negative, this is interpreted as the CW movement direction.
-            else if (flipped_value < 0)
+            if (flipped_value < 0 && _custom_parameters.report_CW)
             {
-                // If reporting the CW movement is allowed, updates the status as necessary
-                if (_custom_parameters.report_CW)
-                {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kCWDelta);
-                    delta         = static_cast<uint32_t>(abs(flipped_value));  // Overwrites the delta
-                }
-
-                // Otherwise, discards the CW movement and instead updates the status to indicate there is no change
-                // in the encoder position relative to the last call to this method.
-                else
-                {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kNoDelta);
-                }
+                // If reporting the CW movement is allowed, sends the delta to the PC.
+                SendData(
+                    static_cast<uint8_t>(kCustomStatusCodes::kCWDelta),
+                    communication_assets::kPrototypes::kOneUnsignedLong,
+                    static_cast<uint32_t>(abs(flipped_value))
+                );
             }
 
             // Finally, if the value is positive, this is interpreted as the CCW movement direction.
-            else
+            if (_custom_parameters.report_CCW)
             {
                 // If reporting the CCW movement is allowed, updates the status as necessary
-                if (_custom_parameters.report_CCW)
-                {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kCCWDelta);
-                    delta         = static_cast<uint32_t>(abs(flipped_value));
-                }
-
-                // Otherwise, discards the CCW movement and instead updates the status to indicate there is no change
-                // in the encoder position relative to the last call to this method.
-                else
-                {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kNoDelta);
-                    delta         = 0;
-                }
+                SendData(
+                    static_cast<uint8_t>(kCustomStatusCodes::kCCWDelta),
+                    communication_assets::kPrototypes::kOneUnsignedLong,
+                    static_cast<uint32_t>(abs(flipped_value))
+                );
             }
-
-            // Sends the encoder data to the PC. Uses module_status to indicate the movement direction and the delta to
-            // communicate the encoder displacement.
-            SendData(module_status, communication_assets::kPrototypes::kOneUnsignedLong, delta);
             CompleteCommand();
         }
 

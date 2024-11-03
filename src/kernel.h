@@ -20,7 +20,7 @@
  * - RuntimeCycle(): Aggregates all other steps necessary to receive and process PC data and execute Kernel and Module
  * commands. This command needs to be called repeatedly, during loop() method runtime.
  *
- * Additionally, the Kernel class supports PC-addressable command execution. Specifically, the Kernel can be sued to
+ * Additionally, the Kernel class supports PC-addressable command execution. Specifically, the Kernel can be used to
  * identify the controller and fully reset all hardware and software parameters of the controller. See the class
  * enumerations for specific command codes.
  *
@@ -52,14 +52,14 @@
 #include "shared_assets.h"
 
 /**
- * @brief Provides the central runtime loop and methods that control data reception, runtime flow, setup and shutdown of
- * the microcontroller's logic.
+ * @brief Provides the central runtime loop and methods that control data reception, runtime flow (task scheduling),
+ * setup and shutdown of the microcontroller's logic.
  *
  * @attention This class functions as the backbone of the Ataraxis microcontroller codebase by providing runtime flow
  * control functionality. Any modification to this class should be carried out with extreme caution and, ideally,
  * completely avoided by anyone other than the kernel developers of the project.
  *
- * @note This class requires to be provided with an array of pre-initialized Module-derived classes upon instantiation.
+ * @note This class should be provided with an array of pre-initialized Module-derived classes upon instantiation.
  * The class will then manage the runtime of these modules via internal methods.
  *
  * Example instantiation (as would found in main.cpp file):
@@ -91,31 +91,19 @@ class Kernel
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandby               = 0,   ///< Standby code used during class initialization.
+            kStandBy               = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
             kSetupComplete         = 1,   ///< Setup() method runtime succeeded.
             kModuleSetupError      = 2,   ///< Setup() method runtime failed due to a module setup error.
-            kNoDataToReceive       = 3,   ///< ReceiveData() method succeeded without receiving any data.
-            kDataReceptionError    = 4,   ///< ReceiveData() method failed due to a data reception error.
-            kDataSendingError      = 5,   ///< SendData() method failed due to a data sending error.
+            kDataReceptionError    = 3,   ///< ReceiveData() method failed due to a data reception error.
+            kDataSendingError      = 4,   ///< SendData() method failed due to a data sending error.
+            kStateSendingError     = 5,   ///< SendData() method failed due to a data sending error.
             kInvalidDataProtocol   = 6,   ///< Received message uses an unsupported (unknown) protocol.
             kKernelParametersSet   = 7,   ///< Received and applied the parameters addressed to the Kernel class.
-            kKernelParametersError = 8,   ///< Unable to apply the received Kernel parameters.
-            kModuleParametersSet   = 9,   ///< Received and applied the parameters addressed to a managed Module class.
-            kModuleParametersError = 10,  ///< Unable to apply the received Module parameters.
-            kParametersTargetNotFound = 11,  ///< The addressee of the parameters' message could not be found.
-            kControllerReset          = 12,  ///< The Kernel has reset the controller's software and hardware states.
-            kKernelCommandUnknown     = 13,  ///< The Kernel has received an unknown command.
-            kModuleCommandQueued      = 14,  ///< The received command was queued to be executed by the Module.
-            kCommandTargetNotFound    = 15,  ///< The addressee of the command message could not be found.
-            kServiceSendingError      = 16,  ///< Error sending a service message to the connected system.
-            kControllerIDSent         = 17,  ///< The requested controller ID was sent ot to the connected system.
-            kModuleCommandError       = 18,  ///< Error executing an active module command.
-            kModuleCommandsCompleted  = 19,  ///< All active module commands have been executed.
-            kModuleAssetResetError    = 20,  ///< Resetting custom assets of a module failed.
-            kModuleCommandsReset      = 21,  ///< Module command structure has been reset. Queued commands cleared.
-            kStateSendingError        = 22,  ///< SendState() method failed due to a data sending error.
-            kResetModuleQueueTargetNotFound =
-                23  ///< The addressee of the Module command queue reset command is not found
+            kModuleParametersSet   = 8,   ///< Received and applied the parameters addressed to a managed Module class.
+            kModuleParametersError = 9,   ///< Unable to apply the received Module parameters.
+            kCommandNotRecognized  = 10,  ///< The Kernel has received an unknown command.
+            kServiceSendingError   = 11,  ///< Error sending a service message to the connected system.
+            kTargetModuleNotFound  = 12   ///< No module with the requested type and id combination is found.
         };
 
         /**
@@ -128,37 +116,30 @@ class Kernel
          */
         enum class kKernelCommands : uint8_t
         {
-            kStandby         = 0,  ///< Standby code used during class initialization. Not externally addressable.
-            kSetup           = 1,  ///< Module setup command. Not externally addressable.
-            kReceiveData     = 2,  ///< Receive data command. Not externally addressable.
-            kResetController = 3,  ///< Resets the software and hardware state of all modules. Externally addressable.
-            kIdentifyController = 4,  ///< Transmits the ID of the controller back to caller. Externally addressable.
-            kRunModuleCommands  = 5,  ///< Executes active module commands. Not externally addressable.
+            kStandby            = 0,  ///< Standby code used during class initialization.
+            kReceiveData        = 1,  ///< Receive data command. Not externally addressable.
+            kResetController    = 2,  ///< Resets the software and hardware state of all modules.
+            kIdentifyController = 3,  ///< Transmits the ID of the controller back to caller.
         };
 
-        /// Communicates the most recent status of the Kernel. Primarily, this variable is used during class method
-        /// testing, but it can also be co-opted by any class or method that requires knowing the latest status of the
-        /// class runtime.
-        uint8_t kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kStandby);
-
         /// Tracks the currently active Kernel command. This is used to send data and error messages to the connected
-        /// system. Overall, this provides a unified message system shared by Kernel and Module-derived classes.
+        /// system.
         uint8_t kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
 
         /**
          * @brief Creates a new Kernel class instance.
          *
-         * @param controller_id The unique identifier for the controller managed by this Kernel class instance. This
-         * ID has to be unique for all microcontrollers that are used at the same time and managed by the same PC
-         * system.
-         * @param communication A reference to the Communication class instance that will be used to send module runtime
-         * data to the connected system. Usually, a single Communication class instance is shared by all classes of the
-         * AXMC codebase during runtime.
-         * @param dynamic_parameters A reference to the ControllerRuntimeParameters structure that stores
-         * dynamically addressable runtime parameters that broadly alter the behavior of all modules used by the
+         * @param controller_id The unique identifier code of the controller managed by this Kernel class instance. This
+         * ID has to be unique for all microcontrollers that are used at the same time to allow the managing PC to
+         * identify different controllers.
+         * @param communication A reference to the Communication class instance that will be used to bidirectionally
+         * communicate with the PC that manages the microcontrollers. Usually, a single Communication class instance is
+         * shared by all classes of the AXMC codebase during runtime.
+         * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure that stores
+         * PC-addressable global runtime parameters that broadly alter the behavior of all modules used by the
          * controller. This structure is addressable through the Kernel class (by sending Parameters message addressed
          * to the Kernel).
-         * @param module_array The array of pointers to custom module classes (the children inheriting from the base
+         * @param module_array The array of pointers to custom Module classes (the children inheriting from the base
          * Module class). The Kernel instance will manage the runtime of these modules.
          */
         template <const size_t kModuleNumber>
@@ -184,28 +165,36 @@ class Kernel
         }
 
         /**
-         * @brief Sets up the hardware and software structures for the Kernel class and all managed modules.
+         * @brief Sets up the hardware and software structures for the Kernel class and all managed Modules.
          *
-         * This method should only be triggered once, during the runtime of the main.cpp setup() method. Overall,
-         * this method is an API wrapper around the setup sequence of each module managed by the Kernel class and the
+         * This method is an API wrapper around the setup sequence of each module managed by the Kernel class and the
          * Kernel class itself. If this method is not called before calling RuntimeCycle() method, the controller will
-         * not function as expected and the controller LED will be used to show a blinking error signal.
+         * not function as expected and the controller LED will be used to show a blinking error signal. Similarly, if
+         * this method is called, but fails, the controller will not execute any command and will display a blinking
+         * LED signal to indicate SetUp error.
          *
-         * @note This method sends a success or error message to the PC. Therefore, it assumes it is always called after
-         * the Communication class has been initialized (its begin() method was called).
+         * @warning This method is used both for initial setup and to reset the controller. As such, it has to be
+         * called from main.ccp setup() function and will also be called if the Kernel receives the Reset command.
+         *
+         * @note This method sends success and error messages to the PC. It assumes it is always called after the
+         * Communication class has been initialized and Serial.begin() has been called.
          *
          * @attention This is the only Kernel method that inactivates the built-in LED of the controller board. Seeing
          * the LED ON (HIGH) after this method's runtime means the controller experienced an error during its runtime
-         * when it tried sending data to the connected system. If no error message reached the connected system, it is
-         * highly advised to debug the communication setup, as this indicates that the communication channel is not
-         * stable.
+         * when it tried sending data to the connected system. Seeing the LED blinking with ~2-second periodicity
+         * indicates one of the managed modules failed its setup sequence. If no error message reached the PC and the
+         * LED is ON or blinking, it is highly advised to debug the communication setup, as this indicates that the
+         * communication channel is not stable.
          */
         void Setup()
         {
-            kernel_command = static_cast<uint8_t>(kKernelCommands::kSetup);  // Sets active command code
+            kernel_command = static_cast<uint8_t>(kKernelCommands::kResetController);  // Sets active command code
 
-            // Sets up the runtime parameters of the Kernel class.
-            ResetDynamicParameters();
+            // Ensures that the setup tracker is inactivated before running the rest of the setup code. This is needed
+            // to support correct cycling through Setup() calls on Teensy board that do not reset on USB connection
+            // cycling and to properly handle PC-sent 'reset' commands. Basically, this bricks the controller if any
+            // managed module reports a failure to setup, which is a safety feature.
+            _setup_complete = false;
 
             // Loops over each module and calls its SetupModule() virtual method. Note, expects that setup methods
             // generally cannot fail, but supports non-success return codes.
@@ -213,34 +202,21 @@ class Kernel
             {
                 if (!_modules[i]->SetupModule())
                 {
-                    // If the setup fails, sends an error message that includes the ID information about the failed
-                    // module alongside its runtime status.
-                    const uint8_t error_object[3] = {
+                    // If the setup fails, sends an error message to notify the PC of the setup failure.
+                    const uint8_t error_object[2] = {
                         _modules[i]->GetModuleType(),
                         _modules[i]->GetModuleID(),
-                        _modules[i]->module_status
                     };
 
-                    // Sets the status and sends the error message to the PC
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError);
-                    SendData(kernel_status, communication_assets::kPrototypes::kThreeUnsignedBytes, error_object);
-                    return;  // Returns without finishing the setup process.
-                }
+                    SendData(
+                        static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError),
+                        communication_assets::kPrototypes::kTwoUnsignedBytes,
+                        error_object
+                    );
 
-                // Also attempts to reset the custom assets of each module. Similar to the setup code above, this
-                // generally should not lead to failures, but the system ios designed to handle errors if necessary.
-                if (_modules[i]->ResetCustomAssets())
-                {
-                    const uint8_t error_object[3] = {
-                        _modules[i]->GetModuleType(),
-                        _modules[i]->GetModuleID(),
-                        _modules[i]->module_status
-                    };
-
-                    // Sets the status and sends the error message to the PC
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleAssetResetError);
-                    SendData(kernel_status, communication_assets::kPrototypes::kThreeUnsignedBytes, error_object);
-                    return;  // Returns without finishing the setup process.
+                    // Returns without completing the setup. This 'bricks' the controller requiring a firmware reset
+                    // before it can re-attempt the setup process and receive data from the PC.
+                    return;
                 }
 
                 // Also resets the execution parameters of each module. This step cannot fail.
@@ -248,27 +224,26 @@ class Kernel
             }
 
             // Sets up the hardware managed by the Kernel. This is done last to, if necessary, override any
-            // module-derived modifications of the hardware reserved by the Kernel.
+            // module-derived modifications of the hardware reserved by the Kernel. This method cannot fail.
             SetupKernel();
 
-            // If the method reaches this point, all modules have been successfully set up. Sends the confirmation
-            // message to the PC and sets the kernel_status to reflect this successful setup.
-            kernel_status   = static_cast<uint8_t>(kKernelStatusCodes::kSetupComplete);
-            _setup_complete = true;  // Sets the setup tracker to allow running commands.
+            _setup_complete = true;  // Sets the setup tracker to indicate that the setup process has been completed.
 
-            // Sends the state confirmation message (setup complete) to the PC.
-            SendState(kernel_status);
+            // Informs the PC that the setup process has been completed.
+            SendData(static_cast<uint8_t>(kKernelStatusCodes::kSetupComplete));
         }
 
         /**
          * @brief Carries out one microcontroller runtime cycle.
          *
-         * Specifically, first receives and processes all data queued up in the serial reception buffer. If the data
-         * is a command addressed to the Kernel, that command is executed as part of the data reception runtime. If the
-         * data is a command addressed to a module, the command is queued to be executed during module command runtime.
+         * Specifically, first receives and processes all messages queued up in the serial reception buffer. All
+         * messages other than Module-targeted commands are processed and handled immediately. For example, Kernel
+         * commands are executed as soon as they are received. Module-addressed commands are queued for execution and
+         * are executed after all available data is received and parsed.
          *
-         * Once all queued data is received, sequentially loops over all modules and executes the appropriate stage of
-         * an already active or a newly activated command.
+         * Once all data is received, the method sequentially loops over all modules and, for each, resolves and runs a
+         * command, if possible. Depending on configuration (blocking vs. non-blocking), this can at most complete one
+         * command per cycle and, at least, one command stage per cycle.
          *
          * @note This method has to be repeatedly called during the main.cpp loop() method runtime. It aggregates all
          * necessary steps to support the microcontroller runtime.
@@ -279,13 +254,15 @@ class Kernel
          */
         void RuntimeCycle()
         {
-            static bool once = true;  // Tracks whether Kernel hardware setup was completed.
+            // Tracks whether Kernel hardware setup was completed. This only needs to run once, since if the Kernel ever
+            // fails setup, it bricks the controller until the firmware is reset.
+            static bool once = true;
 
             // If the Kernel was not set up, ensures the LED hardware is set to deliver the visual error signal.
             if (!_setup_complete && once)
             {
-                // Ensures the LED is set up to display signals.
                 SetupKernel();
+                once = false;  // Sets the flag to indicate that the setup was completed.
             }
 
             // If the Kernel was not set up, instead of the usual runtime cycle, this method blinks the LED to indicate
@@ -296,6 +273,7 @@ class Kernel
                 delay(2000);                          // Delays for 2 seconds
                 digitalWriteFast(LED_BUILTIN, LOW);   // Turns the LED off
                 delay(2000);                          // Delays for 2 seconds
+                return;                               // Ends early. A firmware reset is needed to get out of this loop.
             }
 
             kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);  // Sets active command code
@@ -303,101 +281,136 @@ class Kernel
             // Continuously parses the data received from the PC until all data is processed.
             while (true)
             {
-                // Attempts to receive the data
-                const uint8_t protocol = ReceiveData();
+                const uint8_t protocol = ReceiveData();  // Attempts to receive the data
+                bool break_loop = false;  // A flag used to break the while loop once all available data is received.
+                int16_t target_module;    // Stores the index of the module targeted by Module-addressed command.
+                uint8_t return_code;      // Stores the return code of the received message.
 
-                bool break_loop = false;
-                constexpr auto reception_protocol =
-                    static_cast<uint8_t>(communication_assets::kProtocols::kReceptionCode);
-
+                // Uses the message protocol of the returned message to execute appropriate logic to handle the message.
                 switch (static_cast<communication_assets::kProtocols>(protocol))
                 {
                     // Returned protocol 0 indicates that the data was not received. This may be due to no data to
                     // receive or due to a reception pipeline error. In either case, this ends the reception loop.
                     case communication_assets::kProtocols::kUndefined: break_loop = true; break;
 
-                    // Kernel-adressed parameters
                     case communication_assets::kProtocols::kKernelParameters:
-                        // If the PC requested the acknowledgement code, notifies the PC that the message was received
-                        // by sending back the included return code.
-                        if (const uint8_t return_code = _communication.kernel_parameters.return_code)
-                        {
-                            SendServiceMessage(reception_protocol, return_code);
-                        }
 
-                        // Kernel-adressed parameters are written to the DynamicRuntimeParameters structure shared by
-                        // all classes.
-                        SetDynamicParameters();
+                        // If the message contains a non-zero return code, sends it back to the PC to acknowledge
+                        // message reception
+                        return_code = _communication.kernel_parameters.return_code;
+                        if (return_code) SendReceptionCode(return_code);
+
+                        // Since Kernel parameters are fully parsed during the message reception, replaces the content
+                        // of the _dynamic_parameters structure with the newly received data.
+                        _dynamic_parameters = _communication.kernel_parameters.dynamic_parameters;
+                        SendData(static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersSet));
                         break;
 
-                    // Module-adressed parameters
                     case communication_assets::kProtocols::kModuleParameters:
-                        if (const uint8_t return_code = _communication.module_parameter.return_code)
+                        return_code = _communication.module_parameter.return_code;
+                        if (return_code) SendReceptionCode(return_code);
+
+                        // For module-addressed commands, attempts to resolve (discover) the addressed module. If this
+                        // method succeeds, it returns an index (>=0) of the target module class inside the _modules
+                        // array
+                        target_module = ResolveTargetModule(
+                            _communication.module_dequeue.module_type,
+                            _communication.module_dequeue.module_id
+                        );
+
+                        // Aborts early if the target module is not found, as indicated by the returned code being
+                        // a negative number (-1).
+                        if (target_module < 0) break;
+
+                        // Calls the Module API method that processes the parameter object included with the message
+                        if (!_modules[static_cast<size_t>(target_module)]->SetCustomParameters())
                         {
-                            SendServiceMessage(reception_protocol, return_code);
+                            // If the module fails to process the parameters, as indicated by the API method returning
+                            // 'false', sends an error message to the PC to communicate the error.
+                            const uint8_t error_object[2] = {
+                                _modules[static_cast<size_t>(target_module)]->GetModuleType(),
+                                _modules[static_cast<size_t>(target_module)]->GetModuleID(),
+                            };
+                            SendData(
+                                static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError),
+                                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                                error_object
+                            );
                         }
 
-                        // Triggers a method that loops over all modules and attempts to find the addressee and
-                        // call its parameter extraction method.
-                        SetModuleParameters();
+                        // If the parameters were set correctly, notifies the PC.
+                        SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet));
                         break;
 
                     case communication_assets::kProtocols::kKernelCommand:
-                        if (const uint8_t return_code = _communication.kernel_command.return_code)
-                        {
-                            SendServiceMessage(reception_protocol, return_code);
-                        }
+                        return_code = _communication.kernel_command.return_code;
+                        if (return_code) SendReceptionCode(return_code);
 
-                        // Executes the requested Kernel command.
+                        // This method resolves and executes the command logic. It automatically extracts the command
+                        // code from the received message stored in the Communication class attribute.
                         RunKernelCommand();
                         break;
 
                     case communication_assets::kProtocols::kDequeueModuleCommand:
-                        if (const uint8_t return_code = _communication.module_dequeue.return_code)
-                        {
-                            SendServiceMessage(reception_protocol, return_code);
-                        }
+                        return_code = _communication.module_dequeue.return_code;
+                        if (return_code) SendReceptionCode(return_code);
+                        target_module = ResolveTargetModule(
+                            _communication.module_dequeue.module_type,
+                            _communication.module_dequeue.module_id
+                        );
 
-                        // Attempts to clear the requested modules' command queue
-                        ClearModuleCommandQueue();
+                        // Aborts early if the target module is not found, as indicated by the returned code being
+                        // a negative number (-1).
+                        if (target_module < 0) break;
+
+                        // Resets the queue of the target module. Note, this does not abort already running commands:
+                        // they are allowed to finish gracefully.
+                        _modules[static_cast<size_t>(target_module)]->ResetCommandQueue();
                         break;
 
                     case communication_assets::kProtocols::kOneOffModuleCommand:
-                        if (const uint8_t return_code = _communication.one_off_module_command.return_code)
-                        {
-                            SendServiceMessage(reception_protocol, return_code);
-                        }
+                        return_code = _communication.one_off_module_command.return_code;
+                        if (return_code) SendReceptionCode(return_code);
 
-                        QueueModuleCommand(
-                            _communication.one_off_module_command.module_type,
-                            _communication.one_off_module_command.module_id,
+                        target_module = ResolveTargetModule(
+                            _communication.module_dequeue.module_type,
+                            _communication.module_dequeue.module_id
+                        );
+
+                        if (target_module < 0) break;
+
+                        // Uses an overloaded QueueCommand method that always sets the input command as non-recurrent.
+                        _modules[static_cast<size_t>(target_module)]->QueueCommand(
                             _communication.one_off_module_command.command,
                             _communication.one_off_module_command.noblock
-                            // Disables command cycling (repetition)
                         );
                         break;
 
                     case communication_assets::kProtocols::KRepeatedModuleCommand:
-                        if (const uint8_t return_code = _communication.repeated_module_command.return_code)
-                        {
-                            SendServiceMessage(reception_protocol, return_code);
-                        }
-                        QueueModuleCommand(
-                            _communication.repeated_module_command.module_type,
-                            _communication.repeated_module_command.module_id,
+                        return_code = _communication.repeated_module_command.return_code;
+                        if (return_code) SendReceptionCode(return_code);
+
+                        target_module = ResolveTargetModule(
+                            _communication.module_dequeue.module_type,
+                            _communication.module_dequeue.module_id
+                        );
+
+                        if (target_module < 0) break;
+
+                        // Uses the non-overloaded QueueCommand method that always sets the input command to execute
+                        // recurrently.
+                        _modules[static_cast<size_t>(target_module)]->QueueCommand(
                             _communication.repeated_module_command.command,
                             _communication.repeated_module_command.noblock,
-                            true,  // Enables command cycling (repetition).
                             _communication.repeated_module_command.cycle_delay
                         );
                         break;
 
                     default:
-                        // If the protocol is not one of the expected protocols, sends an error message.
-                        // Includes the invalid protocol value
-                        kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kInvalidDataProtocol);
+                        // If the message protocol is not one of the expected protocols, sends an error message to the
+                        // PC.Includes the invalid protocol value in the message.
                         SendData(
-                            kernel_status,
+                            static_cast<uint8_t>(kKernelStatusCodes::kInvalidDataProtocol),
                             communication_assets::kPrototypes::kOneUnsignedByte,
                             _communication.protocol_code
                         );
@@ -414,8 +427,8 @@ class Kernel
         }
 
     private:
-        /// An array that stores module classes. These are the classes derived from the base Module class that
-        /// encapsulates and exposes the API to interface with specific hardware systems managed by the Microcontroller.
+        /// An array that stores managed module classes. These are the classes derived from the base Module class that
+        /// encapsulate and expose the API to interface with specific hardware systems managed by the Microcontroller.
         Module** _modules;
 
         /// Stores the size of the _modules array. Since each module class is likely to be different in terms of its
@@ -424,8 +437,8 @@ class Kernel
         /// variable
         const size_t _module_count;
 
-        ///Stores the unique, user-defined ID of the managed microcontroller. This ID will be sent to the connected
-        /// system when it sends the identification request. In turn, this allows identifying specific controllers
+        /// Stores the unique, user-defined ID of the managed microcontroller. This ID will be sent to the connected
+        /// system when it sends the Identification request. In turn, this allows identifying specific controllers
         /// through the serial connection interface, which is especially helpful during the initial setup.
         const uint8_t _controller_id;
 
@@ -443,6 +456,45 @@ class Kernel
         bool _setup_complete = false;
 
         /**
+         * @breif Attempts to receive (parse) a message from the data contained in the circular reception buffer of the
+         * Communication class.
+         *
+         * The RuntimeCycle method repeatedly calls this method until it returns an undefined protocol code (0).
+         *
+         * @attention This method automatically attempts to send error messages if it runs into errors. As a side
+         * effect of these attempts, it may turn the built-in LED to visually communicate encountered runtime errors.
+         * Do not use the LED-connected pin in your code when using this class.
+         *
+         * @returns The byte-code of the protocol used by the received message or 0 to indicate no valid message was
+         * received.
+         */
+        [[nodiscard]]
+        uint8_t ReceiveData() const
+        {
+            // Attempts to receive a message sent by the PC. If reception succeeds, returns the protocol code of the
+            // received message
+            if (_communication.ReceiveMessage()) return _communication.protocol_code;
+
+            // Data reception can fail for two broad reasons. The first reason is that one of the classes involved in
+            // data reception encounters an error. If this happens, the error needs to be reported to the PC. However,
+            // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
+            // an error and should be handled as a valid 'no need to do anything' case.
+            if (_communication.communication_status !=
+                static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive))
+            {
+                // For legitimately failed runtimes, sends an error message to the PC.
+                _communication.SendCommunicationErrorMessage(
+                    static_cast<uint8_t>(kKernelCommands::kReceiveData),
+                    static_cast<uint8_t>(kKernelStatusCodes::kDataReceptionError)
+                );
+            }
+
+            // Regardless of the source of communication failure, uses 'kUndefined' protocol (0) code return to indicate
+            // that no valid data to process was received.
+            return static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
+        }
+
+        /**
          * @brief Packages and sends the provided event_code and data object to the PC via the Communication class
          * instance.
          *
@@ -451,8 +503,8 @@ class Kernel
          * the necessary data.
          *
          * @note It is highly recommended to use this utility method for sending data to the connected system instead of
-         * using the Communication class directly. If the data you are sending does not need a data object, use
-         * SendState() for a more optimal message format.
+         * using the Communication class directly. If the data you are sending does not need a data object, use the
+         * overloaded version of this method that only accepts the event_code to send.
          *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
@@ -465,278 +517,97 @@ class Kernel
          * @param prototype The prototype byte-code specifying the structure of the data object. Currently, all data
          * objects have to use one of the supported prototype structures. If you need to add additional prototypes,
          * modify the kPrototypes enumeration available from the communication_assets namespace.
-         * @param object Additional data object to be sent along with the message. Currently, all data messages
-         * have to contain a data object, but you can use a sensible placeholder for calls that do not have a valid
-         * object to include. If your message does not require a data object, use SendState() method instead.
+         * @param object Additional data object to be sent along with the message. The structure of the object has to
+         * match the object structure declared by the prototype code for the PC to deserialize the object.
          */
         template <typename ObjectType>
         void
         SendData(const uint8_t event_code, const communication_assets::kPrototypes prototype, const ObjectType& object)
         {
-            // Packages and sends the data to the connected system via the Communication class and if the message was
-            // sent, ends the runtime
-            if (_communication.SendDataMessage(0, 0, kernel_command, event_code, prototype, object)) return;
+            // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
+            if (_communication.SendDataMessage(kernel_command, event_code, prototype, object)) return;
 
-            // If the message was not sent, attempts sending an error message. For this, combines the latest status of
-            // the Communication class (likely an error code) and the TransportLayer status code into a 2-byte array.
-            // This will be the data object transmitted with the error message.
-            const uint8_t errors[2] = {_communication.communication_status, _communication.GetTransportLayerStatus()};
-
-            // Attempts sending the error message. Uses the unique DataSendingError event code and the object
-            // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kDataSendingError);
-            _communication.SendDataMessage(
-                0,
-                0,
+            // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
+            _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                kernel_status,
-                communication_assets::kPrototypes::kOneUnsignedByte,
-                errors
+                static_cast<uint8_t>(kKernelStatusCodes::kDataSendingError)
             );
-
-            // As a fallback in case the error message does not reach the connected system, sets the class status to
-            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
-            // unhandled runtime error. The Kernel class manages the indicator inactivation.
-            digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
         /**
          * @brief Packages and sends the provided event_code to the PC via the Communication class instance.
          *
-         * This method is very similar to SendData(), but is optimized to transmit messages that do not use custom
-         * data objects.
-         *
-         * This method simplifies sending data through the Communication class by automatically resolving most of the
-         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
-         * the necessary data.
-         *
-         * @note It is highly recommended to use this utility method for sending data to the connected system instead of
-         * using the Communication class directly.
-         *
-         * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
-         * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
-         * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
-         * this method to avoid interference!
+         * This method overloads the SendData() method to optimize transmission in cases where there is no additional
+         * data to include with the state event-code.
          *
          * @param event_code The byte-code specifying the event that triggered the data message.
          */
-        void SendState(const uint8_t event_code)
+        void SendData(const uint8_t event_code) const
         {
             // Packages and sends the state message to the PC. If the message was sent, ends the runtime.
-            if (_communication.SendStateMessage(0, 0, kernel_command, event_code)) return;
+            if (_communication.SendStateMessage(kernel_command, event_code)) return;
 
-            // If the message was not sent, attempts sending an error message. For this, combines the latest status of
-            // the Communication class (likely an error code) and the TransportLayer status code into a 2-byte array.
-            // This will be the data object transmitted with the error message.
-            const uint8_t errors[2] = {_communication.communication_status, _communication.GetTransportLayerStatus()};
-
-            // Attempts sending the error message. Uses the unique kStateSendingError event code and the object
-            // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kStateSendingError);
-            _communication.SendDataMessage(
-                0,
-                0,
+            // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
+            _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                kernel_status,
-                communication_assets::kPrototypes::kTwoUnsignedBytes,
-                errors
+                static_cast<uint8_t>(kKernelStatusCodes::kStateSendingError)
             );
-
-            // As a fallback in case the error message does not reach the connected system, sets the class status to
-            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
-            // unhandled runtime error. The Kernel class manages the indicator inactivation.
-            digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
-        /**
-         * @brief Packages and sends the provided service_code to the connected Ataraxis system via the Communication
-         * class instance, using the requested service protocol.
-         *
-         * This method simplifies sending data through the Communication class by automatically resolving most of the
-         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
-         * the necessary data.
-         *
-         * @note It is highly recommended to use this utility method for sending service messages to the connected
-         * system instead of using the Communication class directly.
-         *
-         * @warning If sending the service message fails for any reason, this method automatically emits an error
-         * message. Since that error message may itself fail to be sent, the method also statically activates the
-         * built-in LED of the board to visually communicate encountered runtime error. Do not use the LED-connected
-         * pin or LED when using this method to avoid interference!
-         *
-         * @param protocol The byte-code specifying the protocol to be used when sending the service message. This
-         * determines the meaning of the included service_code.
-         * @param service_code The byte-code to be included with the message. The exact meaning and purpose for the code
-         * depends on the chosen service protocol.
-         */
-        void SendServiceMessage(const uint8_t protocol, const uint8_t service_code)
+        /// Sends the ID code of the managed controller to the PC. This is used to identify specific controllers
+        /// connected to different PC USB ports. If data sending fails, attempts sending a communication error and
+        /// activates the LED indicator.
+        void SendControllerID() const
         {
-            // Packages and sends the service message to the connected system via the Communication class. If the
-            // message was sent, ends the runtime
-            if (_communication.SendServiceMessage(protocol, service_code)) return;
+            // Packages and sends the service message to the PC. If the message was sent, ends the runtime
+            if (_communication.SendServiceMessage(
+                    static_cast<uint8_t>(communication_assets::kProtocols::kIdentification),
+                    _controller_id
+                ))
+                return;
 
-            // If the message was not sent attempts sending an error message. For this, combines the latest status of
-            // the Communication class (likely an error code) and the TransportLayer status code into a 2-byte array.
-            // This will be the data object transmitted with the error message.
-            const uint8_t errors[2] = {_communication.communication_status, _communication.GetTransportLayerStatus()};
-
-            // Attempts sending the error message. Uses the unique kServiceSendingError event code and the object
-            // constructed above. Does not evaluate the status of sending the error message to avoid recursions.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError);
-            _communication.SendDataMessage(
-                0,
-                0,
+            // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
+            _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                kernel_status,
-                communication_assets::kPrototypes::kTwoUnsignedBytes,
-                errors
+                static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError)
             );
+        }
 
-            // As a fallback in case the error message does not reach the connected system, sets the class status to
-            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
-            // unhandled runtime error. The Kernel class manages the indicator inactivation.
-            digitalWriteFast(LED_BUILTIN, HIGH);
+        /// Sends the input reception_code to the PC. This is used to acknowledge the reception of PC-sent Command and
+        /// Parameter messages. If data sending fails, attempts sending a communication error and activates the
+        /// LED indicator.
+        void SendReceptionCode(const uint8_t reception_code) const
+        {
+            // Packages and sends the service message to the PC. If the message was sent, ends the runtime
+            if (_communication.SendServiceMessage(
+                    static_cast<uint8_t>(communication_assets::kProtocols::kReceptionCode),
+                    reception_code
+                ))
+                return;
+
+            // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
+            _communication.SendCommunicationErrorMessage(
+                kernel_command,
+                static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError)
+            );
         }
 
         /**
-         * @brief Sets up the hardware directly controlled by the Kernel class.
+         * @brief Sets up the hardware and software parameters directly controlled by the Kernel class.
          *
-         * Currently, this method only configures the built-in LED pin of the microcontroller board and sets it to
-         * LOW.
+         * Specifically, this configures and inactivates the built-in LED (by manipulating the board's LED-connected
+         * pin) and resets the shared DynamicRuntimeParameters structure fields.
          */
-        static void SetupKernel()
+        void SetupKernel() const
         {
             // Configures and deactivates the built-in LED. Currently, this is the only hardware system directly
             // managed by the Kernel.
             pinMode(LED_BUILTIN, OUTPUT);
             digitalWriteFast(LED_BUILTIN, LOW);
-        }
 
-        /**
-         * @brief Resets the shared DynamicRuntimeParameters structure fields to use the default values.
-         *
-         * Currently, these parameters are only addressable through the Kernel class, but they are used by all modules
-         * managed by the Kernel.
-         */
-        void ResetDynamicParameters() const
-        {
+            // Resets the controller-wide runtime parameters to default values.
             _dynamic_parameters.action_lock = true;
             _dynamic_parameters.ttl_lock    = true;
-        }
-
-        /**
-         * @breif Attempts to receive (parse) a message from the data contained in the circular reception buffer of the
-         * Communication class.
-         *
-         * During the RuntimeCycle() method's runtime, this method will be called repeatedly until it returns
-         * an undefined protocol code (0).
-         *
-         * @attention This method automatically attempts to send error messages if it runs into errors. As a side
-         * effect of these attempts, it may turn the built-in LED to visually communicate encountered runtime errors.
-         * Do not use the LED-connected pin in your code when using this class.
-         *
-         * @returns The byte-code of the protocol used by the received message or 0 to indicate no message was
-         * received.
-         */
-        uint8_t ReceiveData()
-        {
-            kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);  // Sets active command code
-
-            // Attempts to receive a message sent by the PC.
-            if (!_communication.ReceiveMessage())
-            {
-                // Data reception can fail due to one of the involved systems encountering an error or because there
-                // was no data to receive. Determines which of the two cases occurred here and resolves it
-                // appropriately.
-                if (_communication.communication_status ==
-                    static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive))
-                {
-                    // This is a non-error clause, sometimes there is no data to receive as none was sent.
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kNoDataToReceive);
-                }
-                else
-                {
-                    // In other cases, there is a reception or transmission error that makes the data unparsable. In
-                    // this case, sends and error message to the PC.
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kDataReceptionError);
-                    // One or both of these codes may be error codes describing the specific issue.
-                    const uint8_t errors[2] = {
-                        _communication.communication_status,
-                        _communication.GetTransportLayerStatus()
-                    };
-                    SendData(kernel_status, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
-                }
-
-                // In either case, returns the 'undefined' protocol code to indicate no message was received.
-                return static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
-            }
-
-            // Otherwise, if the message was parsed and received, returns the protocol code of the received message.
-            return _communication.protocol_code;
-        }
-
-        /**
-         * @brief Overwrites the global DynamicRuntimeParameters structure with the new values received from the PC.
-         */
-        void SetDynamicParameters()
-        {
-            // Extracts the received parameter data into the DynamicRuntimeParameters structure shared by all
-            // modules and Kernel class. Updates the structure by reference.
-            _dynamic_parameters = _communication.kernel_parameters.dynamic_parameters;
-            kernel_status       = static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersSet);
-        }
-
-        /**
-         * @brief Attempts to resolve the module targeted by the most recent ModuleParameter message and call its
-         * parameter setting method.
-         *
-         * This method allows overwriting the parameters of specific modules by sending the appropriate message from
-         * the PC.
-         */
-        void SetModuleParameters()
-        {
-            // Loops over the managed modules and attempts to find the addressed module
-            for (size_t i = 0; i < _module_count; i++)
-            {
-                // If a Module class is found with matching type and id, calls its SetCustomParameters() method to
-                // handle the received parameters' payload.
-                if (_modules[i]->GetModuleType() == _communication.module_parameter.module_type &&
-                    _modules[i]->GetModuleID() == _communication.module_parameter.module_id)
-                {
-                    // Calls the Module API method that processes the parameter object included with the message
-                    if (!_modules[i]->SetCustomParameters())
-                    {
-                        // If parameter setting fails, sends an error message to the PC and aborts the runtime.
-                        // Includes ID information about the payload addressee and extraction error code from the
-                        // communication class.
-                        const uint8_t errors[3] = {
-                            _communication.module_parameter.module_type,
-                            _communication.module_parameter.module_id,
-                            _communication.communication_status
-                        };
-                        kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError);
-                        SendData(
-                            kernel_status,
-                            communication_assets::kPrototypes::kThreeUnsignedBytes,
-                            errors
-                        );  // Sends the error data to the PC
-                        return;
-                    }
-
-                    // Otherwise, the parameters were parsed successfully
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet);
-                    return;
-                }
-            }
-
-            // If this point is reached, the parameter payload addressee was not found. Sends an error message
-            // to the PC and reruns the loop.
-            const uint8_t errors[2] = {
-                _communication.module_parameter.module_type,
-                _communication.module_parameter.module_id,
-            };  // payload ID information
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kParametersTargetNotFound);
-            SendData(kernel_status, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
         }
 
         /**
@@ -745,164 +616,76 @@ class Kernel
         void RunKernelCommand()
         {
             // Resolves and executes the specific command code communicated by the message:
-            switch (auto command = static_cast<kKernelCommands>(_communication.kernel_command.command))
+            kernel_command = _communication.kernel_command.command;
+            switch (static_cast<kKernelCommands>(kernel_command))
             {
-                case kKernelCommands::kResetController:
-                    kernel_command = static_cast<uint8_t>(command);  // Adjusts executed command status
-                    ResetControllerCommand();
-                    return;
+                case kKernelCommands::kResetController: Setup(); return;
 
-                case kKernelCommands::kIdentifyController:
-                    kernel_command = static_cast<uint8_t>(command);  // Adjusts executed command status
-                    IdentifyControllerCommand();
-                    return;
+                case kKernelCommands::kIdentifyController: SendControllerID(); return;
 
                 default:
                     // If the command code was not matched with any valid code, sends an error message.
-                    const uint8_t errors[1] = {_communication.kernel_command.command};
-                    kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kKernelCommandUnknown);
-                    SendData(kernel_status, communication_assets::kPrototypes::kOneUnsignedByte, errors);
+                    SendData(static_cast<uint8_t>(kKernelStatusCodes::kCommandNotRecognized));
             }
         }
 
-        /// Sends an identification service message that contains the unique ID of the controller to the PC.
-        void IdentifyControllerCommand()
-        {
-            SendServiceMessage(static_cast<uint8_t>(communication_assets::kProtocols::kIdentification), _controller_id);
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kControllerIDSent);
-        }
-
-        /// Resets all software and hardware parameters for the Kernel and all managed modules.
-        void ResetControllerCommand()
-        {
-            Setup();  // This essentially resets the controller.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kControllerReset);
-            SendState(kernel_status);  // Notifies the connected system that the controller has been reset
-        }
-
         /**
-         * @brief Resolves the module targeted by the most recent Command message and queues the included command for
-         * execution.
+         * @brief Loops through the managed modules and attempts to find the module addressed by the input type and id.
          *
-         * Unlike Kernel commands, Module commands are not immediately executed once they are received. Instead, they
-         * are queued to be executed whenever the next module command cycle occurs and the target module is done
-         * executing any already active command.
+         * @param target_type: The type (family) of the addressed module.
+         * @param target_id The ID of the specific module within the target_type family.
          *
-         * @param target_type The type (family) of the module targeted by the command.
-         * @param target_id The ID of the specific module within the target_type family that will execute the command.
-         * @param command_code The code specifying the command to be executed by the module.
-         * @param noblock Indicates whether the command should be executed immediately or queued.
-         * @param cycle Indicates whether the command should be executed repeatedly (cyclically) at a regular interval.
-         * @param cycle_delay The delay in microseconds between command cycles for cyclic (recurrent) commands.
+         * @return A non-negative integer representing the index of the module in the array of managed modules if the
+         * addressed module is found. A '-1' value if the target module was not found. Additionally, sends an error
+         * message to the PC if it fails to find the target module.
          */
-        void QueueModuleCommand(
-            const uint8_t target_type,
-            const uint8_t target_id,
-            const uint8_t command_code,
-            const bool noblock,
-            const bool cycle           = false,
-            const uint32_t cycle_delay = 0
-        )
+        int16_t ResolveTargetModule(const uint8_t target_type, const uint8_t target_id)
         {
-            // Loops over the managed modules and attempts to find the addressed module.
+            // Loops over all managed modules and checks the type and id of each module against the searched parameters.
             for (size_t i = 0; i < _module_count; i++)
             {
-                // If a Module class is found with matching type and id, queues the command to be executed by the
-                // target module.
+                // If the matching module is found, returns its index in the array of managed modules.
                 if (_modules[i]->GetModuleType() == target_type && _modules[i]->GetModuleID() == target_id)
                 {
-                    // Directly accesses the necessary Module API method to queue the command. Note, the last two
-                    // arguments are only
-                    _modules[i]->QueueCommand(command_code, noblock, cycle, cycle_delay);
-
-                    // Target module found, command queued
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandQueued);
-                    return;
+                    return static_cast<int16_t>(i);
                 }
             }
 
-            // If this point is reached, the command payload addressee was not found. Sends an error message
-            // to the PC and reruns the loop.
-            const uint8_t errors[3] = {target_type, target_id, command_code};
-            kernel_status           = static_cast<uint8_t>(kKernelStatusCodes::kCommandTargetNotFound);
-            SendData(kernel_status, communication_assets::kPrototypes::kThreeUnsignedBytes, errors);
-        }
-
-        /// Clears the command queue for the targeted module. This is especially relevant for resetting recurrent
-        /// commands without overwriting them with a non-recurrent command.
-        void ClearModuleCommandQueue()
-        {
-            // Otherwise, loops over the managed modules and attempts to find the addressed module.
-            for (size_t i = 0; i < _module_count; i++)
-            {
-                // If a Module class is found with matching type and id, queues the command to be executed by the
-                // target module.
-                if (_modules[i]->GetModuleType() == _communication.module_dequeue.module_type &&
-                    _modules[i]->GetModuleID() == _communication.module_dequeue.module_id)
-                {
-                    _modules[i]->ResetCommandQueue();
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandsReset);
-                    return;
-                }
-            }
-
-            // If this point is reached, the reset command payload addressee was not found. Sends an error message
-            // to the PC and reruns the loop.
-            const uint8_t errors[2] = {
-                _communication.module_dequeue.module_type,
-                _communication.module_dequeue.module_id
-            };
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kResetModuleQueueTargetNotFound);
-            SendData(kernel_status, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
+            // Otherwise, sends an error message to the PC and returns -1 to indicate that the target module was not
+            // found.
+            const uint8_t errors[2] = {target_type, target_id};
+            SendData(
+                static_cast<uint8_t>(kKernelStatusCodes::kTargetModuleNotFound),
+                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                errors
+            );
+            return -1;
         }
 
         /**
-         * @brief Loops over the managed modules and for each attempts to resolve and execute a command.
+         * @brief Loops over all managed modules and for each attempts to resolve and execute a command.
          *
-         * This method sequentially executes the active commands for all managed modules, controlling the
-         * connected hardware systems. It resolves re-running (recursing) and activating the queued commands
-         * (replacing completed commands with newly queued commands) and also enables concurrent (non-blocking)
-         * command execution.
-         *
-         * @attention This method automatically attempts to send error messages if it runs into errors. As a side
-         * effect of these attempts, it may turn the built-in LED to visually communicate encountered runtime errors.
-         * Do not use the LED-connected pin in your code when using this class.
+         * This method first determines whether there is a command to run and, if there is, calls the API method that
+         * instructs the module to run the logic that matches the active command code. If the module does not recognize
+         * the active command, instructs it to send an error message to the PC.
          */
-        void RunModuleCommands()
+        void RunModuleCommands() const
         {
-            kernel_command =
-                static_cast<uint8_t>(kKernelCommands::kRunModuleCommands);  // Adjusts executed command status
-
             // Loops over all managed modules
             for (size_t i = 0; i < _module_count; i++)
             {
-                // First, determines which command to run, if any. This relies on the following choice
-                // hierarchy: finish already active commands > execute a newly queued command > repeat a cyclic command.
-                // Active command setting does not fail due to errors, so this method simply needs to be called once for
-                // each module.
-                _modules[i]->ResolveActiveCommand();
+                // First, determines which command to run, if any. This relies on the following choice hierarchy:
+                // finish already active commands > execute a newly queued command > repeat a cyclic command.
+                // If this method is able to resolve (activate) a command, it returns 'true'. Otherwise, there is no
+                // command to run. If the module has no active command, aborts the iteration early to conserve CPU
+                // cycles and speed up looping through modules.
+                if (!_modules[i]->ResolveActiveCommand()) continue;
 
-                // Since RunActiveCommand is a virtual method intended to be implemented by the end-user
-                // that subclasses the base Module class, it relies on the Kernel to handle runtime errors.
-                if (!_modules[i]->RunActiveCommand())
-                {
-                    // Constructs and sends the appropriate error message to the connected system.
-                    uint8_t errors[3] = {
-                        _modules[i]->GetModuleType(),
-                        _modules[i]->GetModuleID(),
-                        _modules[i]->GetActiveCommand()
-                    };
-                    kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandError);
-                    SendData(kernel_status, communication_assets::kPrototypes::kThreeUnsignedBytes, errors);
-
-                    // Does not terminate the runtime and continues with other modules. This is intentionally
-                    // designed to allow recovering from non-fatal command execution errors without terminating the
-                    // runtime.
-                }
+                // If RunActiveCommand is implemented properly, it will return 'true' if it matches the active command
+                // code to the method to execute and 'false' otherwise. If the method returns 'false', the Kernel calls
+                // an API method to send a predetermined error message to the PC.
+                if (!_modules[i]->RunActiveCommand()) _modules[i]->SendCommandActivationError();
             }
-
-            //Adjusts the status and terminates the method runtime.
-            kernel_status = static_cast<uint8_t>(kKernelStatusCodes::kModuleCommandsCompleted);
         }
 };
 

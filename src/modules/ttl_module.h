@@ -75,9 +75,7 @@ class TTLModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
-            return true;
+            return _communication.ExtractModuleParameters(_custom_parameters);
         }
 
         /// Executes the currently active command. Unlike other overloaded API methods, this one does not set the
@@ -110,16 +108,11 @@ class TTLModule final : public Module
                 digitalWriteFast(kPin, LOW);
             }
             else pinModeFast(kPin, INPUT);
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kSetupComplete);  // Records the status
-            return true;
-        }
 
-        /// Resets the custom_parameters structure fields to their default values.
-        bool ResetCustomAssets() override
-        {
+            // Resets the custom_parameters structure fields to their default values.
             _custom_parameters.pulse_duration    = 10000;  // The default output pulse duration is 10 milliseconds
             _custom_parameters.average_pool_size = 0;      // The default average pool size is 0 readouts (no averaging)
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kModuleAssetsReset);  // Records the status
+
             return true;
         }
 
@@ -145,8 +138,7 @@ class TTLModule final : public Module
             // pin mode error.
             if (!kOutput)
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendState(module_status);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -155,14 +147,13 @@ class TTLModule final : public Module
             {
                 if (DigitalWrite(kPin, HIGH, true))
                 {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputOn);  // Records the status
-                    SendState(module_status);  // Informs the PC about pin status
-                    AdvanceCommandStage();                                            // Advances to the next stage
+                    SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputOn));  // Informs the PC about pin status
+                    AdvanceCommandStage();                                          // Advances to the next stage
                 }
                 else
                 {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);  // Records the status
-                    SendState(module_status);  // Informs the PC about pin status
+                    SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked)
+                    );                  // Informs the PC about pin status
                     CompleteCommand();  // Since the output pin is locked, the command is essentially aborted
                 }
             }
@@ -174,16 +165,10 @@ class TTLModule final : public Module
                 if (!WaitForMicros(_custom_parameters.pulse_duration)) return;
 
                 // Once the pulse duration has passed, inactivates the pin
-                if (DigitalWrite(kPin, LOW, true))
-                {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputOff);
-                }
-                else
-                {
-                    module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);
-                }
-                SendState(module_status);  // Informs the PC about pin status
-                CompleteCommand();                                                // Finishes command execution
+                if (DigitalWrite(kPin, LOW, true)) SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputOff));
+                else SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+
+                CompleteCommand();  // Finishes command execution
             }
         }
 
@@ -194,8 +179,7 @@ class TTLModule final : public Module
             // pin mode error.
             if (!kOutput)
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendState(module_status);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -203,14 +187,13 @@ class TTLModule final : public Module
             if (DigitalWrite(kPin, HIGH, true))
             {
                 // This clause will not be triggered if the global ttl_lock setting is ON.
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputOn);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputOn));
             }
             else
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
             }
-            SendState(module_status);  // Informs the PC about pin status
-            CompleteCommand();                                                // Finishes command execution
+            CompleteCommand();  // Finishes command execution
         }
 
         /// Sets the output pin to continuously send LOW signal. Respects the global ttl_lock state.
@@ -220,8 +203,7 @@ class TTLModule final : public Module
             // pin mode error.
             if (!kOutput)
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendState(module_status);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -230,14 +212,13 @@ class TTLModule final : public Module
             // run time.
             if (DigitalWrite(kPin, LOW, true))
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputOff);  // Records the status
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputOff));  // Records the status
             }
             else
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked);  // Records the status
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));  // Records the status
             }
-            SendState(module_status);  // Informs the PC about pin status
-            CompleteCommand();                                                // Finishes command execution
+            CompleteCommand();  // Finishes command execution
         }
 
         /// Checks the state of the input pin and if the state does not match the recorded state, sends the new state
@@ -248,8 +229,7 @@ class TTLModule final : public Module
             // pin mode error.
             if (kOutput)
             {
-                module_status = static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode);
-                SendState(module_status);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 CompleteCommand();  // Finishes the command upon error detection
             }
 
@@ -258,15 +238,13 @@ class TTLModule final : public Module
             if (const bool current_state = GetRawDigitalReadout(kPin, _custom_parameters.average_pool_size);
                 current_state && _previous_input_status != static_cast<uint8_t>(kCustomStatusCodes::kInputOn))
             {
-                module_status          = static_cast<uint8_t>(kCustomStatusCodes::kInputOn);  // Records the new status
-                _previous_input_status = module_status;
-                SendState(module_status);
+                _previous_input_status = static_cast<uint8_t>(kCustomStatusCodes::kInputOn);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOn));
             }
             else if (!current_state && _previous_input_status != static_cast<uint8_t>(kCustomStatusCodes::kInputOff))
             {
-                module_status          = static_cast<uint8_t>(kCustomStatusCodes::kInputOff);  // Records the new status
-                _previous_input_status = module_status;
-                SendState(module_status);
+                _previous_input_status = static_cast<uint8_t>(kCustomStatusCodes::kInputOff);
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOff));
             }
 
             // To optimize communication, only sends data to the PC if the status has changed.

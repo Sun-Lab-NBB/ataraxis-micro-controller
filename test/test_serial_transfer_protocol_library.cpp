@@ -1089,7 +1089,7 @@ void TestSerializedTransferProtocolDataTransmissionErrors(void)
     // Verifies that when Start Bytes are enabled, the algorithm correctly returns the error code.
     protocol.ReceiveData();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketStartByteNotFoundError),
+        static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kPacketStartByteNotFound),
         protocol.transfer_status
     );
     mock_port.rx_buffer[0]    = 129;              // Restores the start byte

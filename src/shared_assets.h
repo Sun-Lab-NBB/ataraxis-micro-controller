@@ -90,27 +90,27 @@ namespace shared_assets
      */
     enum class kTransportLayerCodes : uint8_t
     {
-        kStandby                      = 101,  ///< The default value used to initialize the transfer_status variable
-        kPacketConstructed            = 102,  ///< Packet was successfully constructed
-        kPacketSent                   = 103,  ///< Packet was successfully transmitted
-        kPacketStartByteFound         = 104,  ///< Packet start byte was found
-        kPacketStartByteNotFoundError = 105,  ///< Packet start byte was not found in the incoming stream
-        kPayloadSizeByteFound         = 106,  ///< Payload size byte was found
-        kPayloadSizeByteNotFound      = 107,  ///< Payload size byte was not found in the incoming stream
-        kInvalidPayloadSize           = 108,  ///< Received payload size is not valid
-        kPacketTimeoutError           = 109,  ///< Packet parsing failed due to stalling (reception timeout)
-        kNoBytesToParseFromBuffer     = 110,  ///< Stream class reception buffer had no packet bytes to parse
-        kPacketParsed                 = 111,  ///< Packet was successfully parsed
-        kCRCCheckFailed               = 112,  ///< CRC check failed, the incoming packet is corrupted
-        kPacketValidated              = 113,  ///< Packet was successfully validated
-        kPacketReceived               = 114,  ///< Packet was successfully received
-        kWriteObjectBufferError       = 115,  ///< Not enough space in the buffer payload region to write the object
-        kObjectWrittenToBuffer        = 116,  ///< The object has been written to the buffer
-        kReadObjectBufferError        = 117,  ///< Not enough bytes in the buffer payload region to read the object from
-        kObjectReadFromBuffer         = 118,  ///< The object has been read from the buffer
-        kDelimiterNotFoundError       = 119,  ///< Delimiter byte not found at the end of the packet
-        kDelimiterFoundTooEarlyError  = 120,  ///< Delimiter byte was found before reaching the end of the packet
-        kPostambleTimeoutError        = 121,  ///< The Postamble was not received within the specified time frame
+        kStandby                     = 101,  ///< The default value used to initialize the transfer_status variable
+        kPacketConstructed           = 102,  ///< Packet was successfully constructed
+        kPacketSent                  = 103,  ///< Packet was successfully transmitted
+        kPacketStartByteFound        = 104,  ///< Packet start byte was found
+        kPacketStartByteNotFound     = 105,  ///< Packet start byte was not found in the incoming stream
+        kPayloadSizeByteFound        = 106,  ///< Payload size byte was found
+        kPayloadSizeByteNotFound     = 107,  ///< Payload size byte was not found in the incoming stream
+        kInvalidPayloadSize          = 108,  ///< Received payload size is not valid
+        kPacketTimeoutError          = 109,  ///< Packet parsing failed due to stalling (reception timeout)
+        kNoBytesToParseFromBuffer    = 110,  ///< Stream class reception buffer had no packet bytes to parse
+        kPacketParsed                = 111,  ///< Packet was successfully parsed
+        kCRCCheckFailed              = 112,  ///< CRC check failed, the incoming packet is corrupted
+        kPacketValidated             = 113,  ///< Packet was successfully validated
+        kPacketReceived              = 114,  ///< Packet was successfully received
+        kWriteObjectBufferError      = 115,  ///< Not enough space in the buffer payload region to write the object
+        kObjectWrittenToBuffer       = 116,  ///< The object has been written to the buffer
+        kReadObjectBufferError       = 117,  ///< Not enough bytes in the buffer payload region to read the object from
+        kObjectReadFromBuffer        = 118,  ///< The object has been read from the buffer
+        kDelimiterNotFoundError      = 119,  ///< Delimiter byte not found at the end of the packet
+        kDelimiterFoundTooEarlyError = 120,  ///< Delimiter byte was found before reaching the end of the packet
+        kPostambleTimeoutError       = 121,  ///< The Postamble was not received within the specified time frame
     };
 
     /**

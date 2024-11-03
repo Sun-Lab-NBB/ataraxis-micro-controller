@@ -195,24 +195,23 @@ class Communication
         }
 
         /**
-         * @brief Packages the input data into the ModuleData or KernelData structure and sends it to the connected PC.
+         * @brief Packages the input data into the ModuleData structure and sends it to the connected PC.
          *
          * This method is used for sending both data and error messages. This library treats errors as generic event
          * instances, same as data or success-state messages.
          *
+         * @note This method is specialized to send Module messages. There is an overloaded version of this method that
+         * does not take module_type and module_id arguments, which allows sending data messages from the Kernel class.
+         *
          * @warning If you only need to communicate the state event-code without any additional data, use
          * SendStateMessage() method for more optimal transmission protocol!
          *
-         * @note This method automatically determines whether to use KernelData or ModuleData structure, based on the
-         * value of the module_type and module_id parameters. When both are set to 0, KernelData is used.
-         *
          * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
          * automatically by the template constructor.
-         * @param module_type The byte-code specifying the type of the module that sent the data message. Set to 0 when
-         * sending data from the Kernel.
+         * @param module_type The byte-code specifying the type of the module that sent the data message.
          * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * sent the data. Set to 0 when sending the data from the Kernel.
-         * @param command The byte-code specifying the command executed by the class that sent the data message.
+         * sent the data.
+         * @param command The byte-code specifying the command executed by the module that sent the data message.
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param prototype The byte-code specifying the prototype object that can be used to deserialize the included
          * object data. For this to work as expected, the microcontroller and the PC need to share the same
@@ -246,41 +245,79 @@ class Communication
             const ObjectType& object
         )
         {
-            // This index is used to sequentially write the necessary data into the payload buffer.
-            uint16_t next_index = 0;
+            // Ensures that the input fits inside the message payload buffer. Since this statement is evaluated at
+            // compile time, it does not impact runtime speed.
+            static_assert(
+                sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(communication_assets::ModuleData),
+                "The provided object is too large to fit inside the message payload buffer. This check accounts for "
+                "the size of the ModuleData header that will be sent with the object."
+            );
 
-            // If both module_type and module_id are set to 0, assumes the caller is Kernel and uses KernelData
-            // protocol.
-            if (module_type == 0 && module_id == 0)
+            // Constructs the message header
+            const communication_assets::ModuleData message {
+                static_cast<uint8_t>(communication_assets::kProtocols::kModuleData),
+                module_type,
+                module_id,
+                command,
+                event_code,
+                static_cast<uint8_t>(prototype)
+            };
+
+            // Writes the message into the payload buffer
+            uint16_t next_index = _transport_layer.WriteData(message);
+
+            // Writes the data object if the message header was successfully written to the buffer, as indicated by a
+            // non-zero next_index value
+            if (next_index != 0) next_index = _transport_layer.WriteData(object, next_index);
+
+            // If any writing attempt from above fails, breaks the runtime with an error status.
+            if (next_index == 0)
             {
-                // Constructs the message header
-                const communication_assets::KernelData message {
-                    static_cast<uint8_t>(communication_assets::kProtocols::kKernelData),
-                    command,
-                    event_code,
-                    static_cast<uint8_t>(prototype)
-                };
-
-                // Writes the message into the payload buffer
-                next_index = _transport_layer.WriteData(message);
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                return false;
             }
 
-            // Otherwise, assumes the caller is a Module and uses ModuleData protocol.
-            else
+            // If the data was written to the buffer, sends it to the PC
+            if (!_transport_layer.SendData())
             {
-                // Constructs the message header
-                const communication_assets::ModuleData message {
-                    static_cast<uint8_t>(communication_assets::kProtocols::kModuleData),
-                    module_type,
-                    module_id,
-                    command,
-                    event_code,
-                    static_cast<uint8_t>(prototype)
-                };
-
-                // Writes the message into the payload buffer
-                next_index = _transport_layer.WriteData(message);
+                // If data sending fails, returns with an error status
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                return false;
             }
+
+            // Returns with a success code
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+            return true;
+        }
+
+        /// Overloads SendDataMessage to use it for Kernel class. The function works the same as the module-oriented
+        /// SendDataMessage, but does not accept module_type and module_id.
+        template <typename ObjectType>
+        bool SendDataMessage(
+            const uint8_t command,
+            const uint8_t event_code,
+            const communication_assets::kPrototypes prototype,
+            const ObjectType& object
+        )
+        {
+            // Ensures that the input fits inside the message payload buffer. Since this statement is evaluated at
+            // compile time, it does not impact runtime speed.
+            static_assert(
+                sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(communication_assets::KernelData),
+                "The provided object is too large to fit inside the message payload buffer. This check accounts for "
+                "the size of the KernelData header that will be sent with the object."
+            );
+
+            // Constructs the message header
+            const communication_assets::KernelData message {
+                static_cast<uint8_t>(communication_assets::kProtocols::kKernelData),
+                command,
+                event_code,
+                static_cast<uint8_t>(prototype)
+            };
+
+            // Writes the message into the payload buffer
+            uint16_t next_index = _transport_layer.WriteData(message);
 
             // Writes the data object if the message header was successfully written to the buffer, as indicated by a
             // non-zero next_index value
@@ -307,22 +344,17 @@ class Communication
         }
 
         /**
-         * @brief Packages the input data into the ModuleState or KernelState structure and sends it to the connected
-         * PC.
+         * @brief Packages the input data into the ModuleState structure and sends it to the connected PC.
          *
-         * @note This method is a more efficient version of Data message structures that does not use additional data
-         * objects. Otherwise, the two structure types are very similar in scope.
+         * @note This method is essentially a version of SendDataMessage that is optimized to not use additional data
+         * objects and execute faster. Otherwise, it behaves exactly like SendDataMessage.
          *
-         * This method is used for sending both 'success' and 'error' state messages.
+         * @note This method is specialized to send Module messages. There is an overloaded version of this method that
+         * only takes command and event_code arguments, which allows sending data messages from the Kernel class.
          *
-         * @note This method automatically determines whether to use KernelState or ModuleState message structure,
-         * based on the value of the module_type and module_id parameters. When both are set to 0, KernelState is
-         * used.
-         *
-         * @param module_type The byte-code specifying the type of the module that sent the state message. Set to 0 when
-         * sending the state from Kernel.
+         * @param module_type The byte-code specifying the type of the module that sent the state message.
          * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * sent the state message. Set to 0 when sending the state from Kernel.
+         * sent the state message.
          * @param command The byte-code specifying the command executed by the module that sent the state message.
          * @param event_code The byte-code specifying the event that triggered the state message.
          *
@@ -347,42 +379,17 @@ class Communication
             const uint8_t event_code
         )
         {
-            // This index is used to sequentially write the necessary data into the payload buffer.
-            uint16_t next_index = 0;
+            // Constructs the message header
+            const communication_assets::ModuleState message {
+                static_cast<uint8_t>(communication_assets::kProtocols::kModuleState),
+                module_id,
+                module_type,
+                command,
+                event_code
+            };
 
-            // If both module_type and module_id are set to 0, assumes the caller is Kernel and uses KernelStatus
-            // protocol.
-            if (module_type == 0 && module_id == 0)
-            {
-                // Constructs the message header
-                const communication_assets::KernelState message {
-                    static_cast<uint8_t>(communication_assets::kProtocols::kKernelState),
-                    command,
-                    event_code
-                };
-
-                // Writes the message into the payload buffer
-                next_index = _transport_layer.WriteData(message);
-            }
-
-            // Otherwise, assumes the caller is a Module and uses ModuleState protocol.
-            else
-            {
-                // Constructs the message header
-                const communication_assets::ModuleState message {
-                    static_cast<uint8_t>(communication_assets::kProtocols::kModuleState),
-                    module_id,
-                    module_type,
-                    command,
-                    event_code
-                };
-
-                // Writes the message into the payload buffer
-                next_index = _transport_layer.WriteData(message);
-            }
-
-            // If any writing attempt from above fails, breaks the runtime with an error status.
-            if (next_index == 0)
+            //Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
+            if (!_transport_layer.WriteData(message))
             {
                 communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
                 return false;
@@ -399,6 +406,107 @@ class Communication
             // Returns with a success code
             communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
             return true;
+        }
+
+        /// Overloads SendStateMessage to use it for Kernel class. The function works the same as the module-oriented
+        /// SendStateMessage, but does not accept module_type and module_id.
+        bool SendStateMessage(const uint8_t command, const uint8_t event_code)
+        {
+            // Constructs the message header
+            const communication_assets::KernelState message {
+                static_cast<uint8_t>(communication_assets::kProtocols::kKernelState),
+                command,
+                event_code
+            };
+
+            // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
+            if (!_transport_layer.WriteData(message))
+            {
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                return false;
+            }
+
+            // If the data was written to the buffer, sends it to the PC
+            if (!_transport_layer.SendData())
+            {
+                // If data sending fails, returns with an error status
+                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                return false;
+            }
+
+            // Returns with a success code
+            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+            return true;
+        }
+
+        /**
+         * @brief Sends a communication error message to the connected PC and activates the built-in LED to indicate
+         * the error.
+         *
+         * @warning This method should be used exclusively for communication errors. Use regular SendDataMessage or
+         * SendStateMessage to send all other types of errors.
+         *
+         * This method is an extension of the SendDataMessage method that is specialized to send communication errors to
+         * the PC. The primary reason for making this method distinct is to aggregate unique aspects of handling
+         * communication (versus other types of errors), such as setting the LED. This special treatment is due to the
+         * fact that if communication works as expected, all other errors will reach the PC and will be handled there.
+         * If communication fails, however, no information will ever reach the PC.
+         *
+         * @note This method is specialized to send Module messages. There is an overloaded version of this method that
+         * only takes command and error_code arguments, which allows sending communication error messages from the
+         * Kernel class.
+         *
+         * @param module_type The byte-code specifying the type of the module that encountered the error.
+         * @param module_id The ID byte-code of the specific module within the broader module_type family that
+         * encountered the error.
+         * @param command The byte-code specifying the command executed by the module that encountered the error.
+         * @param error_code The byte-code specifying the specific module-level error code for this type of
+         * communication error.
+         */
+        void SendCommunicationErrorMessage(
+            const uint8_t module_type,
+            const uint8_t module_id,
+            const uint8_t command,
+            const uint8_t error_code
+        )
+        {
+            // Combines the latest status of the Communication class (likely an error code) and the TransportLayer
+            // status code into a 2-byte array. Jointly, this information should be enough to diagnose the error.
+            const uint8_t errors[2] = {communication_status, _transport_layer.transfer_status};
+
+            // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
+            // recursions.
+            SendDataMessage(
+                module_type,
+                module_id,
+                command,
+                error_code,
+                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                errors
+            );
+
+            // As a fallback in case the error message does not reach the connected system, sets the class status to
+            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
+            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+            digitalWriteFast(LED_BUILTIN, HIGH);
+        }
+
+        /// Overloads SendCommunicationErrorMessage to use it for Kernel class. The function works the same as the
+        /// module-oriented SendCommunicationErrorMessage, but does not accept module_type and module_id.
+        void SendCommunicationErrorMessage(const uint8_t command, const uint8_t error_code)
+        {
+            // Combines the latest status of the Communication class (likely an error code) and the TransportLayer
+            // status code into a 2-byte array. Jointly, this information should be enough to diagnose the error.
+            const uint8_t errors[2] = {communication_status, _transport_layer.transfer_status};
+
+            // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
+            // recursions.
+            SendDataMessage(command, error_code, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
+
+            // As a fallback in case the error message does not reach the connected system, sets the class status to
+            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
+            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+            digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
         /**
@@ -521,7 +629,7 @@ class Communication
                 switch (static_cast<communication_assets::kProtocols>(protocol_code))
                 {
                     case communication_assets::kProtocols::KRepeatedModuleCommand:
-                        // The 'if' checks for the implicit 'next_index' returned by the REadData() method to not be 0.
+                        // The 'if' checks for the implicit 'next_index' returned by the ReadData() method to not be 0.
                         // 0 indicates that the data was not read successfully. Any other number indicates successful
                         // read operation. Inlining everything makes the code more readable.
                         if (_transport_layer.ReadData(repeated_module_command, next_index)) return true;
