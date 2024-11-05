@@ -91,19 +91,19 @@ class Kernel
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandBy               = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
-            kSetupComplete         = 1,   ///< Setup() method runtime succeeded.
-            kModuleSetupError      = 2,   ///< Setup() method runtime failed due to a module setup error.
-            kDataReceptionError    = 3,   ///< ReceiveData() method failed due to a data reception error.
-            kDataSendingError      = 4,   ///< SendData() method failed due to a data sending error.
-            kStateSendingError     = 5,   ///< SendData() method failed due to a data sending error.
-            kInvalidDataProtocol   = 6,   ///< Received message uses an unsupported (unknown) protocol.
-            kKernelParametersSet   = 7,   ///< Received and applied the parameters addressed to the Kernel class.
-            kModuleParametersSet   = 8,   ///< Received and applied the parameters addressed to a managed Module class.
-            kModuleParametersError = 9,   ///< Unable to apply the received Module parameters.
-            kCommandNotRecognized  = 10,  ///< The Kernel has received an unknown command.
-            kServiceSendingError   = 11,  ///< Error sending a service message to the connected system.
-            kTargetModuleNotFound  = 12   ///< No module with the requested type and id combination is found.
+            kStandBy                = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
+            kSetupComplete          = 1,   ///< Setup() method runtime succeeded.
+            kModuleSetupError       = 2,   ///< Setup() method runtime failed due to a module setup error.
+            kDataReceptionError     = 3,   ///< ReceiveData() method failed due to a data reception error.
+            kDataSendingError       = 4,   ///< SendData() method failed due to a data sending error.
+            kStateSendingError      = 5,   ///< SendData() method failed due to a data sending error.
+            kServiceSendingError    = 6,   ///< Error sending a service message to the connected system.
+            kInvalidMessageProtocol = 7,   ///< Received message uses an unsupported (unknown) protocol.
+            kKernelParametersSet    = 8,   ///< Received and applied the parameters addressed to the Kernel class.
+            kModuleParametersSet    = 9,   ///< Received and applied the parameters addressed to a managed Module class.
+            kModuleParametersError  = 10,  ///< Unable to apply the received Module parameters.
+            kCommandNotRecognized   = 11,  ///< The Kernel has received an unknown command.
+            kTargetModuleNotFound   = 12   ///< No module with the requested type and id combination is found.
         };
 
         /**
@@ -214,7 +214,7 @@ class Kernel
                         error_object
                     );
 
-                    // Returns without completing the setup. This 'bricks' the controller requiring a firmware reset
+                    // Returns without completing the setup. This 'bricks' the controller requiring firmware reset
                     // before it can re-attempt the setup process and receive data from the PC.
                     return;
                 }
@@ -410,7 +410,7 @@ class Kernel
                         // If the message protocol is not one of the expected protocols, sends an error message to the
                         // PC.Includes the invalid protocol value in the message.
                         SendData(
-                            static_cast<uint8_t>(kKernelStatusCodes::kInvalidDataProtocol),
+                            static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
                             communication_assets::kPrototypes::kOneUnsignedByte,
                             _communication.protocol_code
                         );
