@@ -124,7 +124,7 @@ class TTLModule final : public Module
         {
                 uint32_t pulse_duration = 10000;  ///< The time, in microseconds, for the HIGH phase of emitted pulses.
                 uint8_t average_pool_size = 0;  ///< The number of digital readouts to average when checking pin state.
-        } _custom_parameters;
+        } __attribute__((packed)) _custom_parameters;
 
         /// Tracks the previous input_pin status. This is used to optimize data transmission by only reporting input
         /// pin state changes to the PC
@@ -165,7 +165,7 @@ class TTLModule final : public Module
                 if (!WaitForMicros(_custom_parameters.pulse_duration)) return;
 
                 // Once the pulse duration has passed, inactivates the pin
-                if (DigitalWrite(kPin, LOW, true)) SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputOff));
+                if (!DigitalWrite(kPin, LOW, true)) SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputOff));
                 else SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
 
                 CompleteCommand();  // Finishes command execution

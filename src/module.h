@@ -272,9 +272,6 @@ class Module
                 // Removes the new_command flag to indicate that the new command has been consumed.
                 execution_parameters.new_command = false;
 
-                // Resets recurrent timer to 0 whenever a command is activated.
-                execution_parameters.recurrent_timer = 0;
-
                 // Note, when a new command is queued, its 'cycle' flag automatically overrides the flag of any
                 // currently running command. In other words, a new command, cyclic or not, will always replace any
                 // currently running command, cyclic or not.
@@ -294,7 +291,6 @@ class Module
                 execution_parameters.command         = execution_parameters.next_command;
                 execution_parameters.noblock         = execution_parameters.next_noblock;
                 execution_parameters.stage           = 1;
-                execution_parameters.recurrent_timer = 0;
                 return true;  // Indicates there is a command to run.
             }
 
@@ -578,6 +574,8 @@ class Module
 
             execution_parameters.command = 0;  // Removes active command code
             execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
+            execution_parameters.recurrent_timer =
+                0;  // Resets the recurrent command timer when the command is completed
         }
 
         /**

@@ -314,8 +314,8 @@ class Kernel
                         // method succeeds, it returns an index (>=0) of the target module class inside the _modules
                         // array
                         target_module = ResolveTargetModule(
-                            _communication.module_dequeue.module_type,
-                            _communication.module_dequeue.module_id
+                            _communication.module_parameter.module_type,
+                            _communication.module_parameter.module_id
                         );
 
                         // Aborts early if the target module is not found, as indicated by the returned code being
@@ -373,8 +373,8 @@ class Kernel
                         if (return_code) SendReceptionCode(return_code);
 
                         target_module = ResolveTargetModule(
-                            _communication.module_dequeue.module_type,
-                            _communication.module_dequeue.module_id
+                            _communication.one_off_module_command.module_type,
+                            _communication.one_off_module_command.module_id
                         );
 
                         if (target_module < 0) break;
@@ -391,8 +391,8 @@ class Kernel
                         if (return_code) SendReceptionCode(return_code);
 
                         target_module = ResolveTargetModule(
-                            _communication.module_dequeue.module_type,
-                            _communication.module_dequeue.module_id
+                            _communication.repeated_module_command.module_type,
+                            _communication.repeated_module_command.module_id
                         );
 
                         if (target_module < 0) break;
