@@ -281,7 +281,7 @@ class Module
 
             // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
             // number of microseconds has passed, re-activates the previously executed command. Note, the
-            // next_command != 0 check is here to support correct behavior in responce to Dequeue command, which sets
+            // next_command != 0 check is here to support correct behavior in response to Dequeue command, which sets
             // the next_command field to 0 and should be able to abort cyclic and non-cyclic command execution.
             if (execution_parameters.run_recurrently &&
                 execution_parameters.recurrent_timer > execution_parameters.recurrent_delay &&

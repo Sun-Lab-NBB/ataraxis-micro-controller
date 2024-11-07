@@ -158,7 +158,7 @@ namespace shared_assets
             /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Same as action_lock,
             /// this only works for digital and analog writing methods inherited from the base Module class.
             bool ttl_lock = true;
-    };
+    } __attribute__((packed));
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
     // that is available to Teensy, some assets had to be reimplemented manually. They are implemented in as
