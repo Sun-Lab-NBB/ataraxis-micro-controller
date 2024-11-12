@@ -288,9 +288,9 @@ class Module
                 execution_parameters.next_command != 0)
             {
                 // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
-                execution_parameters.command         = execution_parameters.next_command;
-                execution_parameters.noblock         = execution_parameters.next_noblock;
-                execution_parameters.stage           = 1;
+                execution_parameters.command = execution_parameters.next_command;
+                execution_parameters.noblock = execution_parameters.next_noblock;
+                execution_parameters.stage   = 1;
                 return true;  // Indicates there is a command to run.
             }
 
@@ -494,6 +494,19 @@ class Module
         uint8_t GetActiveCommand() const
         {
             return execution_parameters.command;
+        }
+
+        /// This method completes the currently active command and ensures it will not run again if it is recurrent.
+        /// Use this method to abort the runtime of a command that runs into an error that is likely not recoverable.
+        /// Otherwise, if the command sends error messages to the PC, it may overwhelm the communication interface by
+        /// spamming the same error message.
+        void AbortCommand()
+        {
+            // Ensures the failed command is cleared from the recurrent queue. If the new_command flag is true,
+            // this indicates that the current command will be replaced with a new command anyway, so clearing
+            // the recurrent activation is not necessary.
+            if (!execution_parameters.new_command) ResetCommandQueue();
+            CompleteCommand();  // Finishes the command execution and sends the completion message to the PC.
         }
 
         /**
@@ -713,25 +726,23 @@ class Module
          * @param value The boolean value to set the pin to.
          * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
          * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
-         * applicable, either of these parameters prevents setting the pin to HIGH and, instead, ensures the pin is set
-         * to LOW.
+         * applicable, either of these parameters prevents changing the pin output value.
          *
-         * @returns Current output level (HIGH or LOW) the pin has been set to.
+         * @returns bool @b true if the pin has been set to the requested value and @b false if the pin is locked and
+         * has not been set.
          */
         [[nodiscard]]
         bool DigitalWrite(const uint8_t pin, const bool value, const bool ttl_pin) const
         {
-            // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to LOW and returns
-            // the current value of the pin (LOW).
+            // If the appropriate lock parameter for the pin is enabled, returns false to indicate that the pin is
+            // locked.
             if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
-            {
-                digitalWriteFast(pin, LOW);
                 return false;
-            }
 
-            // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
+            // If the pin is not locked, sets it to the requested value and returns true to indicate tha the pin was
+            // triggered successfully.
             digitalWriteFast(pin, value);
-            return value;
+            return true;
         }
 
         /**
