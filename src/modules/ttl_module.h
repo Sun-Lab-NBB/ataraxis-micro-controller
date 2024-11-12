@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief The header file for the TTLModule class, which enables bidirectional TTL communication with other hardware
+ * @brief The header file for the TTLModule class, which enables unidirectional TTL communication with other hardware
  * systems.
  */
 
@@ -13,14 +13,14 @@
 #include "shared_assets.h"
 
 /**
- * @brief Sends or receives Transistor-to-Transistor Logic (TTL) signals using two digital pins.
+ * @brief Sends or receives Transistor-to-Transistor Logic (TTL) signals using the specified digital pin.
  *
  * This module is specifically designed to send and receive TTL signals, which are often used to synchronize and
  * communicate between hardware devices. Currently, this module is designed to exclusively output or receive
- * TTL signals, depending on the pin configuration flag value selected at class compilation.
+ * TTL signals, depending on the pin configuration flag value at class compilation.
  *
  * @tparam kPin the digital pin that will be used to output or receive ttl signals. The mode of the pin
- * (input or output) depends on kOutput flag value.
+ * (input or output) depends on kOutput flag value and is currently not changeable during runtime.
  * @tparam kOutput determines whether the pin will be used to output TTL signals (if set to true) or receive TTL signals
  * from other systems (if set to false).
  */
@@ -29,8 +29,7 @@ class TTLModule final : public Module
 {
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Please select a different "
-            "pin for TTLModule class."
+            "LED-connected pin is reserved for LED manipulation. Please select a different pin for TTLModule class."
         );
 
     public:
@@ -40,13 +39,12 @@ class TTLModule final : public Module
         /// Module class.
         enum class kCustomStatusCodes : uint8_t
         {
-            kStandBy        = 51,  ///< The code used to initialize custom status trackers.
-            kOutputOn       = 52,  ///< The output ttl pin is set to HIGH.
-            kOutputOff      = 53,  ///< The output ttl pin is set to LOW.
-            kInputOn        = 54,  ///< The input ttl pin is receiving a HIGH signal.
-            kInputOff       = 55,  ///< The input ttl pin is receiving a LOW signal.
-            kOutputLocked   = 56,  ///< The output ttl pin is in a global locked state and cannot be toggled on or off.
-            kInvalidPinMode = 57   ///< The pin mode (input or output) is not valid for the requested command.
+            kOutputOn       = 51,  ///< The output ttl pin is set to HIGH.
+            kOutputOff      = 52,  ///< The output ttl pin is set to LOW.
+            kInputOn        = 53,  ///< The input ttl pin is receiving a HIGH signal.
+            kInputOff       = 54,  ///< The input ttl pin is receiving a LOW signal.
+            kOutputLocked   = 55,  ///< The output ttl pin is in a global locked state and cannot be toggled on or off.
+            kInvalidPinMode = 56   ///< The pin mode (input or output) is not valid for the requested command.
         };
 
         /// Assigns meaningful names to module command byte-codes.
@@ -55,7 +53,7 @@ class TTLModule final : public Module
             kSendPulse  = 1,  ///< Sends a ttl pulse through the output pin.
             kToggleOn   = 2,  ///< Sets the output pin to HIGH.
             kToggleOff  = 3,  ///< Sets the output pin to LOW.
-            kCheckState = 4,  ///< Checks the state of the input pin, and if it changed since last check, informs the PC
+            kCheckState = 4,  ///< Checks the state of the input pin.
         };
 
         /// Initializes the TTLModule class by subclassing the base Module class.
