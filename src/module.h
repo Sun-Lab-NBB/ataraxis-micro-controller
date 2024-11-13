@@ -761,25 +761,22 @@ class Module
          * analog pin cycling behavior.
          * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
          * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
-         * applicable, either of these parameters prevents setting the pin to any positive value and, instead, ensures
-         * the pin is set to 0.
+         * applicable, either of these parameters prevents changing the pin output value.
          *
-         * @returns Current duty cycle (0 to 255) the pin has been set to.
+         * @returns bool @b true if the pin has been set to the requested value and @b false if the pin is locked and
+         * has not been set.
          */
         [[nodiscard]]
-        uint8_t AnalogWrite(const uint8_t pin, const uint8_t value, const bool ttl_pin) const
+        bool AnalogWrite(const uint8_t pin, const uint8_t value, const bool ttl_pin) const
         {
             // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to 0
             // (constantly off) and returns the current value of the pin (0).
             if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
-            {
-                analogWrite(pin, 0);
-                return 0;
-            }
+                return false;
 
             // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
             analogWrite(pin, value);
-            return value;
+            return true;
         }
 
         /**

@@ -18,53 +18,33 @@
  * This module is specifically designed to deliver microliter-precise amounts of fluid via gravity-assisted solenoid
  * valve.
  *
- * @attention This class is expected to work through 5-35V L298N H-bridge relays available from many electronic vendors
- * to power the solenoid vale. Wiring the controller directly to the solenoid will likely not work and may damage the
- * controller.
  *
- * @tparam kPinA the digital pin connected to the A logic terminal of the H-bridge relay.
- * @tparam kPinB the digital pin connected to the B logic terminal of the H-bridge relay.
- * @tparam kPWMPin the analog pin connected to the PWM terminal of the H-bridge relay.
- * @tparam kNormallyClosed determines whether the controlled solenoid is closed when the power is off (true) or opened
- * (false).
+ * @tparam kPin the analog pin connected to the valve trigger. Depending on the command, the pin will be used to
+ * output either digital or analog signals. Therefore, the pin has to be capable of analog (pwm-driven) output.
+ * @tparam kNormallyClosed determines whether the connected valve is opened or closed when unpowered. In turn, this is
+ * used to adjust the class behavior so that the PWM signal of 0 always means valve is closed and PWM signal of 255
+ * always means valve is opened.
+ * @tparam kStartClosed determines whether the valve is opened when this class initializes its hardware. This is
+ * used as a safety feature to configure the initial state of the valve following microcontroller setup or
+ * reset.
  */
-template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kPWMPin, const bool kNormallyClosed>
+template <const uint8_t kPin, const bool kNormallyClosed, const bool kStartClosed>
 class SolenoidValveModule final : public Module
 {
+        // Ensures that the pin does not interfere with LED pin.
         static_assert(
-            kPinA != kPinB != kPWMPin,
-            "The SolenoidValveModule digital and analog logic pins cannot be the same."
-        );
-
-        static_assert(
-            kPinA != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Please select a different "
-            "pin A for SolenoidValveModule class."
-        );
-
-        static_assert(
-            kPinB != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Please select a different "
-            "pin B for SolenoidValveModule class."
-        );
-
-        static_assert(
-            kPinB != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Please select a different "
-            "PWM pin for SolenoidValveModule class."
+            kPin != LED_BUILTIN,
+            "LED-connected pin is reserved for LED manipulation. Select a different kPin for SolenoidValveModule class."
         );
 
     public:
 
-        /// Assigns meaningful names to byte status-codes used to track module states. Note, this enumeration has to
-        /// use codes 51 through 255 to avoid interfering with shared kCoreStatusCodes enumeration inherited from base
-        /// Module class.
+        /// Assigns meaningful names to byte status-codes used to communicate module events to the PC. Note,
+        /// this enumeration has to use codes 51 through 255 to avoid interfering with shared kCoreStatusCodes
+        /// enumeration inherited from base Module class.
         enum class kCustomStatusCodes : uint8_t
         {
-            kStandBy = 51,  ///< The code used to initialize custom status trackers.
-            kOpen    = 52,  ///< The managed solenoid valve is open.
-            kClosed  = 53,  ///< The managed solenoid valve is closed.
-            kLocked  = 54,  ///< The Logic and PWM pins are in a global locked state and cannot be activated.
+            kLocked = 54,  ///< The Logic and PWM pins are in a global locked state and cannot be activated.
         };
 
         /// Assigns meaningful names to module command byte-codes.
@@ -76,7 +56,7 @@ class SolenoidValveModule final : public Module
             kCalibratePulseLevel = 4   ///< Carries out kPulseValve exactly 1000 times in a row without delays.
         };
 
-        /// Initializes the TTLModule class by subclassing the base Module class.
+        /// Initializes the class by subclassing the base Module class.
         SolenoidValveModule(
             const uint8_t module_type,
             const uint8_t module_id,
@@ -93,20 +73,23 @@ class SolenoidValveModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
-            return true;
+            return _communication.ExtractModuleParameters(_custom_parameters);
         }
 
-        /// Executes the currently active command. Unlike other overloaded API methods, this one does not set the
-        /// module_status. Instead, it expects the called command to set the status as necessary.
+        /// Executes the currently active command.
         bool RunActiveCommand() override
         {
             // Depending on the currently active command, executes the necessary logic.
             switch (static_cast<kModuleCommands>(GetActiveCommand()))
             {
                 // SendPulse
-                case 0: return true;
+                case kModuleCommands::kSendPulse: SendPulse(); return true;
+                // ToggleOn
+                case kModuleCommands::kToggleOn: ToggleOn(); return true;
+                // ToggleOff
+                case kModuleCommands::kToggleOff: ToggleOff(); return true;
+                // CheckState
+                case kModuleCommands::kCheckState: CheckState(); return true;
                 // Unrecognized command
                 default: return false;
             }
@@ -115,34 +98,20 @@ class SolenoidValveModule final : public Module
         /// Sets up module hardware parameters.
         bool SetupModule() override
         {
-            pinModeFast(kPinA, OUTPUT);
-            pinModeFast(kPinB, OUTPUT);
-            pinModeFast(kPWMPin, OUTPUT);
-
-            // If the solenoid is normally closed, sets both logic pins off to disable voltage input to the solenoid
-            if (kNormallyClosed)
+            // Depending on the output flag, configures the pin as either input or output.
+            if (kOutput)
             {
-                digitalWriteFast(kPinA, LOW);
-                digitalWriteFast(kPinB, LOW);
-                analogWrite(kPWMPin, 256);
+                pinModeFast(kPin, OUTPUT);
+                digitalWriteFast(kPin, LOW);
             }
+            else pinModeFast(kPin, INPUT);
 
-            // For normally open valve,
-            else
-            {
-                digitalWriteFast(kPinA, HIGH);
-                digitalWriteFast(kPinB, LOW);
-                analogWrite(kPWMPin, 256);
-            }
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kSetupComplete);
-            return true;
-        }
+            // Resets the custom_parameters structure fields to their default values.
+            _custom_parameters.pulse_duration    = 10000;  // The default output pulse duration is 10 milliseconds
+            _custom_parameters.average_pool_size = 0;      // The default average pool size is 0 readouts (no averaging)
 
-        /// Resets the custom_parameters structure fields to their default values.
-        bool ResetCustomAssets() override
-        {
-            _custom_parameters.pulse_duration = 10000;  // The default output pulse duration is 10 milliseconds;
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kModuleAssetsReset);  // Records the status
+            _previous_input_status = 2;  // 2 is not a valid status, valid status codes are 0 and 1 (LOW and HIGH).
+
             return true;
         }
 
@@ -152,10 +121,104 @@ class SolenoidValveModule final : public Module
         /// Stores custom addressable runtime parameters of the module.
         struct CustomRuntimeParameters
         {
-                uint32_t pulse_duration = 10000;  ///< The time, in microseconds, the valve is kept open during pulses.
+                uint32_t pulse_duration = 10000;  ///< The time, in microseconds, for the HIGH phase of emitted pulses.
         } _custom_parameters;
 
-        OpenValve
+        /// Sends a digital pulse through the output pin, using the preconfigured pulse_duration of microseconds.
+        /// Supports non-blocking execution and respects the global ttl_lock state.
+        void Pulse()
+        {
+            // Calling this command when the class is configured to receive TTL pulses triggers an invalid
+            // pin mode error.
+            if (!kOutput)
+            {
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+
+            // Initializes the pulse
+            if (execution_parameters.stage == 1)
+            {
+                // Toggles the pin to send a HIGH signal. If the pin is successfully set to HIGH, as indicated by the
+                // DigitalWrite returning true, advances the command stage.
+                if (DigitalWrite(kPin, HIGH, true)) AdvanceCommandStage();
+                else
+                {
+                    // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
+                    // sends an error message to the PC and aborts the runtime.
+                    SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                    AbortCommand();  // Aborts the current and all future command executions.
+                }
+            }
+
+            // HIGH phase delay. This delays for the requested number of microseconds before inactivating the pulse
+            if (execution_parameters.stage == 2)
+            {
+                // Blocks for the pulse_duration of microseconds, relative to the time of the last AdvanceCommandStage()
+                // call.
+                if (!WaitForMicros(_custom_parameters.pulse_duration)) return;
+                AdvanceCommandStage();
+            }
+
+            // Inactivates the pulse
+            if (execution_parameters.stage == 3)
+            {
+                // Once the pulse duration has passed, inactivates the pin by setting it to LOW. Finishes command
+                // execution if inactivation is successful.
+                if (DigitalWrite(kPin, LOW, true)) CompleteCommand();
+                else
+                {
+                    // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
+                    // sends an error message to the PC and aborts the runtime.
+                    SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                    AbortCommand();  // Aborts the current and all future command executions.
+                }
+            }
+        }
+
+        /// Sets the output pin to continuously send HIGH signal. Respects the global ttl_lock state.
+        void Open()
+        {
+            // Calling this command when the class is configured to receive TTL pulses triggers an invalid
+            // pin mode error.
+            if (!kOutput)
+            {
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+
+            // Sets the pin to HIGH and finishes command execution
+            if (DigitalWrite(kPin, HIGH, true)) CompleteCommand();
+            else
+            {
+                // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
+                // sends an error message to the PC and aborts the runtime.
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+        }
+
+        /// Sets the output pin to continuously send LOW signal. Respects the global ttl_lock state.
+        void Close()
+        {
+            // Calling this command when the class is configured to receive TTL pulses triggers an invalid
+            // pin mode error.
+            if (!kOutput)
+            {
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+
+            // Sets the pin to LOW and finishes command execution
+            if (DigitalWrite(kPin, LOW, true)) CompleteCommand();  // Finishes command execution
+            else
+            {
+                // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
+                // sends an error message to the PC and aborts the runtime.
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+        }
 };
 
 #endif  //AXMC_SOLENOID_VALVE_MODULE_H

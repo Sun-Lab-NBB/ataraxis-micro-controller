@@ -29,14 +29,14 @@ class TTLModule final : public Module
 {
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Please select a different pin for TTLModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for TTLModule class."
         );
 
     public:
 
-        /// Assigns meaningful names to byte status-codes used to track module states. Note, this enumeration has to
-        /// use codes 51 through 255 to avoid interfering with shared kCoreStatusCodes enumeration inherited from base
-        /// Module class.
+        /// Assigns meaningful names to byte status-codes used to communicate module events to the PC. Note,
+        /// this enumeration has to use codes 51 through 255 to avoid interfering with shared kCoreStatusCodes
+        /// enumeration inherited from base Module class.
         enum class kCustomStatusCodes : uint8_t
         {
             kOutputLocked   = 51,  ///< The output ttl pin is in a global locked state and cannot be toggled on or off.
@@ -54,7 +54,7 @@ class TTLModule final : public Module
             kCheckState = 4,  ///< Checks the state of the input pin.
         };
 
-        /// Initializes the TTLModule class by subclassing the base Module class.
+        /// Initializes the class by subclassing the base Module class.
         TTLModule(
             const uint8_t module_type,
             const uint8_t module_id,
@@ -107,6 +107,8 @@ class TTLModule final : public Module
             // Resets the custom_parameters structure fields to their default values.
             _custom_parameters.pulse_duration    = 10000;  // The default output pulse duration is 10 milliseconds
             _custom_parameters.average_pool_size = 0;      // The default average pool size is 0 readouts (no averaging)
+
+            _previous_input_status = 2;  // 2 is not a valid status, valid status codes are 0 and 1 (LOW and HIGH).
 
             return true;
         }

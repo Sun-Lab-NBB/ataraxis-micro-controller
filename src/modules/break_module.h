@@ -1,60 +1,61 @@
 /**
  * @file
- * @brief The header file for the TTLModule class, which enables bidirectional TTL communication with other hardware
- * systems.
+ * @brief The header file for the BreakModule class, which is sued to variably control an electromagnetic breaking
+ * system used to tune circular motion.
  */
 
-#ifndef AXMC_QUADRATURE_ENCODER_MODULE_H
-#define AXMC_QUADRATURE_ENCODER_MODULE_H
+#ifndef AXMC_BREAK_MODULE_H
+#define AXMC_BREAK_MODULE_H
 
 #include <Arduino.h>
-#include <Encoder.h>
 #include <digitalWriteFast.h>
 #include "module.h"
 #include "shared_assets.h"
 
 /**
- * @brief Sends and receives Transistor-to-Transistor Logic (TTL) signals using two digital pins.
+ * @brief Sends Pulse-Width Modulated (PWM) signals to variably engage the connected breaking system.
  *
- * This module is specifically designed to send and receive TTL signals, which are often used to synchronize and
- * communicate between low-level hardware equipment. Currently, this module can work with one input and one output pin
- * at the same time and the two pins must be different.
+ * This module is specifically designed to send and receive PWM signals that trigger Field-Effect Transistor (FET)
+ * gated relay hardware to deliver voltage to power up and engage the breaking system. Depending on configuration, this
+ * module is designed to work with both Normally Closed (NC) and Normally Open (NO) breaking systems.
  *
- * @tparam kOutputPin the digital pin that will be used to output the ttl signals.
- * @tparam kInputPin the digital pin whose state will be monitored to detect incoming ttl signals.
+ * @tparam kPin the analog pin connected to the break trigger. Depending on the command, the pin will be used to
+ * output either digital or analog signals. Therefore, the pin has to be capable of analog (pwm-driven) output.
+ * @tparam kNormallyEngaged determines whether the connected break system is engaged (active) or disengaged (inactive)
+ * when unpowered. In turn, this is used to adjust the class behavior so that the PWM signal of 0 always means
+ * break is disengaged and PWM signal of 255 always means break is engaged.
+ * @tparam kStartEngaged determines whether the break system activates when this class initializes its hardware. This is
+ * used as a safety feature to configure the initial state of the break system following microcontroller setup or
+ * reset.
  */
-template <const uint8_t kFirstInterruptPin, const uint8_t kSecondInterruptPin>
-class TTLModule final : public Module
+template <const uint8_t kPin, const bool kNormallyEngaged, const bool kStartEngaged = true>
+class BreakModule final : public Module
 {
-        // The only reason why pins are accessed via template parameter is to enable this static assert here
-        static_assert(kFirstInterruptPin != kSecondInterruptPin, "The two encoder interrupt pins cannot be the same.");
+        // Ensures that the output pin does not interfere with LED pin.
+        static_assert(
+            kPin != LED_BUILTIN,
+            "LED-connected pin is reserved for LED manipulation. Select a different kPin for BreakModule class."
+        );
 
     public:
-
-        /// Assigns meaningful names to byte status-codes used to track module states. Note, this enumeration has to
-        /// use codes 51 through 255 to avoid interfering with shared kCoreStatusCodes enumeration inherited from base
-        /// Module class.
+        /// Assigns meaningful names to byte status-codes used to communicate module events to the PC. Note,
+        /// this enumeration has to use codes 51 through 255 to avoid interfering with shared kCoreStatusCodes
+        /// enumeration inherited from base Module class.
         enum class kCustomStatusCodes : uint8_t
         {
-            kStandBy      = 51,  ///< The code used to initialize custom status trackers
-            kOutputOn     = 52,  ///< The output ttl pin is set to HIGH
-            kOutputOff    = 53,  ///< The output ttl pin is set to LOW
-            kInputOn      = 54,  ///< The input ttl pin is set to HIGH
-            kInputOff     = 55,  ///< The input ttl pin is set to LOW
-            kOutputLocked = 56,  ///< The output ttl pin is in a locked state (global ttl_lock is ON).
+            kOutputLocked = 51,  ///< The output pin is in a global locked state and cannot be used to output data.
         };
 
         /// Assigns meaningful names to module command byte-codes.
         enum class kModuleCommands : uint8_t
         {
-            kSendPulse  = 1,  ///< Sends a ttl pulse through the output pin.
-            kToggleOn   = 2,  ///< Sets the output pin to HIGH.
-            kToggleOff  = 3,  ///< Sets the output pin to LOW.
-            kCheckState = 4,  ///< Checks the state of the input pin and if it changed since last check, informs the PC
+            kEnable   = 1,
+            kDisable  = 2,
+            kSetPower = 3,
         };
 
-        /// Initializes the TTLModule class by subclassing the base Module class.
-        TTLModule(
+        /// Initializes the class by subclassing the base Module class.
+        BreakModule(
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
@@ -70,20 +71,21 @@ class TTLModule final : public Module
             // Extracts the received parameters into the _custom_parameters structure of the class. If extraction fails,
             // returns false. This instructs the Kernel to execute the necessary steps to send an error message to the
             // PC.
-            if (!_communication.ExtractModuleParameters(_custom_parameters)) return false;
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kParametersSet);  // Records the status
-            return true;
+            return _communication.ExtractModuleParameters(_custom_parameters);
         }
 
-        /// Executes the currently active command. Unlike other overloaded API methods, this one does not set the
-        /// module_status. Instead, it expects the called command to set the status as necessary.
+        /// Executes the currently active command.
         bool RunActiveCommand() override
         {
             // Depending on the currently active command, executes the necessary logic.
             switch (static_cast<kModuleCommands>(GetActiveCommand()))
             {
-                // SendPulse
-                case 0: return true;
+                // EnableBreak
+                case kModuleCommands::kEnable: EnableBreak(); return true;
+                // DisableBreak
+                case kModuleCommands::kDisable: DisableBreak(); return true;
+                // SetPower
+                case kModuleCommands::kSetPower: SetPower(); return true;
                 // Unrecognized command
                 default: return false;
             }
@@ -92,26 +94,91 @@ class TTLModule final : public Module
         /// Sets up module hardware parameters.
         bool SetupModule() override
         {
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kSetupComplete);  // Records the status
+            // Sets pin mode to OUTPUT
+            pinModeFast(kPin, OUTPUT);
+
+            // Based on the requested initial break state and the configuration of the break (normally engaged or not),
+            // either engages or disengages the breaks following setup.
+            if (kStartEngaged)
+                digitalWriteFast(kPin, kNormallyEngaged ? LOW : HIGH);   // If engaged when low, low to engage.
+            else digitalWriteFast(kPin, kNormallyEngaged ? HIGH : LOW);  // If engaged when low, high to disengage.
+
+            // Resets the custom_parameters structure fields to their default values.
+            _custom_parameters.pwm_strength = 255;  // The default output PWM is to engage the breaks.
+
             return true;
         }
 
-        /// Resets the custom_parameters structure fields to their default values.
-        bool ResetCustomAssets() override
-        {
-            module_status = static_cast<uint8_t>(kCoreStatusCodes::kModuleAssetsReset);  // Records the status
-            return true;
-        }
-
-        ~TTLModule() override = default;
+        ~BreakModule() override = default;
 
     private:
         /// Stores custom addressable runtime parameters of the module.
         struct CustomRuntimeParameters
         {
-                uint32_t pulse_duration   = 0;  ///< The time, in microseconds, for the HIGH phase of emitted pulses.
-                uint8_t average_pool_size = 0;  ///< The number of digital readouts to average when checking pin state.
-        } _custom_parameters;
+                uint8_t pwm_strength = 0;  ///< The PWM value of the square pulse wave to send to the break trigger.
+        } __attribute__((packed)) _custom_parameters;
+
+        /// Sets the Break to be continuously engaged (enabled) by outputting the appropriate digital signal.
+        void EnableBreak()
+        {
+            // Resolves the signal to send to the break. Specifically, this depends on whether the break is normally
+            // engaged (powered on when input current is LOW) or not (powered off when input current is HIGH).
+            bool value;
+            if (kNormallyEngaged) value = LOW;  // To enable normally engaged break, the power has to be LOW.
+            else value = HIGH;
+
+            // Sets the break-connected pin to output the necessary signal to engage the break.
+            if (DigitalWrite(kPin, value, false)) CompleteCommand();
+            else
+            {
+                // If writing to Action pins is globally disabled, as indicated by DigitalWrite returning false,
+                // sends an error message to the PC and aborts the runtime.
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+        }
+
+        /// Sets the Break to be continuously disengaged (disabled) by outputting the appropriate digital signal.
+        void DisableBreak()
+        {
+            // Resolves the signal to send to the break. Specifically, this depends on whether the break is normally
+            // engaged (powered on when input current is LOW) or not (powered off when input current is HIGH).
+            bool value;
+            if (kNormallyEngaged) value = HIGH;  // To disable normally engaged break, the power has to be HIGH.
+            else value = LOW;
+
+            // Sets the break-connected pin to output the necessary signal to disengage the break.
+            if (DigitalWrite(kPin, value, false)) CompleteCommand();
+            else
+            {
+                // If writing to Action pins is globally disabled, as indicated by DigitalWrite returning false,
+                // sends an error message to the PC and aborts the runtime.
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+        }
+
+        /// Variably adjusts the breaking power from none to maximum by sending a square wave pulse with a certain PWM
+        /// cycle.
+        void SetPower()
+        {
+            // Resolve the PWM value depending on whether the break is normally engaged (powered on when input current
+            // is LOW) or not (powered off when input current is HIGH).
+            uint8_t value = _custom_parameters.pwm_strength;
+            if (kNormallyEngaged) value = 255 - value;  // Converts the value so that 255 always means breaks are ON.
+
+            // Uses AnalogWrite to make the pin output a hardware-module square wave pulse. This results in the breaks
+            // being applied a certain proportion of time, rather than all or none of the time, resulting in variable
+            // breaking power.
+            if (AnalogWrite(kPin, value, false)) CompleteCommand();
+            else
+            {
+                // If writing to Action pins is globally disabled, as indicated by AnalogWrite returning false,
+                // sends an error message to the PC and aborts the runtime.
+                SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
+                AbortCommand();  // Aborts the current and all future command executions.
+            }
+        }
 };
 
-#endif  //AXMC_QUADRATURE_ENCODER_MODULE_H
+#endif  //AXMC_BREAK_MODULE_H
