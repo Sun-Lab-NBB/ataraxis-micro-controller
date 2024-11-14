@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief The header file for the TTLModule class, which enables unidirectional TTL communication with other hardware
+ * @brief The header file for the TTLModule class, which enables bidirectional TTL communication with other hardware
  * systems.
  */
 
@@ -15,14 +15,14 @@
 /**
  * @brief Sends or receives Transistor-to-Transistor Logic (TTL) signals using the specified digital pin.
  *
- * This module is specifically designed to send and receive TTL signals, which are often used to synchronize and
- * communicate between hardware devices. Currently, this module is designed to exclusively output or receive
- * TTL signals, depending on the pin configuration flag value at class compilation.
+ * This module is specifically designed to send and receive TTL signals, depending on the pin configuration flag value
+ * at class compilation. The class is statically configured to either receive or output TTL signals, it cannot do
+ * both at the same time!
  *
- * @tparam kPin the digital pin that will be used to output or receive ttl signals. The mode of the pin
- * (input or output) depends on kOutput flag value and is currently not changeable during runtime.
+ * @tparam kPin the digital pin that will be used to output or receive ttl signals. The mode of the pin (input or
+ * output) depends on kOutput flag value and is currently not changeable during runtime.
  * @tparam kOutput determines whether the pin will be used to output TTL signals (if set to true) or receive TTL signals
- * from other systems (if set to false).
+ * from other systems (if set to false). In turn, this determines how the pin hardware is initialized.
  */
 template <const uint8_t kPin, const bool kOutput = true>
 class TTLModule final : public Module
@@ -108,8 +108,6 @@ class TTLModule final : public Module
             _custom_parameters.pulse_duration    = 10000;  // The default output pulse duration is 10 milliseconds
             _custom_parameters.average_pool_size = 0;      // The default average pool size is 0 readouts (no averaging)
 
-            _previous_input_status = 2;  // 2 is not a valid status, valid status codes are 0 and 1 (LOW and HIGH).
-
             return true;
         }
 
@@ -123,10 +121,6 @@ class TTLModule final : public Module
                 uint8_t average_pool_size = 0;  ///< The number of digital readouts to average when checking pin state.
         } __attribute__((packed)) _custom_parameters;
 
-        /// Tracks the previous input_pin status. This is used to optimize data transmission by only reporting input
-        /// pin state changes to the PC
-        uint8_t _previous_input_status = 2;  // 2 is not a valid status, valid status codes are 0 and 1 (LOW and HIGH).
-
         /// Sends a digital pulse through the output pin, using the preconfigured pulse_duration of microseconds.
         /// Supports non-blocking execution and respects the global ttl_lock state.
         void SendPulse()
@@ -137,6 +131,7 @@ class TTLModule final : public Module
             {
                 SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 AbortCommand();  // Aborts the current and all future command executions.
+                return;
             }
 
             // Initializes the pulse
@@ -151,6 +146,7 @@ class TTLModule final : public Module
                     // sends an error message to the PC and aborts the runtime.
                     SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
                     AbortCommand();  // Aborts the current and all future command executions.
+                    return;
                 }
             }
 
@@ -188,6 +184,7 @@ class TTLModule final : public Module
             {
                 SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 AbortCommand();  // Aborts the current and all future command executions.
+                return;
             }
 
             // Sets the pin to HIGH and finishes command execution
@@ -210,6 +207,7 @@ class TTLModule final : public Module
             {
                 SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 AbortCommand();  // Aborts the current and all future command executions.
+                return;
             }
 
             // Sets the pin to LOW and finishes command execution
@@ -227,27 +225,36 @@ class TTLModule final : public Module
         /// to the PC.
         void CheckState()
         {
+            // Tracks the previous input_pin status. This is used to optimize data transmission by only reporting input
+            // pin state changes to the PC.
+            static bool previous_input_status = true;
+            static bool once = true;  // This is used to ensure the first readout is always sent to the PC.
+
             // Calling this command when the class is configured to output TTL pulses triggers an invalid
             // pin mode error.
             if (kOutput)
             {
                 SendData(static_cast<uint8_t>(kCustomStatusCodes::kInvalidPinMode));
                 AbortCommand();  // Aborts the current and all future command executions.
+                return;
             }
 
             // Evaluates the state of the pin. Averages the requested number of readouts to produce the final
-            // state-value (by default, averaging is disabled).
-            // To optimize communication, only sends data to the PC if the status has changed.
+            // state-value (by default, averaging is disabled). To optimize communication, only sends data to the PC if
+            // the state has changed.
             if (const bool current_state = GetRawDigitalReadout(kPin, _custom_parameters.average_pool_size);
-                current_state && _previous_input_status != static_cast<uint8_t>(current_state))
+                previous_input_status != current_state || once)
             {
-                _previous_input_status = static_cast<uint8_t>(current_state);
-                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOn));
-            }
-            else if (!current_state && _previous_input_status != static_cast<uint8_t>(current_state))
-            {
-                _previous_input_status = static_cast<uint8_t>(current_state);
-                SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOff));
+                // Updates the state tracker.
+                previous_input_status = current_state;
+
+                // Since this conditional is only reached if the read state differs from previous state, only determines
+                // which event code to use. If the state is true, sends InputOn message, otherwise sends InputOff
+                // message.
+                if (current_state) SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOn));
+                else SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOff));
+
+                if (once) once = false;  // This ensures that once is disabled after the first readout is processed.
             }
 
             // Completes command execution

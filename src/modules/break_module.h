@@ -1,7 +1,7 @@
 /**
  * @file
- * @brief The header file for the BreakModule class, which is sued to variably control an electromagnetic breaking
- * system used to tune circular motion.
+ * @brief The header file for the BreakModule class, which is used to variably control a break system attached to a
+ * rotating object.
  */
 
 #ifndef AXMC_BREAK_MODULE_H
@@ -13,20 +13,20 @@
 #include "shared_assets.h"
 
 /**
- * @brief Sends Pulse-Width Modulated (PWM) signals to variably engage the connected breaking system.
+ * @brief Sends Pulse-Width-Modulated (PWM) signals to variably engage the connected break system.
  *
- * This module is specifically designed to send and receive PWM signals that trigger Field-Effect Transistor (FET)
- * gated relay hardware to deliver voltage to power up and engage the breaking system. Depending on configuration, this
- * module is designed to work with both Normally Closed (NC) and Normally Open (NO) breaking systems.
+ * This module is specifically designed to send PWM signals that trigger Field-Effect-Transistor (FET) gated relay
+ * hardware to deliver voltage that variably engages the break. Depending on configuration, this module is designed to
+ * work with both Normally Engaged (NE) and Normally Disengaged (ND) breaks.
  *
- * @tparam kPin the analog pin connected to the break trigger. Depending on the command, the pin will be used to
- * output either digital or analog signals. Therefore, the pin has to be capable of analog (pwm-driven) output.
- * @tparam kNormallyEngaged determines whether the connected break system is engaged (active) or disengaged (inactive)
- * when unpowered. In turn, this is used to adjust the class behavior so that the PWM signal of 0 always means
- * break is disengaged and PWM signal of 255 always means break is engaged.
- * @tparam kStartEngaged determines whether the break system activates when this class initializes its hardware. This is
- * used as a safety feature to configure the initial state of the break system following microcontroller setup or
- * reset.
+ * @tparam kPin the analog pin connected to the break FET-gated controller. Depending on the command, the pin will be
+ * used to output either digital or analog PWM signal to engage the break.
+ * @tparam kNormallyEngaged determines whether the connected break is engaged (active) or disengaged (inactive) when
+ * unpowered. In turn, this is used to adjust the class behavior so that the PWM signal of 0 always means break is
+ * disengaged and PWM signal of 255 always means break is engaged.
+ * @tparam kStartEngaged determines the initial activation state of the break during class initialization. This works
+ * together with kNormallyEngaged parameter to deliver the desired initial voltage level for the break to either be
+ * maximally engaged or completely disengaged.
  */
 template <const uint8_t kPin, const bool kNormallyEngaged, const bool kStartEngaged = true>
 class BreakModule final : public Module
@@ -34,7 +34,7 @@ class BreakModule final : public Module
         // Ensures that the output pin does not interfere with LED pin.
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different kPin for BreakModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for BreakModule class."
         );
 
     public:
@@ -49,9 +49,9 @@ class BreakModule final : public Module
         /// Assigns meaningful names to module command byte-codes.
         enum class kModuleCommands : uint8_t
         {
-            kEnable   = 1,
-            kDisable  = 2,
-            kSetPower = 3,
+            kToggleOn  = 1,  ///< Sets the break to constantly engage at maximum strength.
+            kToggleOff = 2,  ///< Sets the break to constantly disengage.
+            kSetPower  = 3,  ///< Sets the break to engage with the desired strength determined by PWM cycle.
         };
 
         /// Initializes the class by subclassing the base Module class.
@@ -81,9 +81,9 @@ class BreakModule final : public Module
             switch (static_cast<kModuleCommands>(GetActiveCommand()))
             {
                 // EnableBreak
-                case kModuleCommands::kEnable: EnableBreak(); return true;
+                case kModuleCommands::kToggleOn: EnableBreak(); return true;
                 // DisableBreak
-                case kModuleCommands::kDisable: DisableBreak(); return true;
+                case kModuleCommands::kToggleOff: DisableBreak(); return true;
                 // SetPower
                 case kModuleCommands::kSetPower: SetPower(); return true;
                 // Unrecognized command
@@ -99,12 +99,11 @@ class BreakModule final : public Module
 
             // Based on the requested initial break state and the configuration of the break (normally engaged or not),
             // either engages or disengages the breaks following setup.
-            if (kStartEngaged)
-                digitalWriteFast(kPin, kNormallyEngaged ? LOW : HIGH);   // If engaged when low, low to engage.
-            else digitalWriteFast(kPin, kNormallyEngaged ? HIGH : LOW);  // If engaged when low, high to disengage.
+            if (kStartEngaged) digitalWriteFast(kPin, kNormallyEngaged ? LOW : HIGH);  // Ensures the break is engaged.
+            else digitalWriteFast(kPin, kNormallyEngaged ? HIGH : LOW);  // Ensures the break is disengaged.
 
             // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.pwm_strength = 255;  // The default output PWM is to engage the breaks.
+            _custom_parameters.pwm_strength = 255;  // The default output PWM is to engage the breaks at max strength.
 
             return true;
         }
@@ -122,7 +121,7 @@ class BreakModule final : public Module
         void EnableBreak()
         {
             // Resolves the signal to send to the break. Specifically, this depends on whether the break is normally
-            // engaged (powered on when input current is LOW) or not (powered off when input current is HIGH).
+            // engaged (powered on when input current is LOW) or not (powered on when input current is HIGH).
             bool value;
             if (kNormallyEngaged) value = LOW;  // To enable normally engaged break, the power has to be LOW.
             else value = HIGH;
@@ -142,7 +141,7 @@ class BreakModule final : public Module
         void DisableBreak()
         {
             // Resolves the signal to send to the break. Specifically, this depends on whether the break is normally
-            // engaged (powered on when input current is LOW) or not (powered off when input current is HIGH).
+            // engaged (powered on when input current is LOW) or not (powered on when input current is HIGH).
             bool value;
             if (kNormallyEngaged) value = HIGH;  // To disable normally engaged break, the power has to be HIGH.
             else value = LOW;
@@ -158,18 +157,18 @@ class BreakModule final : public Module
             }
         }
 
-        /// Variably adjusts the breaking power from none to maximum by sending a square wave pulse with a certain PWM
-        /// cycle.
+        /// Adjusts the breaking power from none to maximum by sending a square wave pulse with a certain PWM cycle.
         void SetPower()
         {
-            // Resolve the PWM value depending on whether the break is normally engaged (powered on when input current
-            // is LOW) or not (powered off when input current is HIGH).
+            // Resolves the PWM value depending on whether the break is normally engaged (powered on when input current
+            // is LOW) or not (powered on when input current is HIGH).
             uint8_t value = _custom_parameters.pwm_strength;
-            if (kNormallyEngaged) value = 255 - value;  // Converts the value so that 255 always means breaks are ON.
+            // Normally engaged break strength is inversely proportional to PWM value. This ensures that a PWM of 255
+            // means the break is fully engaged regardless of whether it is NE or ND.
+            if (kNormallyEngaged) value = 255 - value;
 
-            // Uses AnalogWrite to make the pin output a hardware-module square wave pulse. This results in the breaks
-            // being applied a certain proportion of time, rather than all or none of the time, resulting in variable
-            // breaking power.
+            // Uses AnalogWrite to make the pin output a square wave pulse with the desired duty cycle (PWM). This
+            // results in the breaks being applied a certain proportion of time, producing the desired breaking power.
             if (AnalogWrite(kPin, value, false)) CompleteCommand();
             else
             {

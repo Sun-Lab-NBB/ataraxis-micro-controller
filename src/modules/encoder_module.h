@@ -1,7 +1,7 @@
 /**
  * @file
  * @brief The header file for the EncoderModule class, which allows interfacing with a rotary encoder to track the
- * direction and displacement of circular motion.
+ * direction and distance of a circular object movement.
  *
  * @attention This file is written in a way that is @b NOT compatible with any other library that uses
  * AttachInterrupt(). Disable the 'ENCODER_USE_INTERRUPTS' macro defined at the top of the file to make this file
@@ -21,12 +21,12 @@
 #include "shared_assets.h"
 
 /**
- * @brief Internally binds an Encoder class instance and enables accessing its movement direction and displacement
- * measurements.
+ * @brief Wraps an Encoder class instance and provides access to its pulse counter to evaluate the direction and
+ * distance of a circular object movement.
  *
  * This module is specifically designed to interface with quadrature encoders and track the direction and number of
- * encoder pulses between class method calls. In turn, this allows monitoring the displacement and directional vector
- * of a rotating object connected to the encoder.
+ * encoder pulses between class method calls. In turn, this allows monitoring the direction and distance moved by the
+ * rotating object connected to the encoder.
  *
  * @note Largely, this class is an API wrapper around the Paul Stoffregen's Encoder library, and it relies on efficient
  * interrupt logic to increase encoder tracking precision. To achieve the best performance, make sure both Pin A and
@@ -34,25 +34,25 @@
  *
  * @tparam kPinA the digital interrupt pin connected to the 'A' channel of the quadrature encoder.
  * @tparam kPinB the digital interrupt pin connected to the 'B' channel of the quadrature encoder.
- * @param kInvertDirection if set to true, inverts the sign of the value returned by the encoder. By default, when
+ * @tparam kInvertDirection if set to true, inverts the sign of the value returned by the encoder. By default, when
  * Pin B is triggered before Pin A, the pulse counter decreases, which corresponds to CW movement. When pin A is
  * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
- * this relationship, which is helpful to account for the mounting and wiring of the encoder.
+ * this relationship, which is helpful to account for the mounting and wiring of the tracked rotating object.
  */
 template <const uint8_t kPinA, const uint8_t kPinB, const bool kInvertDirection>
 class EncoderModule final : public Module
 {
-        // Verifies that the quadrature pins are different.
+        // Ensures that the encoder pins are different.
         static_assert(kPinA != kPinB, "The two EncoderModule interrupt pins cannot be the same.");
 
         // Also ensures that encoder pins do not interfere with LED pin.
         static_assert(
             kPinA != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin A for EncoderModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin A for EncoderModule instance."
         );
         static_assert(
             kPinB != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin B for EncoderModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin B for EncoderModule instance."
         );
 
     public:
@@ -61,15 +61,15 @@ class EncoderModule final : public Module
         /// enumeration inherited from base Module class.
         enum class kCustomStatusCodes : uint8_t
         {
-            kCCWDelta = 51,  ///< The encoder was moved in the CCW direction.
-            kCWDelta  = 52,  ///< The encoder was moved in the CW.
+            kRotatedCCW = 51,  ///< The encoder was rotated in the CCW direction.
+            kRotatedCW  = 52,  ///< The encoder was rotated in the CW.
         };
 
         /// Assigns meaningful names to module command byte-codes.
         enum class kModuleCommands : uint8_t
         {
-            kReadEncoder  = 1,  ///< Gets the change in encoder position relative to last check.
-            kResetEncoder = 2,  ///< Resets the encoder's position to 0.
+            kCheckState = 1,  ///< Gets the change in pulse counts and sign relative to last check.
+            kReset      = 2,  ///< Resets the encoder's pulse tracker to 0.
         };
 
         /// Initializes the class by subclassing the base Module class and instantiating the
@@ -100,9 +100,9 @@ class EncoderModule final : public Module
             switch (static_cast<kModuleCommands>(GetActiveCommand()))
             {
                 // ReadEncoder
-                case kModuleCommands::kReadEncoder: ReadEncoder(); return true;
+                case kModuleCommands::kCheckState: ReadEncoder(); return true;
                 // ResetEncoder
-                case kModuleCommands::kResetEncoder: ResetEncoder(); return true;
+                case kModuleCommands::kReset: ResetEncoder(); return true;
                 // Unrecognized command
                 default: return false;
             }
@@ -116,9 +116,9 @@ class EncoderModule final : public Module
             _encoder = Encoder(kPinA, kPinB);
 
             // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.report_CCW      = true;  // Defaults to report changes in the CCW direction.
-            _custom_parameters.report_CW       = true;  // Defaults to report changes in the CW direction.
-            _custom_parameters.delta_threshold = 1;     // By default, the minimum change is 1.
+            _custom_parameters.report_CCW      = true;  // Defaults to report rotation in the CCW direction.
+            _custom_parameters.report_CW       = true;  // Defaults to report rotation in the CW direction.
+            _custom_parameters.delta_threshold = 1;     // By default, the minimum change magnitude to report is 1.
 
             return true;
         }
@@ -131,7 +131,7 @@ class EncoderModule final : public Module
         {
                 bool report_CCW          = true;  ///< Determines whether to report changes in the CCW direction.
                 bool report_CW           = true;  ///< Determines whether to report changes in the CW direction.
-                uint32_t delta_threshold = 1;     ///< Sets the minimum readout threshold for reporting changes.
+                uint32_t delta_threshold = 1;  ///< Sets the minimum pulse count change (delta) for reporting changes.
         } __attribute__((packed)) _custom_parameters;
 
         /// The encoder class that abstracts low-level access to the Encoder pins and provides an easy API to retrieve
@@ -139,15 +139,20 @@ class EncoderModule final : public Module
         /// class relies on hardware interrupt functionality to maintain the desired precision.
         Encoder _encoder;
 
-        /// Reads the current encoder position, resets the encoder, and sends the result to the PC. The position is
-        /// measured by the number and sign of pulse vector since the last encoder reset. Note, the result will be
-        /// transformed into an absolute value and its direction can be inferred from the event status of the
-        /// message transmitted to PC.
+        /// The multiplier is used to optionally invert the pulse counter sign to virtually flip the direction of
+        /// encoder readings. This is helpful if the encoder is mounted and wired in a way where CW rotation of the
+        /// tracked object produces CCW readout in the encoder. In other words, this is used to virtually align the
+        /// encoder readout direction to the tracked object rotation direction.
+        static constexpr int32_t kMultiplier = kInvertDirection ? -1 : 1;  // NOLINT(*-dynamic-static-initializers)
+
+        /// Reads and resets the current encoder pulse counter and sends the result to the PC if it is significantly
+        /// different from previous readout. Note, the result will be transformed into an absolute value and its
+        /// direction will be codified as the event code of the message transmitted to PC.
         void ReadEncoder()
         {
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
             // relative to the previous reset command or the initialization of the encoder.
-            const int32_t flipped_value = _encoder.readAndReset() * (kInvertDirection ? -1 : 1);
+            const int32_t flipped_value = _encoder.readAndReset() * kMultiplier;
 
             // If encoder has not moved since the last call to this method, returns without further processing.
             if (flipped_value == 0)
@@ -156,33 +161,32 @@ class EncoderModule final : public Module
                 return;
             }
 
-            // If the value is negative, this is interpreted as the CW movement direction.
-            if (flipped_value < 0 && _custom_parameters.report_CW)
+            // Converts the pulse count delta to an absolute value for the threshold checking below.
+            auto delta = static_cast<uint32_t>(abs(flipped_value));
+
+            // If the value is negative, this is interpreted as rotation in the Clockwise direction.
+            // If reporting CW rotation is allowed, sends the pulse count to the PC as an absolute value, using the
+            // transmitted event status code to indicate the direction of movement. Note, the delta is only sent if
+            // it is greater than or equal to the readout threshold value.
+            if (flipped_value < 0 && _custom_parameters.report_CW && delta >= _custom_parameters.delta_threshold)
             {
-                // If reporting the CW movement is allowed, sends the delta to the PC as an absolute value, using the
-                // transmitted event status code to indicate the direction of movement. Note, the delta is only sent if
-                // it is greater than or equal to the readout threshold value.
-                auto delta = static_cast<uint32_t>(abs(flipped_value));
-                if (delta >= _custom_parameters.delta_threshold)
-                    SendData(
-                        static_cast<uint8_t>(kCustomStatusCodes::kCWDelta),
-                        communication_assets::kPrototypes::kOneUnsignedLong,
-                        delta
-                    );
+                SendData(
+                    static_cast<uint8_t>(kCustomStatusCodes::kRotatedCW),
+                    communication_assets::kPrototypes::kOneUnsignedLong,
+                    delta
+                );
             }
 
-            // Finally, if the value is positive, this is interpreted as the CCW movement direction.
-            if (_custom_parameters.report_CCW)
+            // If the value is positive, this is interpreted as the CCW movement direction.
+            // Same as above, if reporting the CCW movement is allowed and the delta is greater than or equal to
+            // the readout threshold, sends the data to the PC.
+            if (_custom_parameters.report_CCW && delta >= _custom_parameters.delta_threshold)
             {
-                // Same as above, if reporting the CCW movement is allowed and the delta is greater than or equal to
-                // the readout threshold, sends the data to the PC.
-                auto delta = static_cast<uint32_t>(abs(flipped_value));
-                if (delta >= _custom_parameters.delta_threshold)
-                    SendData(
-                        static_cast<uint8_t>(kCustomStatusCodes::kCCWDelta),
-                        communication_assets::kPrototypes::kOneUnsignedLong,
-                        delta
-                    );
+                SendData(
+                    static_cast<uint8_t>(kCustomStatusCodes::kRotatedCCW),
+                    communication_assets::kPrototypes::kOneUnsignedLong,
+                    delta
+                );
             }
 
             // Completes the command execution
