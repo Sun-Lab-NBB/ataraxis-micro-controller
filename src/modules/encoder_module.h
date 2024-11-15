@@ -80,7 +80,7 @@ class EncoderModule final : public Module
             Communication& communication,
             const shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
-            Module(module_type, module_id, communication, dynamic_parameters), _encoder(kPinA, kPinB)
+            Module(module_type, module_id, communication, dynamic_parameters)
         {}
 
         /// Overwrites the custom_parameters structure memory with the data extracted from the Communication
@@ -113,7 +113,7 @@ class EncoderModule final : public Module
         {
             // Since Encoder class carries out the necessary hardware setup, this method re-initializes the encoder to
             // repeat the hardware setup.
-            _encoder = Encoder(kPinA, kPinB);
+            _encoder.write(0);
 
             // Resets the custom_parameters structure fields to their default values.
             _custom_parameters.report_CCW      = true;  // Defaults to report rotation in the CCW direction.
@@ -130,14 +130,14 @@ class EncoderModule final : public Module
         struct CustomRuntimeParameters
         {
                 bool report_CCW          = true;  ///< Determines whether to report changes in the CCW direction.
-                bool report_CW           = true;  ///< Determines whether to report changes in the CW direction.
-                uint32_t delta_threshold = 1;  ///< Sets the minimum pulse count change (delta) for reporting changes.
+                bool report_CW           = false;  ///< Determines whether to report changes in the CW direction.
+                uint32_t delta_threshold = 10;  ///< Sets the minimum pulse count change (delta) for reporting changes.
         } __attribute__((packed)) _custom_parameters;
 
         /// The encoder class that abstracts low-level access to the Encoder pins and provides an easy API to retrieve
         /// the automatically incremented encoder pulse vector. The vector can be reset by setting it to 0, and the
         /// class relies on hardware interrupt functionality to maintain the desired precision.
-        Encoder _encoder;
+        Encoder _encoder = Encoder(kPinA, kPinB);
 
         /// The multiplier is used to optionally invert the pulse counter sign to virtually flip the direction of
         /// encoder readings. This is helpful if the encoder is mounted and wired in a way where CW rotation of the
@@ -152,7 +152,7 @@ class EncoderModule final : public Module
         {
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
             // relative to the previous reset command or the initialization of the encoder.
-            const int32_t flipped_value = _encoder.readAndReset() * kMultiplier;
+            const int32_t flipped_value = _encoder.read() * kMultiplier;
 
             // If encoder has not moved since the last call to this method, returns without further processing.
             if (flipped_value == 0)
@@ -180,7 +180,7 @@ class EncoderModule final : public Module
             // If the value is positive, this is interpreted as the CCW movement direction.
             // Same as above, if reporting the CCW movement is allowed and the delta is greater than or equal to
             // the readout threshold, sends the data to the PC.
-            if (_custom_parameters.report_CCW && delta >= _custom_parameters.delta_threshold)
+            else if (_custom_parameters.report_CCW && delta >= _custom_parameters.delta_threshold)
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCCW),

@@ -578,7 +578,8 @@ class Module
             // Resolves and, if necessary, notifies the PC that the active command has been completed. This is only done
             // for commands that have finished their runtime. Specifically, recurrent commands do not report completion
             // until they are canceled or replaced by a new command. One-shot commands always report completion.
-            if (execution_parameters.new_command || execution_parameters.next_command == 0)
+            if (execution_parameters.new_command || execution_parameters.next_command == 0 ||
+                !execution_parameters.run_recurrently)
             {
                 // Since this automatically accesses execution_parameters.command for command code, this has to be
                 // called before resetting the command field.

@@ -47,21 +47,21 @@
 
 // Pre-initializes global assets
 shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters;  // Shared controller-wide parameters
-constexpr uint8_t kControllerID = 101;                             // Unique ID for the controller
+constexpr uint8_t kControllerID = 123;                             // Unique ID for the controller
 
 // NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
 Communication axmc_communication(Serial);  // Shared class that manages all incoming and outgoing communications
 
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
-TTLModule<1> mesoscope_ttl(1, 1, axmc_communication, DynamicRuntimeParameters);
-EncoderModule<10, 11, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
-BreakModule<5, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);
-SensorModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);
-ValveModule<20, true> reward_valve(5, 1, axmc_communication, DynamicRuntimeParameters);
+// TTLModule<1> mesoscope_ttl(1, 1, axmc_communication, DynamicRuntimeParameters);
+EncoderModule<33, 34, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
+// BreakModule<5, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);
+// SensorModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);
+// ValveModule<20, true> reward_valve(5, 1, axmc_communication, DynamicRuntimeParameters);
 
 // Packages all modules into an array to be managed by the Kernel class.
-Module* modules[] = {&mesoscope_ttl, &wheel_encoder, &wheel_break, &lick_sensor, &reward_valve};
+Module* modules[] = {&wheel_encoder};
 
 // Instantiates the Kernel class using the assets instantiated above.
 Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);
