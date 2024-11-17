@@ -55,7 +55,7 @@ Communication axmc_communication(Serial);  // Shared class that manages all inco
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
 // TTLModule<1> mesoscope_ttl(1, 1, axmc_communication, DynamicRuntimeParameters);
-EncoderModule<33, 34, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
+EncoderModule<33, 34, 35, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
 // BreakModule<5, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);
 // SensorModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);
 // ValveModule<20, true> reward_valve(5, 1, axmc_communication, DynamicRuntimeParameters);

@@ -34,12 +34,15 @@
  *
  * @tparam kPinA the digital interrupt pin connected to the 'A' channel of the quadrature encoder.
  * @tparam kPinB the digital interrupt pin connected to the 'B' channel of the quadrature encoder.
+ * @tparam kIndexPin the digital pin connected to the index signal of the quadrature encoder. If your encoder does not
+ * have an index pin, you will still have to 'sacrifice' one of the unused pins to provide a valid number to this
+ * argument.
  * @tparam kInvertDirection if set to true, inverts the sign of the value returned by the encoder. By default, when
  * Pin B is triggered before Pin A, the pulse counter decreases, which corresponds to CW movement. When pin A is
  * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
  * this relationship, which is helpful to account for the mounting and wiring of the tracked rotating object.
  */
-template <const uint8_t kPinA, const uint8_t kPinB, const bool kInvertDirection>
+template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kIndexPin, const bool kInvertDirection>
 class EncoderModule final : public Module
 {
         // Ensures that the encoder pins are different.
@@ -48,11 +51,18 @@ class EncoderModule final : public Module
         // Also ensures that encoder pins do not interfere with LED pin.
         static_assert(
             kPinA != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin A for EncoderModule instance."
+            "LED-connected pin is reserved for LED manipulation. Select a different Channel A pin for EncoderModule "
+            "instance."
         );
         static_assert(
             kPinB != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin B for EncoderModule instance."
+            "LED-connected pin is reserved for LED manipulation. Select a different Channel B pin for EncoderModule "
+            "instance."
+        );
+        static_assert(
+            kIndexPin != LED_BUILTIN,
+            "LED-connected pin is reserved for LED manipulation. Select a different Index pin for EncoderModule "
+            "instance."
         );
 
     public:
@@ -63,6 +73,7 @@ class EncoderModule final : public Module
         {
             kRotatedCCW = 51,  ///< The encoder was rotated in the CCW direction.
             kRotatedCW  = 52,  ///< The encoder was rotated in the CW.
+            kPPR        = 53,  ///< The estimated Pulse-Per-Revolution (PPR) value of the encoder.
         };
 
         /// Assigns meaningful names to module command byte-codes.
@@ -70,6 +81,7 @@ class EncoderModule final : public Module
         {
             kCheckState = 1,  ///< Gets the change in pulse counts and sign relative to last check.
             kReset      = 2,  ///< Resets the encoder's pulse tracker to 0.
+            kGetPPR     = 3,  ///< Estimates the Pulse-Per-Revolution (PPR) of the encoder.
         };
 
         /// Initializes the class by subclassing the base Module class and instantiating the
@@ -103,6 +115,8 @@ class EncoderModule final : public Module
                 case kModuleCommands::kCheckState: ReadEncoder(); return true;
                 // ResetEncoder
                 case kModuleCommands::kReset: ResetEncoder(); return true;
+                // GetPPR
+                case kModuleCommands::kGetPPR: GetPPR(); return true;
                 // Unrecognized command
                 default: return false;
             }
@@ -145,36 +159,44 @@ class EncoderModule final : public Module
         /// encoder readout direction to the tracked object rotation direction.
         static constexpr int32_t kMultiplier = kInvertDirection ? -1 : 1;  // NOLINT(*-dynamic-static-initializers)
 
+        /// This variable is used to accumulate insignificant encoder readouts to be reused during further calls.
+        /// This allows filtering the tracker object jitter while still accurately tracking small, incremental
+        /// movements.
+        int32_t _overflow = 0;
+
         /// Reads and resets the current encoder pulse counter and sends the result to the PC if it is significantly
         /// different from previous readout. Note, the result will be transformed into an absolute value and its
         /// direction will be codified as the event code of the message transmitted to PC.
         void ReadEncoder()
         {
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
-            // relative to the previous reset command or the initialization of the encoder.
-            const int32_t flipped_value = _encoder.readAndReset() * kMultiplier;
+            // relative to the previous reset command or the initialization of the encoder. Combines the pulse count
+            // read from the encoder with the pulses already stored in the '_overflow' variable and resets the encoder
+            // to 0 at each readout.
+            _overflow += _encoder.readAndReset() * kMultiplier;
 
             // If encoder has not moved since the last call to this method, returns without further processing.
-            if (flipped_value == 0)
+            if (_overflow == 0)
             {
                 CompleteCommand();
                 return;
             }
 
             // Converts the pulse count delta to an absolute value for the threshold checking below.
-            auto delta = static_cast<uint32_t>(abs(flipped_value));
+            auto delta = static_cast<uint32_t>(abs(_overflow));
 
             // If the value is negative, this is interpreted as rotation in the Clockwise direction.
             // If reporting CW rotation is allowed, sends the pulse count to the PC as an absolute value, using the
             // transmitted event status code to indicate the direction of movement. Note, the delta is only sent if
             // it is greater than or equal to the readout threshold value.
-            if (flipped_value < 0 && _custom_parameters.report_CW && delta >= _custom_parameters.delta_threshold)
+            if (_overflow < 0 && _custom_parameters.report_CW && delta >= _custom_parameters.delta_threshold)
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCW),
                     communication_assets::kPrototypes::kOneUnsignedLong,
                     delta
                 );
+                _overflow = 0;  // Resets the overflow, as all tracked pulses have been 'consumed' and sent to the PC.
             }
 
             // If the value is positive, this is interpreted as the CCW movement direction.
@@ -187,6 +209,7 @@ class EncoderModule final : public Module
                     communication_assets::kPrototypes::kOneUnsignedLong,
                     delta
                 );
+                _overflow = 0;  // Resets the overflow, as all tracked pulses have been 'consumed' and sent to the PC.
             }
 
             // Completes the command execution
@@ -197,6 +220,40 @@ class EncoderModule final : public Module
         void ResetEncoder()
         {
             _encoder.write(0);  // Resets the encoder tracker back to 0 pulses.
+            CompleteCommand();
+        }
+
+        /// Estimates the Pulse-Per-Revolution (PPR) of the encoder by using the index pin to precisely measure the
+        /// number of pulses per encoder rotation. Measures up to 11 full rotations and averages the pulse counts per
+        /// each rotation to improve the accuracy of the computed PPR value.
+        void GetPPR()
+        {
+            // First, establishes the measurement baseline. Since the algorithm does not know the current position of
+            // the encoder, waits until the index pin is triggered. This is used to establish the baseline for tracking
+            // the pulses per rotation.
+            while (!digitalReadFast(kIndexPin)) _encoder.write(0);  // Resets the pulse tracker to 0
+
+            // Measures 10 full rotations (indicated by index pin pulses). Resets the pulse tracker to 0 at each
+            // measurement and does not care about the rotation direction.
+            uint32_t pprs = 0;
+            for (uint8_t i = 0; i < 10; ++i)
+            {
+                // Accumulates the pulse counter into the summed value and reset the encoder each call.
+                pprs += abs(_encoder.readAndReset());
+            }
+
+            // Computes the average PPR by using half-up rounding to get a whole number.
+            // Currently, it is very unlikely to see a ppr > 10000, so casts the ppr down to uint16_t
+            const auto average_ppr = static_cast<uint16_t>((pprs + 10 / 2) / 10);
+
+            // Sends the average PPR count to the PC.
+            SendData(
+                static_cast<uint8_t>(kCustomStatusCodes::kPPR),
+                communication_assets::kPrototypes::kOneUnsignedShort,
+                average_ppr
+            );
+
+            // Completes the command execution
             CompleteCommand();
         }
 };
