@@ -590,6 +590,10 @@ class Module
             execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
             execution_parameters.recurrent_timer =
                 0;  // Resets the recurrent command timer when the command is completed
+
+            // If the command that has just been completed is not a recurrent command and there is no new command,
+            // resets the command queue to clear out the completed command data.
+            if (!execution_parameters.new_command && !execution_parameters.run_recurrently) ResetCommandQueue();
         }
 
         /**

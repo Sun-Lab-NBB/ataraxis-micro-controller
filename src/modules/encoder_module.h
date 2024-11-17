@@ -111,8 +111,8 @@ class EncoderModule final : public Module
         /// Sets up module hardware parameters.
         bool SetupModule() override
         {
-            // Since Encoder class carries out the necessary hardware setup, this method re-initializes the encoder to
-            // repeat the hardware setup.
+            // Re-initializing the encoder class leads to global runtime shutdowns and is not really needed. Therefore,
+            // instead of resetting the encoder hardware, the setup only resets the pulse counter.
             _encoder.write(0);
 
             // Resets the custom_parameters structure fields to their default values.
@@ -130,14 +130,14 @@ class EncoderModule final : public Module
         struct CustomRuntimeParameters
         {
                 bool report_CCW          = true;  ///< Determines whether to report changes in the CCW direction.
-                bool report_CW           = false;  ///< Determines whether to report changes in the CW direction.
-                uint32_t delta_threshold = 10;  ///< Sets the minimum pulse count change (delta) for reporting changes.
+                bool report_CW           = true;  ///< Determines whether to report changes in the CW direction.
+                uint32_t delta_threshold = 1;  ///< Sets the minimum pulse count change (delta) for reporting changes.
         } __attribute__((packed)) _custom_parameters;
 
         /// The encoder class that abstracts low-level access to the Encoder pins and provides an easy API to retrieve
         /// the automatically incremented encoder pulse vector. The vector can be reset by setting it to 0, and the
         /// class relies on hardware interrupt functionality to maintain the desired precision.
-        Encoder _encoder = Encoder(kPinA, kPinB);
+        Encoder _encoder = Encoder(kPinA, kPinB);  // HAS to be initialized statically or the runtime crashes!
 
         /// The multiplier is used to optionally invert the pulse counter sign to virtually flip the direction of
         /// encoder readings. This is helpful if the encoder is mounted and wired in a way where CW rotation of the
@@ -152,7 +152,7 @@ class EncoderModule final : public Module
         {
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
             // relative to the previous reset command or the initialization of the encoder.
-            const int32_t flipped_value = _encoder.read() * kMultiplier;
+            const int32_t flipped_value = _encoder.readAndReset() * kMultiplier;
 
             // If encoder has not moved since the last call to this method, returns without further processing.
             if (flipped_value == 0)
