@@ -97,15 +97,58 @@ Install this library using ArduinoIDE GUI:
 4. Add ```include <serialized_transfer_protocol.h>``` to the top of the file(s) to access the STP API.
 
 ## Usage
+
+### TransportLayer
+The `TransportLayer` class provides an intermediate-level API for sending and receiving serialized data over USB or 
+UART serial connections. It handles tasks such as encoding and decoding payloads, verifying their integrity using CRC
+checksums, and managing the transmission and reception buffers.
+
+The class offers high-level methods to facilitate serial communication by abstracting low-level packet handling, 
+including COBS (Consistent Overhead Byte Stuffing) encoding and CRC checksum calculations. 
+
+#### Methods
+
+##### Transmission Methods
+- **SendData()**: Packages and sends data from the transmission buffer via the serial interface.
+- **WriteData()**: Writes an arbitrary object to the transmission buffer as bytes.
+- **CopyTxDataToBuffer()**: Copies the contents of the transmission buffer into an external buffer (useful for testing).
+- **CopyTxBufferPayloadToRxBuffer()**: Copies the payload bytes from the transmission buffer to the reception buffer (for testing).
+
+##### Reception Methods
+- **ReceiveData()**: Unpacks data received by the transmission interface into the reception buffer.
+- **ReadData()**: Reads an arbitrary object from the reception buffer as bytes.
+- **CopyRxDataToBuffer()**: Copies the contents of the reception buffer into an external buffer (useful for testing).
+
+##### Buffer Management
+- **ResetTransmissionBuffer()**: Resets the transmission buffer's tracker variables and overhead byte.
+- **ResetReceptionBuffer()**: Resets the reception buffer's tracker variables and overhead byte.
+- **Available()**: Checks whether there is data available in the reception buffer.
+- 
+##### Configuration and Utility
+- **get_tx_payload_size()**: Returns the current size of the data in the transmission buffer.
+- **get_rx_payload_size()**: Returns the current size of the data in the reception buffer.
+- **get_maximum_tx_payload_size()**: Returns the maximum size of the transmitted payload.
+- **get_maximum_rx_payload_size()**: Returns the maximum size of the received payload.
+- **set_allow_start_byte_errors()**: Sets whether errors should be raised when the start byte is not found.
+
+#### Packet Anatomy:
+This class sends and receives data in the form of packets. Each packet is expected to adhere to the following general 
+layout:
+[START] [PAYLOAD SIZE] [COBS OVERHEAD] [PAYLOAD (1 to 254 bytes)] [DELIMITER] [CRC CHECKSUM (1 to 4 bytes)]
+
+When using WriteData() and ReadData() methods, the users are only working with the payload section of the overall
+packet. The rest of the packet anatomy is controlled internally by this class and is not exposed to the users.
+
+####
 This is a minimal example of how to use this library. See the [examples](./examples) folder for .cpp implementations:
 
 ```
 // Note, this example should run on both Arduino and Teensy boards.
 
 // First, include the main STP class to access its' API.
-include <serialized_transfer_protocol.h>
+include <transport_layer.h>
 
-// Next, initialize the STP class. Use the tempalte and constructor arguments to configure the class for your specific 
+// Next, initialize the TL class. Use the tempalte and constructor arguments to configure the class for your specific 
 // project (see below)
 
 // Maximum outgoing payload size, in bytes. Cannot exceed 254 bytes due to COBS encoding.
@@ -150,14 +193,13 @@ serial = Serial;
 
 // Instantiates a new SerializedTransferProtocol object. Note, the firtst tempalte parameter is the datatype of the 
 // CRC configuration variables. It has to match the type used to specify the CRC algorthm parameters.
-SerializedTransferProtocol<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size, minimum_payload_size> protocol(
+TransportLayer<uint16_t, maximum_tx_payload_size, maximum_rx_payload_size, minimum_payload_size> tl_class(
     serial,
     polynomial,
     initial_value,
     final_xor_value,
     start_byte,
     delimiter_byte,
-    minimum_payload_size,
     timeout
 );
 
@@ -172,11 +214,11 @@ void setup()
 void loop()
 {
     // Checks if data is available for reception.
-    if (protocol.Available())
+    if (tl_class.Available())
     {
         // If the data is available, carries out the reception procedure (acually receives the byte-stream, parses the 
         // payload and makes it available for reading).
-        bool data_received = protocol.ReceiveData();
+        bool data_received = tl_class.ReceiveData();
         
         // Provided that the reception was successful, reads the data, assumed to be the test array object
         if (data_received)
@@ -188,7 +230,7 @@ void loop()
             // should now be set to these values. Note, the method returns the index inside the payload region that 
             // immediately follows the read data section. This is not relevant for this example, but can be used for 
             // chained read calls.
-            uint16_t next_index = protocol.ReadData(test_data);
+            uint16_t next_index = tl_class.ReadData(test_data);
             
             // Instantiates a new object to send back to PC.
             uint8_t send_data[4] = {5, 6, 7, 8};
@@ -196,13 +238,13 @@ void loop()
             // Writes the object to the transmission buffer, staging it to be sent witht he next SendData() command. 
             // This method also returns the index that immediately follows the portion of the buffer that the input 
             // object's data was written to.
-            uint16_t add_index = protocol.WriteData(send_data, 0);
+            uint16_t add_index = tl_class.WriteData(send_data, 0);
             
             // This showcases a chained addition, where test_data is staged right after send_data.
-            add_index = protocol.WriteData(test_data, add_index);
+            add_index = tl_class.WriteData(test_data, add_index);
             
             // Packages and sends the contents of the class transmission buffer that were written above to the PC.
-            bool data_sent= protocol.SendData();  // This also returns a boolean status.
+            bool data_sent= tl_class.SendData();  // This also returns a boolean status.
         }
     }
 }
