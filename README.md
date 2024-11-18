@@ -268,38 +268,11 @@ their PC interfaces.
 The Communication class supports sending a fixed number of predefined message payload structures, each optimized for
 a specific use case.
 
-- **ModuleData:** Communicates the event state-code of the sender Module and includes an additional data object.
-- **KernelData:** Similar to ModuleData, but used for messages sent by the Kernel.
-- **ModuleState:** Used for sending event state codes from modules without additional data.
-- **KernelState:** Similar to ModuleState, but used for Kernel messages.
-
 Each message type is associated with a unique message protocol code, which is used to instruct the receiver on how to
 parse the message. The Communication class automatically handles the parsing and serialization of these message formats.
 
----Show how to use SendData and SendState here. That code specifically works with these 4 structures.
-
----Mention prototype codes and how they are used to limit what kind of data can be sent to a fixed number of objects.
-
-#### Incoming Message Structures
-
-This class supports various command types for controlling the behavior of modules and the Kernel. These commands
-are sent through this class and are specified within different message types (e.g., **ModuleData**, **KernelData**).
-
-- **Module Commands**: These commands are sent to specific modules to perform certain actions. There are two main types:
-    - **RepeatedModuleCommand**: A command that runs repeatedly or in cycles. It allows controlling module behavior
-      on a timed interval.
-    - **OneOffModuleCommand**: A single execution command that runs once and completes before returning control.
-
-- **Kernel Commands**: These are commands sent to the Kernel to perform system-level operations. These commands are
-  typically one-off and execute immediately upon receipt.
-
-Each command typically contains a **command code**, which is a unique identifier for the operation to perform. Commands
-can also include **return codes** to notify the sender that the command was received and processed successfully.
-
----Show how to receive message data here AND how to actually extract received message data using class attributes.
-#### Send Data
-
-Use `SendDataMessage` to send data messages to the PC.
+- **ModuleData:** Communicates the event state-code of the sender Module and includes an additional data object.\
+  Use `SendDataMessage` to send Module messages to the PC. This method is specialized to send Module messages. 
 
 ```
 Communication comm_class(Serial);  // Instantiates the Communication class.
@@ -309,31 +282,177 @@ const uint8_t module_type = 112        // Example module type
 const uint8_t module_id = 12;          // Example module ID
 const uint8_t command = 88;            // Example command code
 const uint8_t event_code = 221;        // Example event code
-const uint8_t prototype = 1;           // Prototype codes are available from communication_assets namespace.
-const uint8_t placeholder_object = 0;  // Meaningless, placeholder object
+const uint8_t prototype = 1;           // Prototype for OneUnsignedByte. Protocol codes are available from
+                                       // communication_assets namespace.
+const uint8_t test_object = 1;  // OneUnsignedByte
 
-comm.SendDataMessage(module_type, module_id, command, event_code, prototype, placeholder_object);
+comm.SendDataMessage(module_type, module_id, command, event_code, prototype, test_object );
 ```
 
-#### Receive Data
-
-Use `ReceiveMessage` to check for incoming data and automatically parse it.
-
+- **KernelData:** Similar to ModuleData, but used for messages sent by the Kernel.\
+  There is an overloaded version of `SendDataMessage` that does not take `module_type` and `module_id arguments`,
+  which allows sending data messages from the Kernel class.
 ```
-bool ReceiveMessage();
+Communication comm_class(Serial);  // Instantiates the Communication class.
+Serial.begin(9600);  // Initializes serial interface.
+
+const uint8_t command = 88;            // Example command code
+const uint8_t event_code = 221;        // Example event code
+const uint8_t prototype = 1;           // Prototype for OneUnsignedByte. Protocol codes are available from
+                                       // communication_assets namespace.
+const uint8_t test_object = 1;  // OneUnsignedByte
+
+comm.SendDataMessage(command, event_code, prototype, test_object );
 ```
 
-#### Extract Parameters
-
----Absorb this into the ReceiveData section above. You can first talk about command reception and then talk about how
-parameters are received, mentioning that for modules it is a two-step process
-
-For **ModuleParameters** messages, use `ExtractModuleParameters` to parse and extract parameter data.
-
+- **ModuleState:** Used for sending event state codes from modules without additional data.\
+  Use `SendStateMessage` to send Module states to the PC. This method is specialized to send Module messages. It
+  packages the input data into the ModuleState structure and sends it to the connected PC.
 ```
-template <typename ObjectType>
-bool ExtractModuleParameters(ObjectType& prototype, const uint16_t& bytes_to_read = sizeof(ObjectType));
+Communication comm_class(Serial);  // Instantiates the Communication class.
+Serial.begin(9600);  // Initializes serial interface.
+
+const uint8_t module_type = 112        // Example module type
+const uint8_t module_id = 12;          // Example module ID
+const uint8_t command = 88;            // Example command code
+const uint8_t event_code = 221;        // Example event code
+
+comm_class.SendStateMessage(module_type, module_id, command, event_code);
 ```
+
+- **KernelState:** Similar to ModuleState, but used for Kernel messages.\
+  There is an overloaded version of  `SendStateMessage` that only takes `command` and `event_code` arguments, which
+  allows sending data messages from the Kernel class.
+```
+Communication comm_class(Serial);  // Instantiates the Communication class.
+Serial.begin(9600);  // Initializes serial interface.
+
+const uint8_t command = 88;            // Example command code
+const uint8_t event_code = 221;        // Example event code
+
+comm_class.SendStateMessage(command, event_code);
+```
+#### Prototypes
+Prototypes are byte-codes packaged in Message packets that specify the data structure object that can be used to parse
+the included object data. Currently, there are only six prototype codes supported, which limit the kinds of data that
+can be sent to the types corresponding to each code. For the Prototype codes and the types of objects they encode are
+available from ‘communication_assets’. For prototype codes to work as expected, the microcontroller and the PC need to
+share the same `prototype_code` to object mapping.
+
+---Show how to use SendData and SendState here. That code specifically works with these 4 structures.
+
+---Mention prototype codes and how they are used to limit what kind of data can be sent to a fixed number of objects.
+
+#### Incoming Message Structures
+When receiving incoming messages, there are two key functions to keep in mind:
+- The method `ReceiveMessage` parses the next available message received from the PC and stored inside the serial port 
+reception buffer. If the received message is a ModuleParameters message, call `ExtractModuleParameters()` method to
+finalize message parsing since this method DOES NOT extract Module parameter data from the received message.
+- `ExtractModuleParameters()` extracts the parameter data transmitted with the ModuleParameters message and uses it to set
+the input structure values. This method will fail if it is called for any other message type, including KernelParameters 
+message.
+```
+Communication comm_class(Serial);  // Instantiates the Communication class.
+Serial.begin(9600);  // Initializes serial interface.
+
+comm_class.ReceviveMessage(); 
+
+struct DataMessage
+{
+uint8_t id = 1;
+uint8_t data = 10;
+} data_message;
+
+bool success = comm_class.ExtractParameters(data_message);
+```
+
+This class supports various command types for controlling the behavior of modules and the Kernel. These commands
+are sent through this class and are specified within different message types (e.g., **ModuleData**, **KernelData**). 
+Each command typically contains a **command code**, which is a unique identifier for the operation to perform. Commands
+can also include **return codes** to notify the sender that the command was received and processed successfully.\
+
+- **Module Commands**: These commands are sent to specific modules to perform certain actions. There are two main types:
+    - **RepeatedModuleCommand**: A command that runs repeatedly or in cycles. It allows controlling module behavior
+      on a timed interval.
+    ```
+    Communication comm_class(Serial);  // Instantiates the Communication class.
+    Serial.begin(9600);  // Initializes serial interface.
+
+    struct DataMessage
+    {
+    uint8_t id = 1;
+    uint8_t data = 10;
+    } data_message;
+
+    comm_class.ReceviveMessage(); 
+    comm_class.ExtractParameters(data_message);
+    
+    uint8_t module_type = static_cast<uint8_t>(comm_class.repeated_module_command.module_type);  // Extract module_type
+    uint8_t module_id = static_cast<uint8_t>(comm_class.repeated_module_command.module_id);      // Extract module_id
+    uint8_t return_code = static_cast<uint8_t>( comm_class.repeated_module_command.return_code); // Extract return_code
+    uint8_t command = static_cast<uint8_t>(comm_class.repeated_module_command.command);          // Extract command
+    bool noblock = static_cast<uint8_t>(comm_class.repeated_module_command.noblock);             // Extract noblock
+    uint32_t cycle_delay = static_cast<uint32_t>(comm_class.repeated_module_command.cycle_delay);// Extract cycle_delay
+    ```
+
+    - **OneOffModuleCommand**: A single execution command that runs once and completes before returning control.
+    ```
+    Communication comm_class(Serial);  // Instantiates the Communication class.
+    Serial.begin(9600);  // Initializes serial interface.
+
+    struct DataMessage
+    {
+    uint8_t id = 1;
+    uint8_t data = 10;
+    } data_message;
+    
+    comm_class.ReceviveMessage(); 
+    comm_class.ExtractParameters(data_message);
+    
+    uint8_t module_type = static_cast<uint8_t>(comm_class.one_off_module_command.module_type);  // Extract module_type
+    uint8_t module_id = static_cast<uint8_t>(comm_class.one_off_module_command.module_id);      // Extract module_id
+    uint8_t return_code = static_cast<uint8_t>( comm_class.one_off_module_command.return_code); // Extract return_code
+    uint8_t command = static_cast<uint8_t>(comm_class.one_off_module_command.command);          // Extract command
+    bool noblock = static_cast<bool>(comm_class.one_off_module_command.noblock);                // Extract noblock
+    ```
+    - **DequeModuleCommand**: A command that instructs the addressed Module to clear (empty) its command queue.
+    ```
+    Communication comm_class(Serial);  // Instantiates the Communication class.
+    Serial.begin(9600);  // Initializes serial interface.
+
+    struct DataMessage
+    {
+    uint8_t id = 1;
+    uint8_t data = 10;
+    } data_message;
+    
+    comm_class.ReceviveMessage(); 
+    comm_class.ExtractParameters(data_message);
+    
+    uint8_t module_type = static_cast<uint8_t>(comm_class.module_dequeue.module_type);    // Extract module_type
+    uint8_t module_id = static_cast<uint8_t>(comm_class.module_dequeue.module_id);        // Extract module_id
+    uint8_t return_code = static_cast<uint8_t>( comm_class.module_dequeue.return_code);   // Extract return_code
+    ```
+
+- **Kernel Commands**: These are commands sent to the Kernel to perform system-level operations. These commands are
+  typically one-off and execute immediately upon receipt.
+```
+Communication comm_class(Serial);  // Instantiates the Communication class.
+Serial.begin(9600);  // Initializes serial interface.
+
+struct DataMessage
+{
+uint8_t id = 1;
+uint8_t data = 10;
+} data_message;
+
+comm_class.ReceviveMessage(); 
+comm_class.ExtractParameters(data_message);
+
+uint8_t return_code = static_cast<uint8_t>( comm_class.module_dequeue.return_code);   // Extract return_code
+uint8_t command = static_cast<uint8_t>(comm_class.repeated_module_command.command);   // Extract command
+```
+---Show how to receive message data here AND how to actually extract received message data using class attributes.
 
 ## Developers
 
