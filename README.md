@@ -35,7 +35,7 @@ uses the serial USB or UART interface of the board to communicate with the conne
 ## Dependencies
 
 - An IDE or Framework capable of uploading microcontroller software. Use [Platformio](https://platformio.org/install) if
-  you want to use the project the way it was built, tested and used by the authors. Overall, it is highly encouraged to
+  you want to use the project the way it was built, tested, and used by the authors. Overall, it is highly encouraged to
   at
   least give this framework a try, as it greatly simplifies working with embedded projects.
   Alternatively, [Arduino IDE](https://www.arduino.cc/en/software) is also fully compatible with this project and
@@ -97,6 +97,7 @@ Install this library using ArduinoIDE GUI:
 4. Add ```include <serialized_transfer_protocol.h>``` to the top of the file(s) to access the STP API.
 
 ## Usage
+
 This is a minimal example of how to use this library. See the [examples](./examples) folder for .cpp implementations:
 
 ```
@@ -211,39 +212,50 @@ void loop()
 See the API documentation[LINK STUB] for the detailed description of the project API and more use examples.
 
 ### Communication
-The Communication class a high-level interface for bidirectional communication between a microcontroller 
-(e.g., Arduino, Teensy) and a PC over Serial or USB. It extends the **TransportLayer** class, handling message
-serialization, error checking, and communication protocols.
 
+The Communication class provides a high-level interface for bidirectional communication between a microcontroller
+(e.g., Arduino, Teensy) and a PC over a serial USB or UART port. To do so, it wraps the **TransportLayer** class and
+uses it to serialize and transmit data using one of the predefined message layout protocols to determine payload
+microstructure.
 
-#### Message Types
-The Communication class supports various message types, each with a specific use case:
+This class is tightly integrated with the Kernel and (base) Module classes, together forming the 'Core Triad' of the
+AtaraxisMicroController library. Therefore, it is specifically optimized to transfer data between Kernel, Modules, and
+their PC interfaces.
+
+#### Outgoing Message Structures
+
+The Communication class supports sending a fixed number of predefined message payload structures, each optimized for
+a specific use case.
 
 - **ModuleData:** Communicates the event state-code of the sender Module and includes an additional data object.
 - **KernelData:** Similar to ModuleData, but used for messages sent by the Kernel.
 - **ModuleState:** Used for sending event state codes from modules without additional data.
 - **KernelState:** Similar to ModuleState, but used for Kernel messages.
 
-Each message type has an associated protocol code to guide how the message is parsed. The Communication class 
-automatically handles the parsing and serialization of these message formats
+Each message type is associated with a unique message protocol code, which is used to instruct the receiver on how to
+parse the message. The Communication class automatically handles the parsing and serialization of these message formats.
 
-#### Commands Overview
+---Show how to use SendData and SendState here. That code specifically works with these 4 structures.
+
+---Mention prototype codes and how they are used to limit what kind of data can be sent to a fixed number of objects.
+
+#### Incoming Message Structures
 
 This class supports various command types for controlling the behavior of modules and the Kernel. These commands
-are sent through the this class and are specified within different message types (e.g., **ModuleData**, **KernelData**).
+are sent through this class and are specified within different message types (e.g., **ModuleData**, **KernelData**).
 
 - **Module Commands**: These commands are sent to specific modules to perform certain actions. There are two main types:
-  - **RepeatedModuleCommand**: A command that runs repeatedly or in cycles. It allows you to control module behavior on
-    a timed interval.
-  - **OneOffModuleCommand**: A single execution command that runs once and completes before returning control.
+    - **RepeatedModuleCommand**: A command that runs repeatedly or in cycles. It allows controlling module behavior
+      on a timed interval.
+    - **OneOffModuleCommand**: A single execution command that runs once and completes before returning control.
 
 - **Kernel Commands**: These are commands sent to the Kernel to perform system-level operations. These commands are
   typically one-off and execute immediately upon receipt.
 
-Each command typically contains a **command code**, which is a unique identifier for the operation to perform. Commands 
+Each command typically contains a **command code**, which is a unique identifier for the operation to perform. Commands
 can also include **return codes** to notify the sender that the command was received and processed successfully.
 
-
+---Show how to receive message data here AND how to actually extract received message data using class attributes.
 #### Send Data
 
 Use `SendDataMessage` to send data messages to the PC.
@@ -269,7 +281,11 @@ Use `ReceiveMessage` to check for incoming data and automatically parse it.
 ```
 bool ReceiveMessage();
 ```
+
 #### Extract Parameters
+
+---Absorb this into the ReceiveData section above. You can first talk about command reception and then talk about how
+parameters are received, mentioning that for modules it is a two-step process
 
 For **ModuleParameters** messages, use `ExtractModuleParameters` to parse and extract parameter data.
 
@@ -280,22 +296,23 @@ bool ExtractModuleParameters(ObjectType& prototype, const uint16_t& bytes_to_rea
 
 ## Developers
 
-This section provides additional installation, dependency and build-system instructions for the developers that want to
+This section provides additional installation, dependency, and build-system instructions for the developers that want to
 modify the source code of this library.
 
 ### Installing the library
 
-1. If you do not already have it installed, install [Platformio](https://platformio.org/install/integration) either as 
-a standalone IDE or as a plugin for your main C++ IDE. As part of this process, you may need to install a standalone 
-version of [Python](https://www.python.org/downloads/). Note, for the rest of this guide, installing platformio CLI is 
-sufficient.
+1. If you do not already have it installed, install [Platformio](https://platformio.org/install/integration) either as
+   a standalone IDE or as a plugin for your main C++ IDE. As part of this process, you may need to install a standalone
+   version of [Python](https://www.python.org/downloads/). Note, for the rest of this guide, installing platformio CLI
+   is
+   sufficient.
 2. Download this repository to your local machine using your preferred method, such as git-cloning.
 3. ```cd``` to the root directory of the project using your CLI of choice.
-4. Run ```pio --target upload -e ENVNAME``` command to compile and upload the library to your microcontroller. Replace 
-the ```ENVNAME``` with the environment name for your board. Currently, the project is preconfigured to work for 
-```mega```, ```teensy41``` and ```due``` environments.
-5. Optionally, run ```pio test -e ENVNAME``` command using the appropriate environment to test the library on your 
-target platform
+4. Run ```pio --target upload -e ENVNAME``` command to compile and upload the library to your microcontroller. Replace
+   the ```ENVNAME``` with the environment name for your board. Currently, the project is preconfigured to work for
+   ```mega```, ```teensy41``` and ```due``` environments.
+5. Optionally, run ```pio test -e ENVNAME``` command using the appropriate environment to test the library on your
+   target platform
 
 Note, if you are developing for a board that the project is not explicitly configured for, you will first need to edit
 the platformio.ini file to support your target microcontroller by configuring a new environment.
@@ -305,30 +322,31 @@ the platformio.ini file to support your target microcontroller by configuring a 
 In addition to installing platformio and main project dependencies, additionally install the following dependencies:
 
 - [Tox](https://tox.wiki/en/4.15.0/user_guide.html), if you intend to use preconfigured tox-based project automation.
-- [Doxygen](https://www.doxygen.nl/manual/install.html), if you want to generate C++ code documentation. Note, if you 
-are not installing Tox, you will also need [Breathe](https://breathe.readthedocs.io/en/latest/) and 
-[Sphinx](https://docs.readthedocs.io/en/stable/intro/getting-started-with-sphinx.html).
+- [Doxygen](https://www.doxygen.nl/manual/install.html), if you want to generate C++ code documentation. Note, if you
+  are not installing Tox, you will also need [Breathe](https://breathe.readthedocs.io/en/latest/) and
+  [Sphinx](https://docs.readthedocs.io/en/stable/intro/getting-started-with-sphinx.html).
 
 ### Development Automation
 
 To assist developers, this project comes with a set of fully configured 'tox'-based pipelines for verifying and building
-the project. Each of the tox commands builds the necessary project dependencies in the isolated environment prior to 
+the project. Each of the tox commands builds the necessary project dependencies in the isolated environment prior to
 carrying out its tasks.
 
 Below is a list of all available commands and their purpose:
 
-- ```tox -e test-ENVNAME``` Builds the project and executes the tests stored in the /test directory using 'Unity' test 
-framework. Note, replace the ```ENVNAME``` with the name of the tested environment. By default, the tox is configured to
-run tests for 'teensy41,' 'mega' and 'due' platforms. To add different environments, edit the tox.ini file.
-- ```tox -e docs``` Uses Doxygen, Breathe and Sphinx to build the source code documentation from Doxygen-formatted 
-docstrings, rendering a static API .html file.
+- ```tox -e test-ENVNAME``` Builds the project and executes the tests stored in the /test directory using 'Unity' test
+  framework. Note, replace the ```ENVNAME``` with the name of the tested environment. By default, the tox is configured
+  to
+  run tests for 'teensy41,' 'mega' and 'due' platforms. To add different environments, edit the tox.ini file.
+- ```tox -e docs``` Uses Doxygen, Breathe and Sphinx to build the source code documentation from Doxygen-formatted
+  docstrings, rendering a static API .html file.
 - ```tox -e build-ENVNAME``` Builds the project for the specified environment (platform). Does not upload the built hex
-file to the board. Same ```ENVNAME``` directions apply as to the 'test' command.
-- ```tox -e upload-ENVNAME``` Builds the project for the specified environment (platform) and uploads it to the 
-connected board. Same ```ENVNAME``` directions apply as to the 'test' command.
+  file to the board. Same ```ENVNAME``` directions apply as to the 'test' command.
+- ```tox -e upload-ENVNAME``` Builds the project for the specified environment (platform) and uploads it to the
+  connected board. Same ```ENVNAME``` directions apply as to the 'test' command.
 - ```tox --parallel``` Carries out all commands listed above in-parallel (where possible). Remove the '--parallel'
-argument to run the commands sequentially. Note, this command will test, build and upload the library for all 
-development platforms, which currently includes: 'teensy41,' 'mega' and 'due.'
+  argument to run the commands sequentially. Note, this command will test, build and upload the library for all
+  development platforms, which currently includes: 'teensy41,' 'mega' and 'due.'
 
 ## Authors
 
@@ -343,8 +361,8 @@ This project is licensed under the GPL3 License: see the [LICENSE](LICENSE) file
 - All Sun Lab [WEBSITE LINK STUB] members for providing the inspiration and comments during the development of this
   library.
 - My NBB Cohort for answering 'random questions' pertaining to the desired library functionality.
-- [PowerBroker2](https://github.com/PowerBroker2) and his 
-[SerialTransfer](https://github.com/PowerBroker2/SerialTransfer) for inspiring this library and serving as an example 
-and benchmark. This library is in some ways similar and in other ways different from his library, and it is 
-highly encouraged to check SerialTransfer as a good alternative with non-overlapping functionality that may be better 
-for your project.
+- [PowerBroker2](https://github.com/PowerBroker2) and his
+  [SerialTransfer](https://github.com/PowerBroker2/SerialTransfer) for inspiring this library and serving as an example
+  and benchmark. This library is in some ways similar and in other ways different from his library, and it is
+  highly encouraged to check SerialTransfer as a good alternative with non-overlapping functionality that may be better
+  for your project.
