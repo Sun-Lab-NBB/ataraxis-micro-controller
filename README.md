@@ -210,6 +210,74 @@ void loop()
 
 See the API documentation[LINK STUB] for the detailed description of the project API and more use examples.
 
+### Communication
+The Communication class a high-level interface for bidirectional communication between a microcontroller 
+(e.g., Arduino, Teensy) and a PC over Serial or USB. It extends the **TransportLayer** class, handling message
+serialization, error checking, and communication protocols.
+
+
+#### Message Types
+The Communication class supports various message types, each with a specific use case:
+
+- **ModuleData:** Communicates the event state-code of the sender Module and includes an additional data object.
+- **KernelData:** Similar to ModuleData, but used for messages sent by the Kernel.
+- **ModuleState:** Used for sending event state codes from modules without additional data.
+- **KernelState:** Similar to ModuleState, but used for Kernel messages.
+
+Each message type has an associated protocol code to guide how the message is parsed. The Communication class 
+automatically handles the parsing and serialization of these message formats
+
+#### Commands Overview
+
+This class supports various command types for controlling the behavior of modules and the Kernel. These commands
+are sent through the this class and are specified within different message types (e.g., **ModuleData**, **KernelData**).
+
+- **Module Commands**: These commands are sent to specific modules to perform certain actions. There are two main types:
+  - **RepeatedModuleCommand**: A command that runs repeatedly or in cycles. It allows you to control module behavior on
+    a timed interval.
+  - **OneOffModuleCommand**: A single execution command that runs once and completes before returning control.
+
+- **Kernel Commands**: These are commands sent to the Kernel to perform system-level operations. These commands are
+  typically one-off and execute immediately upon receipt.
+
+Each command typically contains a **command code**, which is a unique identifier for the operation to perform. Commands 
+can also include **return codes** to notify the sender that the command was received and processed successfully.
+
+
+#### Send Data
+
+Use `SendDataMessage` to send data messages to the PC.
+
+```
+Communication comm_class(Serial);  // Instantiates the Communication class.
+Serial.begin(9600);  // Initializes serial interface.
+
+const uint8_t module_type = 112        // Example module type
+const uint8_t module_id = 12;          // Example module ID
+const uint8_t command = 88;            // Example command code
+const uint8_t event_code = 221;        // Example event code
+const uint8_t prototype = 1;           // Prototype codes are available from communication_assets namespace.
+const uint8_t placeholder_object = 0;  // Meaningless, placeholder object
+
+comm.SendDataMessage(module_type, module_id, command, event_code, prototype, placeholder_object);
+```
+
+#### Receive Data
+
+Use `ReceiveMessage` to check for incoming data and automatically parse it.
+
+```
+bool ReceiveMessage();
+```
+#### Extract Parameters
+
+For **ModuleParameters** messages, use `ExtractModuleParameters` to parse and extract parameter data.
+
+```
+template <typename ObjectType>
+bool ExtractModuleParameters(ObjectType& prototype, const uint16_t& bytes_to_read = sizeof(ObjectType));
+```
+
 ## Developers
 
 This section provides additional installation, dependency and build-system instructions for the developers that want to
