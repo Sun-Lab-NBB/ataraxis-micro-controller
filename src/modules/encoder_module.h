@@ -34,7 +34,7 @@
  *
  * @tparam kPinA the digital interrupt pin connected to the 'A' channel of the quadrature encoder.
  * @tparam kPinB the digital interrupt pin connected to the 'B' channel of the quadrature encoder.
- * @tparam kIndexPin the digital pin connected to the index signal of the quadrature encoder. If your encoder does not
+ * @tparam kPinX the digital pin connected to the index signal of the quadrature encoder. If your encoder does not
  * have an index pin, you will still have to 'sacrifice' one of the unused pins to provide a valid number to this
  * argument.
  * @tparam kInvertDirection if set to true, inverts the sign of the value returned by the encoder. By default, when
@@ -42,7 +42,7 @@
  * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
  * this relationship, which is helpful to account for the mounting and wiring of the tracked rotating object.
  */
-template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kIndexPin, const bool kInvertDirection>
+template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kPinX, const bool kInvertDirection>
 class EncoderModule final : public Module
 {
         // Ensures that the encoder pins are different.
@@ -60,7 +60,7 @@ class EncoderModule final : public Module
             "instance."
         );
         static_assert(
-            kIndexPin != LED_BUILTIN,
+            kPinX != LED_BUILTIN,
             "LED-connected pin is reserved for LED manipulation. Select a different Index pin for EncoderModule "
             "instance."
         );
@@ -125,6 +125,9 @@ class EncoderModule final : public Module
         /// Sets up module hardware parameters.
         bool SetupModule() override
         {
+            // Since Encoder does not IndexPin, it has to be set to INPUT here
+            pinMode(kPinX, INPUT);
+
             // Re-initializing the encoder class leads to global runtime shutdowns and is not really needed. Therefore,
             // instead of resetting the encoder hardware, the setup only resets the pulse counter.
             _encoder.write(0);
@@ -231,13 +234,22 @@ class EncoderModule final : public Module
             // First, establishes the measurement baseline. Since the algorithm does not know the current position of
             // the encoder, waits until the index pin is triggered. This is used to establish the baseline for tracking
             // the pulses per rotation.
-            while (!digitalReadFast(kIndexPin)) _encoder.write(0);  // Resets the pulse tracker to 0
+            while (!digitalReadFast(kPinX))
+                ;
+            _encoder.write(0);  // Resets the pulse tracker to 0
 
             // Measures 10 full rotations (indicated by index pin pulses). Resets the pulse tracker to 0 at each
             // measurement and does not care about the rotation direction.
             uint32_t pprs = 0;
             for (uint8_t i = 0; i < 10; ++i)
             {
+                // Delays for 100 milliseconds to ensure the object spins past the range of index pin trigger
+                delay(100);
+
+                // Blocks until the index pin is triggered.
+                while (!digitalReadFast(kPinX))
+                    ;
+
                 // Accumulates the pulse counter into the summed value and reset the encoder each call.
                 pprs += abs(_encoder.readAndReset());
             }
