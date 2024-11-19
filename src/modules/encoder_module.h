@@ -132,6 +132,9 @@ class EncoderModule final : public Module
             // instead of resetting the encoder hardware, the setup only resets the pulse counter.
             _encoder.write(0);
 
+            // Resets the overflow tracker
+            _overflow = 0;
+
             // Resets the custom_parameters structure fields to their default values.
             _custom_parameters.report_CCW      = true;  // Defaults to report rotation in the CCW direction.
             _custom_parameters.report_CW       = true;  // Defaults to report rotation in the CW direction.
@@ -173,26 +176,32 @@ class EncoderModule final : public Module
         void ReadEncoder()
         {
             // Retrieves and, if necessary, flips the value of the encoder. The value tracks the number of pulses
-            // relative to the previous reset command or the initialization of the encoder. Combines the pulse count
-            // read from the encoder with the pulses already stored in the '_overflow' variable and resets the encoder
+            // relative to the previous reset command or the initialization of the encoder. Resets the encoder
             // to 0 at each readout.
-            _overflow += _encoder.readAndReset() * kMultiplier;
+            const int32_t new_motion = _encoder.readAndReset() * kMultiplier;
 
             // If encoder has not moved since the last call to this method, returns without further processing.
-            if (_overflow == 0)
+            if (new_motion == 0)
             {
                 CompleteCommand();
                 return;
+            }
+
+            // If the readout is not 0, uses its sign to determine whether to save or discard this motion. The motion
+            // is only saved if reporting the motion in that direction is enabled via class parameters.
+            if ((new_motion < 0 && _custom_parameters.report_CW) || (new_motion > 0 &&_custom_parameters.report_CCW))
+            {
+                // Combines the pulse count read from the encoder with the pulses already stored in the '_overflow'
+                // variable
+                _overflow+= new_motion;
             }
 
             // Converts the pulse count delta to an absolute value for the threshold checking below.
             auto delta = static_cast<uint32_t>(abs(_overflow));
 
             // If the value is negative, this is interpreted as rotation in the Clockwise direction.
-            // If reporting CW rotation is allowed, sends the pulse count to the PC as an absolute value, using the
-            // transmitted event status code to indicate the direction of movement. Note, the delta is only sent if
-            // it is greater than or equal to the readout threshold value.
-            if (_overflow < 0 && _custom_parameters.report_CW && delta >= _custom_parameters.delta_threshold)
+            // If the delta is greater than the reporting threshold, sends it to the PC.
+            if (_overflow < 0 && delta >= _custom_parameters.delta_threshold)
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCW),
@@ -203,9 +212,8 @@ class EncoderModule final : public Module
             }
 
             // If the value is positive, this is interpreted as the CCW movement direction.
-            // Same as above, if reporting the CCW movement is allowed and the delta is greater than or equal to
-            // the readout threshold, sends the data to the PC.
-            else if (_custom_parameters.report_CCW && delta >= _custom_parameters.delta_threshold)
+            // Same as above, if the delta is greater than or equal to the readout threshold, sends the data to the PC.
+            else if (_overflow > 0 && delta >= _custom_parameters.delta_threshold)
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCCW),
