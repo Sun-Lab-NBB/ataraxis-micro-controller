@@ -34,10 +34,8 @@
  *
  * @tparam kPinA the digital interrupt pin connected to the 'A' channel of the quadrature encoder.
  * @tparam kPinB the digital interrupt pin connected to the 'B' channel of the quadrature encoder.
- * @tparam kPinX the digital pin connected to the index signal of the quadrature encoder. If your encoder does not
- * have an index pin, you will still have to 'sacrifice' one of the unused pins to provide a valid number to this
- * argument.
- * @tparam kInvertDirection if set to true, inverts the sign of the value returned by the encoder. By default, when
+ * @tparam kPinX the digital pin connected to the index signal of the quadrature encoder.
+ * @tparam kInvertDirection if true, inverts the sign of the value returned by the encoder. By default, when
  * Pin B is triggered before Pin A, the pulse counter decreases, which corresponds to CW movement. When pin A is
  * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
  * this relationship, which is helpful to account for the mounting and wiring of the tracked rotating object.
@@ -129,7 +127,8 @@ class EncoderModule final : public Module
             pinMode(kPinX, INPUT);
 
             // Re-initializing the encoder class leads to global runtime shutdowns and is not really needed. Therefore,
-            // instead of resetting the encoder hardware, the setup only resets the pulse counter.
+            // instead of resetting the encoder hardware, the setup only resets the pulse counter. The hardware is
+            // statically configured during Encoder class instantiation.
             _encoder.write(0);
 
             // Resets the overflow tracker
@@ -166,7 +165,8 @@ class EncoderModule final : public Module
         static constexpr int32_t kMultiplier = kInvertDirection ? -1 : 1;  // NOLINT(*-dynamic-static-initializers)
 
         /// This variable is used to accumulate insignificant encoder readouts to be reused during further calls.
-        /// This allows filtering the tracker object jitter while still accurately tracking small, incremental
+        /// This allows filtering the rotation jitter of the tracked object while still accurately tracking small,
+        /// incremental
         /// movements.
         int32_t _overflow = 0;
 
@@ -180,6 +180,21 @@ class EncoderModule final : public Module
             // to 0 at each readout.
             const int32_t new_motion = _encoder.readAndReset() * kMultiplier;
 
+            // Uses the current delta_threshold to calculate positive and negative amortization. Amortization allows the
+            // overflow to store pulses in the non-reported direction, up to the delta_threshold limit. For example, if
+            // CW motion is not allowed, the overflow will be allowed to drop up to at most delta_threshold negative
+            // value. This is used to correctly counter (amortize) small, insignificant movements. For example, if the
+            // object is locked, it may still move slightly in either direction. Without amortization, the overflow will
+            // eventually accumulate small forward jitters and report forward movement, although there is none. With
+            // amortization, the positive movement is likely to be counteracted by negative movement, resulting in a net
+            // 0 movement. The amortization has to be kept low, however, because if unbounded, the _overflow will
+            // accumulate movement in the non-reported direction, which has to be 'canceled' by movement in the reported
+            // direction before anything is actually sent to the PC. This accumulated 'inertia' is undesirable and has
+            // to be avoided. The best way to use this class is to set delta_threshold to a comfortably small value that
+            // allows for adequate amortization of jitter.
+            const auto positive_amortization    = static_cast<int32_t>(_custom_parameters.delta_threshold);
+            const int32_t negative_amortization = -positive_amortization;
+
             // If encoder has not moved since the last call to this method, returns without further processing.
             if (new_motion == 0)
             {
@@ -187,13 +202,25 @@ class EncoderModule final : public Module
                 return;
             }
 
-            // If the readout is not 0, uses its sign to determine whether to save or discard this motion. The motion
-            // is only saved if reporting the motion in that direction is enabled via class parameters.
-            if ((new_motion < 0 && _custom_parameters.report_CW) || (new_motion > 0 &&_custom_parameters.report_CCW))
+            // If the readout is not 0, uses its sign to determine whether to save or discard this motion.
+            if ((new_motion < 0 && _custom_parameters.report_CW) || (new_motion > 0 && _custom_parameters.report_CCW))
             {
-                // Combines the pulse count read from the encoder with the pulses already stored in the '_overflow'
-                // variable
-                _overflow+= new_motion;
+                // If the motion was in the direction that is reported, combines the new motion with the accumulated
+                // motion stored in the overflow tracker.
+                _overflow += new_motion;
+            }
+            else if (new_motion < 0)
+            {
+                // The motion in a non-reported CW direction is capped to negative amortization. This does not allow the
+                // overflow to become too negative to accumulate inertia.
+                _overflow += new_motion;
+                _overflow = max(_overflow, negative_amortization);
+            }
+            else
+            {
+                // Same as above, but for CCW direction. This is capped to positive amortization.
+                _overflow += new_motion;
+                _overflow = min(_overflow, positive_amortization);
             }
 
             // Converts the pulse count delta to an absolute value for the threshold checking below.
@@ -243,7 +270,8 @@ class EncoderModule final : public Module
             // the encoder, waits until the index pin is triggered. This is used to establish the baseline for tracking
             // the pulses per rotation.
             while (!digitalReadFast(kPinX))
-                ;
+            {
+            }
             _encoder.write(0);  // Resets the pulse tracker to 0
 
             // Measures 10 full rotations (indicated by index pin pulses). Resets the pulse tracker to 0 at each
@@ -256,7 +284,8 @@ class EncoderModule final : public Module
 
                 // Blocks until the index pin is triggered.
                 while (!digitalReadFast(kPinX))
-                    ;
+                {
+                }
 
                 // Accumulates the pulse counter into the summed value and reset the encoder each call.
                 pprs += abs(_encoder.readAndReset());
