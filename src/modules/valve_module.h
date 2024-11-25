@@ -127,15 +127,24 @@ class ValveModule final : public Module
                 uint16_t calibration_count = 1000;   ///< How many times to pulse the valve during calibration.
         } __attribute__((packed)) _custom_parameters;
 
+        /// Depending on the valve configuration, stores the digital signal that needs to be sent to the output pin to
+        /// open the valve. This ensures that all valve commands function as expected regardless of the valve
+        /// configuration.
+        static constexpr bool kOpenSignal = kNormallyClosed ? HIGH : LOW;  // NOLINT(*-dynamic-static-initializers)
+
+        /// Depending on the valve configuration, stores the digital signal that needs to be sent to the output pin to
+        /// close the valve.
+        static constexpr bool kCloseSignal = kNormallyClosed ? LOW : HIGH;  // NOLINT(*-dynamic-static-initializers)
+
         /// Cycles opening and closing the valve to deliver the precise amount of fluid or gas.
         void Pulse()
         {
             // Initializes the pulse
             if (execution_parameters.stage == 1)
             {
-                // Toggles the pin to send a HIGH signal. If the pin is successfully set to HIGH, as indicated by the
+                // Toggles the pin to send an open signal. If the pin is successfully activated, as indicated by the
                 // DigitalWrite returning true, advances the command stage.
-                if (DigitalWrite(kPin, HIGH, true)) AdvanceCommandStage();
+                if (DigitalWrite(kPin, kOpenSignal, false)) AdvanceCommandStage();
                 else
                 {
                     // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -146,7 +155,7 @@ class ValveModule final : public Module
                 }
             }
 
-            // HIGH phase delay. This delays for the requested number of microseconds before inactivating the pulse
+            // Open phase delay. This delays for the requested number of microseconds before inactivating the pulse
             if (execution_parameters.stage == 2)
             {
                 // Blocks for the pulse_duration of microseconds, relative to the time of the last AdvanceCommandStage()
@@ -158,9 +167,9 @@ class ValveModule final : public Module
             // Inactivates the pulse
             if (execution_parameters.stage == 3)
             {
-                // Once the pulse duration has passed, inactivates the pin by setting it to LOW. Finishes command
-                // execution if inactivation is successful.
-                if (DigitalWrite(kPin, LOW, true)) CompleteCommand();
+                // Once the pulse duration has passed, inactivates the pin by setting it to Close signal. Finishes
+                // command execution if inactivation is successful.
+                if (DigitalWrite(kPin, kCloseSignal, false)) CompleteCommand();
                 else
                 {
                     // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -174,8 +183,8 @@ class ValveModule final : public Module
         /// Sets the connected valve to be permanently open.
         void Open()
         {
-            // Sets the pin to HIGH and finishes command execution
-            if (DigitalWrite(kPin, HIGH, true)) CompleteCommand();
+            // Sets the pin to Open signal and finishes command execution
+            if (DigitalWrite(kPin, kOpenSignal, false)) CompleteCommand();
             else
             {
                 // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -188,8 +197,8 @@ class ValveModule final : public Module
         /// Sets the connected valve to be permanently closed.
         void Close()
         {
-            // Sets the pin to LOW and finishes command execution
-            if (DigitalWrite(kPin, LOW, true)) CompleteCommand();  // Finishes command execution
+            // Sets the pin to Close signal and finishes command execution
+            if (DigitalWrite(kPin, kCloseSignal, false)) CompleteCommand();  // Finishes command execution
             else
             {
                 // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -211,7 +220,7 @@ class ValveModule final : public Module
             for (uint16_t i = 0; i < _custom_parameters.calibration_count; ++i)
             {
                 // Initiates the pulse
-                if (DigitalWrite(kPin, HIGH, true)) AdvanceCommandStage();
+                if (DigitalWrite(kPin, kOpenSignal, false)) AdvanceCommandStage();
                 else
                 {
                     SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
@@ -225,7 +234,7 @@ class ValveModule final : public Module
                     ;
 
                 // Inactivates the pulse
-                if (DigitalWrite(kPin, LOW, true)) CompleteCommand();
+                if (DigitalWrite(kPin, kCloseSignal, false)) CompleteCommand();
                 else
                 {
                     // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -236,8 +245,7 @@ class ValveModule final : public Module
 
                 // Blocks for calibration_delay of microseconds to ensure the valve closes before initiating the next
                 // cycle.
-                while (!WaitForMicros(_custom_parameters.calibration_delay))
-                    ;
+                while (!WaitForMicros(_custom_parameters.calibration_delay));
             }
 
             // This command completes after 1000 cycles.

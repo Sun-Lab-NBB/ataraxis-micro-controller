@@ -33,14 +33,15 @@ Communication axmc_communication(Serial);  // Shared class that manages all inco
 
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
-// TTLModule<1> mesoscope_ttl(1, 1, axmc_communication, DynamicRuntimeParameters);
-EncoderModule<33, 34, 35, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
-// BreakModule<5, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);
+TTLModule<33> mesoscope_ttl(1, 1, axmc_communication, DynamicRuntimeParameters);
+// TTLModule<34> ephys_ttl(1, 2, axmc_communication, DynamicRuntimeParameters); // Not used right now.
+// EncoderModule<33, 34, 35, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
+BreakModule<29, false, true> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);
 // SensorModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);
-// ValveModule<20, true> reward_valve(5, 1, axmc_communication, DynamicRuntimeParameters);
+ValveModule<28, true> reward_valve(5, 2, axmc_communication, DynamicRuntimeParameters);
 
 // Packages all modules into an array to be managed by the Kernel class.
-Module* modules[] = {&wheel_encoder};
+Module* modules[] = {&mesoscope_ttl, &wheel_break, &reward_valve};
 
 // Instantiates the Kernel class using the assets instantiated above.
 Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);
@@ -53,6 +54,10 @@ void setup()
     // Sets ADC resolution to 12 bits. Teensies can support 16 bits too, but 12 often produces cleaner readouts.
     analogReadResolution(12);
     axmc_kernel.Setup();  // Carries out the rest of the setup depending on the module configuration.
+
+    DynamicRuntimeParameters.action_lock = false;
+    DynamicRuntimeParameters.ttl_lock    = false;
+    reward_valve.QueueCommand(2, true);
 }
 
 // This function is executed continuously while the controller is powered. Since Kernel manages the runtime, only the
