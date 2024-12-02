@@ -186,9 +186,6 @@ can be sent to the types corresponding to each code. For the Prototype codes and
 available from ‘communication_assets’. For prototype codes to work as expected, the microcontroller and the PC need to
 share the same `prototype_code` to object mapping.
 
----Show how to use SendData and SendState here. That code specifically works with these 4 structures.
-
----Mention prototype codes and how they are used to limit what kind of data can be sent to a fixed number of objects.
 
 #### Incoming Message Structures
 When receiving incoming messages, there are two key functions to keep in mind:
@@ -299,7 +296,6 @@ comm_class.ExtractParameters(data_message);
 uint8_t return_code = static_cast<uint8_t>( comm_class.module_dequeue.return_code);   // Extract return_code
 uint8_t command = static_cast<uint8_t>(comm_class.repeated_module_command.command);   // Extract command
 ```
----Show how to receive message data here AND how to actually extract received message data using class attributes.
 
 ### TransportLayer
 The TransportLayer class provides an intermediate-level API for bidirectional communication over USB or UART interfaces. 
