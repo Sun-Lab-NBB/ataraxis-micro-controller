@@ -1,7 +1,17 @@
 /**
  * @file
- * @brief The header file for the SensorModule class, which enables monitoring the input pin for incoming analog
- * signals and notifying the PC if a significant change in the incoming signal is detected.
+ * @brief The header-only file for the LickModule class. This class allows interfacing with a custom conductive lick
+ * sensor used to monitor the licking behavior of animals.
+ *
+ * This class was specifically designed to monitor the licking behavior of laboratory mice during experiments. This
+ * class will likely work for other purposes that benefit from detecting wet or dry contacts, such as touch or lick
+ * sensors.
+ *
+ * @subsection lck_mod_dependencies Dependencies:
+ * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
+ * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_LICK_MODULE_H
@@ -13,16 +23,18 @@
 #include "shared_assets.h"
 
 /**
- * @brief Monitors the managed pin for incoming analog signals and, upon detecting a significant change in the received
- * signal, notifies the PC.
+ * @brief Monitors the state of a custom conductive lick sensor for significant state changes and notifies the PC when
+ * such changes occur.
  *
- * This module is designed to compliment the digital signal reception capabilities offered by TTLModule by performing a
- * similar function for analog signals. Due to its general design, this module can interface with any sensor that
- * outputs an analog unidirectional logic signal.
+ * This module is designed to work with a custom lick sensor. The sensor works by directly injecting a small amount of
+ * current through one contact surface and monitoring the pin wired to the second contact surface. When the animal,
+ * such as a laboratory mouse, licks the sensor while making contact with the current injector surface, the sensor
+ * detects a positive change in voltage across the sensor. The detection threshold can be configured to distinguish
+ * between dry and wet touch, which is used to separate limb contacts from tongue contacts.
  *
- * @note For sensors that output a digital signal, it is more efficient to use the TTLModule class.
+ * @note This class was calibrated to work for and tested on C57BL6J Wildtype and transgenic mice.
  *
- * @tparam kPin the analog pin whose state will be monitored to detect incoming sensor signals.
+ * @tparam kPin the analog pin whose state will be monitored to detect licks.
  */
 template <const uint8_t kPin>
 class LickModule final : public Module
@@ -30,7 +42,7 @@ class LickModule final : public Module
         // Ensures that the pin does not interfere with LED pin.
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin for BreakModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for LickModule class."
         );
 
     public:
@@ -89,10 +101,10 @@ class LickModule final : public Module
             pinModeFast(kPin, INPUT);
 
             // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.lower_threshold   = 0;      // By default, disables the lower threshold.
-            _custom_parameters.upper_threshold   = 65535;  // By default, disables the upper threshold.
-            _custom_parameters.delta_threshold   = 1;      // By default, disables delta thresholding.
-            _custom_parameters.average_pool_size = 10;     // By default, averages 10 pin readouts.
+            _custom_parameters.lower_threshold   = 0;      // Disables the lower threshold.
+            _custom_parameters.upper_threshold   = 65535;  // Disables the upper threshold.
+            _custom_parameters.delta_threshold   = 1000;   // Sets the threshold to ~25% of the full sensor range.
+            _custom_parameters.average_pool_size = 10;     // Averages 10 pin readouts.
 
             return true;
         }
@@ -105,7 +117,7 @@ class LickModule final : public Module
         {
                 uint16_t lower_threshold  = 0;      ///< The lower boundary for signals to be reported to PC.
                 uint16_t upper_threshold  = 65535;  ///< The upper boundary for signals to be reported to PC.
-                uint16_t delta_threshold  = 1;      ///< The minimum difference between pin checks to be reported to PC.
+                uint16_t delta_threshold  = 1000;   ///< The minimum difference between pin checks to be reported to PC.
                 uint8_t average_pool_size = 10;     ///< The number of readouts to average into pin state value.
         } __attribute__((packed)) _custom_parameters;
 
@@ -117,9 +129,6 @@ class LickModule final : public Module
             // significant change can be adjusted through the custom_parameters structure.
             static uint16_t previous_readout = 0;
 
-            // This is used to ensure that the first readout after class reset is always sent to PC
-            static bool once = true;
-
             // Evaluates the state of the pin. Averages the requested number of readouts to produce the final
             // analog signal value. Note, since we statically configure the controller to use 10-14 bit ADC resolution,
             // this value should not use the full range of the 16-bit unit variable.
@@ -128,13 +137,14 @@ class LickModule final : public Module
             // Also calculates the absolute difference between the current signal and the previous readout. This is used
             // to ensure only significant signal changes are reported to the PC. Note, although we are casting both to
             // int32 to support the delta calculation, the resultant delta will always be within the unit_16 range.
-            // Therefore, it is fine to cast it back to uint16 to avoid unnecessary future casting in the if statements.
-            const uint16_t delta = abs(static_cast<int32_t>(signal) - static_cast<int32_t>(previous_readout));
+            // Therefore, it is fine to cast it back to uint16 to avoid unnecessary future casting in the 'if'
+            // statements.
+            const auto delta =
+                static_cast<uint16_t>(abs(static_cast<int32_t>(signal) - static_cast<int32_t>(previous_readout)));
 
             // Prevents reporting signals that are the same as the previous readout value. Also prevents sending signals
-            // that are not significantly different from the previous readout value. However, this entire check is
-            // bypassed if 'once' flag is True to ensure the first readout is always reported.
-            if (!once && (delta == 0 || delta < _custom_parameters.delta_threshold))
+            // that are not significantly different from the previous readout value.
+            if (delta == 0 || delta < _custom_parameters.delta_threshold)
             {
                 CompleteCommand();
                 return;
@@ -151,7 +161,6 @@ class LickModule final : public Module
                 );
 
                 previous_readout = signal;  // Overwrites the previous readout with the current signal.
-                if (once) once = false;     // Sets the once flag to false after the first successful report.
             }
 
             // Completes command execution

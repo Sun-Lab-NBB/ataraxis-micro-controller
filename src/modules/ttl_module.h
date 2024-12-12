@@ -128,7 +128,7 @@ class TTLModule final : public Module
         /// Stores custom addressable runtime parameters of the module.
         struct CustomRuntimeParameters
         {
-                uint32_t pulse_duration = 10000;  ///< The time, in microseconds, for the HIGH phase of emitted pulses.
+                uint32_t pulse_duration = 10000;  ///< The time, in microseconds, the pin outputs HIGH during pulses.
                 uint8_t average_pool_size = 0;  ///< The number of digital readouts to average when checking pin state.
         } __attribute__((packed)) _custom_parameters;
 
@@ -238,8 +238,7 @@ class TTLModule final : public Module
         {
             // Tracks the previous input_pin status. This is used to optimize data transmission by only reporting input
             // pin state changes to the PC.
-            static bool previous_input_status = true;
-            static bool once = true;  // This is used to ensure the first readout is always sent to the PC.
+            static bool previous_input_status = false;
 
             // Calling this command when the class is configured to output TTL pulses triggers an invalid
             // pin mode error.
@@ -253,7 +252,7 @@ class TTLModule final : public Module
             // Evaluates the state of the pin. Averages the requested number of readouts to produce the final
             // state-value. To optimize communication, only sends data to the PC if the state has changed.
             if (const bool current_state = GetRawDigitalReadout(kPin, _custom_parameters.average_pool_size);
-                previous_input_status != current_state || once)
+                previous_input_status != current_state)
             {
                 // Updates the state tracker.
                 previous_input_status = current_state;
@@ -261,8 +260,6 @@ class TTLModule final : public Module
                 // If the state is true, sends InputOn message, otherwise sends InputOff message.
                 if (current_state) SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOn));
                 else SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOff));
-
-                if (once) once = false;  // This ensures that once is disabled after the first readout is processed.
             }
 
             // Completes command execution

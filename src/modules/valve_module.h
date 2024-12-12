@@ -1,6 +1,13 @@
 /**
  * @file
- * @brief The header file for the ValveModule class, which is used to control a solenoid fluid or gas valve.
+ * @brief The header-only file for the ValveModule class. This class allows interfacing with a solenoid valve to
+ * controllably dispense precise amounts of fluid.
+ *
+ * @subsection vlv_mod_dependencies Dependencies:
+ * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
+ * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_VALVE_MODULE_H
@@ -12,23 +19,24 @@
 #include "shared_assets.h"
 
 /**
- * @brief Sends constant or pulsing digital signals to control the state of a fluid or gas solenoid valve.
+ * @brief Sends digital signals to dispense precise amounts of fluid via the managed solenoid valve.
  *
  * This module is specifically designed to send digital signals that trigger Field-Effect-Transistor (FET) gated relay
  * hardware to deliver voltage that opens or closes the controlled valve. Depending on configuration, this module is
  * designed to work with both Normally Closed (NC) and Normally Open (NO) valves.
  *
- * @note This class was calibrated to work with fluid valves that deliver micro-liter-precise amounts of fluid in a
- * gravity-driven fashion. This operation does not require a very high frequency of On/Off state changes and, therefore,
- * the class is not designed to work with PWM outputs.
+ * @note This class was calibrated to work with fluid valves that deliver micro-liter-precise amounts of fluid under
+ * gravitational driving force. The current class implementation may not work as intended for other use cases.
+ * Additionally, the class is designed for dispensing predetermined amounts of fluid and not for continuous flow rate
+ * control, which would require a PWM-based approach similar to the one used by the BreakModule class.
  *
- * @tparam kPin the digital pin connected to the valve FET-gated controller.
- * @tparam kNormallyClosed determines whether the connected valve is opened or closed when unpowered. In turn, this is
- * used to adjust the class behavior so that the LOW signal always means valve is closed and HIGH signal always means
- * valve is opened.
- * @tparam kStartClosed determines the initial activation state of the valve during class initialization. This works
+ * @tparam kPin the digital pin connected to the valve's FET-gated relay.
+ * @tparam kNormallyClosed determines whether the managed valve is opened or closed when unpowered. This is
+ * used to adjust the class behavior so that toggle OFF always means the valve is closed and toggle ON means the
+ * valve is open.
+ * @tparam kStartClosed determines the initial state of the valve during class initialization. This works
  * together with kNormallyClosed parameter to deliver the desired initial voltage level for the valve to either be
- * opened or closed.
+ * opened or closed after hardware initialization.
  */
 template <const uint8_t kPin, const bool kNormallyClosed, const bool kStartClosed = true>
 class ValveModule final : public Module
@@ -52,10 +60,11 @@ class ValveModule final : public Module
         /// Assigns meaningful names to module command byte-codes.
         enum class kModuleCommands : uint8_t
         {
-            kSendPulse = 1,  ///< Cycles opening and closing the valve to deliver a precise amount of fluid or gas.
+            kSendPulse = 1,  ///< Deliver a precise amount of fluid by cycling valve open and close states.
             kToggleOn  = 2,  ///< Sets the valve to be permanently open.
             kToggleOff = 3,  ///< Sets the valve to be permanently closed.
-            kCalibrate = 4   ///< Consecutively pulses the valve 1000 times. This is used to calibrate the valve.
+            kCalibrate =
+                4  ///< Repeatedly pulses teh valve to map different pulse_durations to dispensed fluid volumes.
         };
 
         /// Initializes the class by subclassing the base Module class.
@@ -109,9 +118,9 @@ class ValveModule final : public Module
             else digitalWriteFast(kPin, kNormallyClosed ? HIGH : LOW);               // Ensures the valve is open.
 
             // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.pulse_duration    = 10000;  // By default, the valve is kept open for 10 milliseconds.
-            _custom_parameters.calibration_delay = 10000;  // The delay between calibration pulses is 10 milliseconds.
-            _custom_parameters.calibration_count = 1000;   // The valve is pulsed 1000 times during calibration.
+            _custom_parameters.pulse_duration    = 10000;  // 10 milliseconds.
+            _custom_parameters.calibration_delay = 10000;  // 10 milliseconds.
+            _custom_parameters.calibration_count = 100;    // The valve is pulsed 100 times during calibration.
 
             return true;
         }
@@ -122,29 +131,28 @@ class ValveModule final : public Module
         /// Stores custom addressable runtime parameters of the module.
         struct CustomRuntimeParameters
         {
-                uint32_t pulse_duration = 10000;  ///< The time, in microseconds, the valve is kept open during pulses.
+                uint32_t pulse_duration    = 10000;  ///< The time, in microseconds, the valve is open during pulses.
                 uint32_t calibration_delay = 10000;  ///< The time, in microseconds, to wait between calibration pulses.
-                uint16_t calibration_count = 1000;   ///< How many times to pulse the valve during calibration.
+                uint16_t calibration_count = 100;    ///< How many times to pulse the valve during calibration.
         } __attribute__((packed)) _custom_parameters;
 
         /// Depending on the valve configuration, stores the digital signal that needs to be sent to the output pin to
-        /// open the valve. This ensures that all valve commands function as expected regardless of the valve
-        /// configuration.
-        static constexpr bool kOpenSignal = kNormallyClosed ? HIGH : LOW;  // NOLINT(*-dynamic-static-initializers)
+        /// open the valve.
+        static constexpr bool kOpen = kNormallyClosed ? HIGH : LOW;  // NOLINT(*-dynamic-static-initializers)
 
         /// Depending on the valve configuration, stores the digital signal that needs to be sent to the output pin to
         /// close the valve.
-        static constexpr bool kCloseSignal = kNormallyClosed ? LOW : HIGH;  // NOLINT(*-dynamic-static-initializers)
+        static constexpr bool kClose = kNormallyClosed ? LOW : HIGH;  // NOLINT(*-dynamic-static-initializers)
 
-        /// Cycles opening and closing the valve to deliver the precise amount of fluid or gas.
+        /// Cycles opening and closing the valve to deliver the precise amount of fluid.
         void Pulse()
         {
-            // Initializes the pulse
+            // Opens the valve
             if (execution_parameters.stage == 1)
             {
-                // Toggles the pin to send an open signal. If the pin is successfully activated, as indicated by the
+                // Toggles the pin to send the open signal. If the pin is successfully activated, as indicated by the
                 // DigitalWrite returning true, advances the command stage.
-                if (DigitalWrite(kPin, kOpenSignal, false)) AdvanceCommandStage();
+                if (DigitalWrite(kPin, kOpen, false)) AdvanceCommandStage();
                 else
                 {
                     // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -155,7 +163,7 @@ class ValveModule final : public Module
                 }
             }
 
-            // Open phase delay. This delays for the requested number of microseconds before inactivating the pulse
+            // Keeps the valve open while the desired amount fo fluid is passing through
             if (execution_parameters.stage == 2)
             {
                 // Blocks for the pulse_duration of microseconds, relative to the time of the last AdvanceCommandStage()
@@ -164,12 +172,12 @@ class ValveModule final : public Module
                 AdvanceCommandStage();
             }
 
-            // Inactivates the pulse
+            // Closes the valve
             if (execution_parameters.stage == 3)
             {
                 // Once the pulse duration has passed, inactivates the pin by setting it to Close signal. Finishes
                 // command execution if inactivation is successful.
-                if (DigitalWrite(kPin, kCloseSignal, false)) CompleteCommand();
+                if (DigitalWrite(kPin, kClose, false)) CompleteCommand();
                 else
                 {
                     // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -180,11 +188,11 @@ class ValveModule final : public Module
             }
         }
 
-        /// Sets the connected valve to be permanently open.
+        /// Permanently opens the valve.
         void Open()
         {
             // Sets the pin to Open signal and finishes command execution
-            if (DigitalWrite(kPin, kOpenSignal, false)) CompleteCommand();
+            if (DigitalWrite(kPin, kOpen, false)) CompleteCommand();
             else
             {
                 // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -194,11 +202,11 @@ class ValveModule final : public Module
             }
         }
 
-        /// Sets the connected valve to be permanently closed.
+        /// Permanently closes the valve.
         void Close()
         {
             // Sets the pin to Close signal and finishes command execution
-            if (DigitalWrite(kPin, kCloseSignal, false)) CompleteCommand();  // Finishes command execution
+            if (DigitalWrite(kPin, kClose, false)) CompleteCommand();  // Finishes command execution
             else
             {
                 // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
@@ -208,9 +216,10 @@ class ValveModule final : public Module
             }
         }
 
-        /// Pulses the valve 1000 times without blocking or (majorly) delaying. This is used to map delivered fluid or
-        /// gas amounts to specific pulse durations. Following this calibration procedure, it is possible to precisely
-        /// control the delivered gas or fluid amount by using specific pulse durations.
+        /// Pulses the valve calibration_count times without blocking or (majorly) delaying. This is used to establish
+        /// the relationship between the pulse_duration and the amount of fluid delivered during the pulse. This
+        /// calibration is necessary to precisely control the amount of fluid delivered by the valve by using specific
+        /// pulse durations.
         void Calibrate()
         {
             // Pulses the valve the requested number of times. Note, the command logic is very similar to the
@@ -219,36 +228,37 @@ class ValveModule final : public Module
             // will run all requested pulse cycles in one go.
             for (uint16_t i = 0; i < _custom_parameters.calibration_count; ++i)
             {
-                // Initiates the pulse
-                if (DigitalWrite(kPin, kOpenSignal, false)) AdvanceCommandStage();
-                else
+                // Opens the valve
+                if (!DigitalWrite(kPin, kOpen, false))
                 {
+                    // Respects the global controller lock state
                     SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
                     AbortCommand();
                     return;
                 }
 
-                // Just to make sure this blocks in-place regardless of noblock settings, uses a while loop until
-                // WaitForMicros returns true.
+                // Blocks in-place until the pulse duration passes.
                 while (!WaitForMicros(_custom_parameters.pulse_duration))
-                    ;
-
-                // Inactivates the pulse
-                if (DigitalWrite(kPin, kCloseSignal, false)) CompleteCommand();
-                else
                 {
-                    // If writing to TTL pins is globally disabled, as indicated by DigitalWrite returning false,
-                    // sends an error message to the PC and aborts the runtime.
+                }
+
+                // Closes the valve
+                if (!DigitalWrite(kPin, kClose, false))
+                {
+                    // Respects the global controller lock state
                     SendData(static_cast<uint8_t>(kCustomStatusCodes::kOutputLocked));
                     AbortCommand();  // Aborts the current and all future command executions.
+                    return;
                 }
 
                 // Blocks for calibration_delay of microseconds to ensure the valve closes before initiating the next
                 // cycle.
-                while (!WaitForMicros(_custom_parameters.calibration_delay));
+                while (!WaitForMicros(_custom_parameters.calibration_delay))
+                {
+                }
             }
 
-            // This command completes after 1000 cycles.
+            // This command completes after running the requested number of cycles.
             CompleteCommand();
         }
 };
