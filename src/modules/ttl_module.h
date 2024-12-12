@@ -1,7 +1,14 @@
 /**
  * @file
- * @brief The header file for the TTLModule class, which enables bidirectional TTL communication with other hardware
- * systems.
+ *
+ * @brief The header-only file for the TTLModule class. This class allows establishing bidirectional TTL
+ * communication with other hardware systems, such as microcontrollers, cameras and data recording devices.
+ *
+ * @subsection ttl_mod_dependencies Dependencies:
+ * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
+ * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_TTL_MODULE_H
@@ -15,16 +22,17 @@
 /**
  * @brief Sends or receives Transistor-to-Transistor Logic (TTL) signals using the specified digital pin.
  *
- * This module is specifically designed to send and receive TTL signals, depending on the pin configuration flag value
- * at class compilation. The class is statically configured to either receive or output TTL signals, it cannot do
- * both at the same time!
+ * The class is statically configured to either receive or output TTL signals, it cannot do both at the same time!
  *
  * @tparam kPin the digital pin that will be used to output or receive ttl signals. The mode of the pin (input or
  * output) depends on kOutput flag value and is currently not changeable during runtime.
  * @tparam kOutput determines whether the pin will be used to output TTL signals (if set to true) or receive TTL signals
- * from other systems (if set to false). In turn, this determines how the pin hardware is initialized.
+ * from other systems (if set to false).
+ * @tparam kStartOn determines the initial state of the pin when the class is configured to output TTL signals. If set
+ * to true, the TTL pin will be set to High during hardware initialization. Otherwise (by default) it will be set to
+ * Low. This parameter is ignored if the class is configured to receive TTL signals.
  */
-template <const uint8_t kPin, const bool kOutput = true>
+template <const uint8_t kPin, const bool kOutput = true, const bool kStartOn = false>
 class TTLModule final : public Module
 {
         static_assert(
@@ -100,13 +108,16 @@ class TTLModule final : public Module
             if (kOutput)
             {
                 pinModeFast(kPin, OUTPUT);
-                digitalWriteFast(kPin, LOW);
+
+                // Depending on the class configuration, initializes the pin to the desired state.
+                if (!kStartOn) digitalWriteFast(kPin, LOW);
+                else digitalWriteFast(kPin, HIGH);
             }
             else pinModeFast(kPin, INPUT);
 
             // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.pulse_duration    = 10000;  // The default output pulse duration is 10 milliseconds
-            _custom_parameters.average_pool_size = 0;      // The default average pool size is 0 readouts (no averaging)
+            _custom_parameters.pulse_duration    = 10000;  // 10000 microseconds == 10 milliseconds.
+            _custom_parameters.average_pool_size = 0;      // 0 or 1 == no averaging.
 
             return true;
         }
@@ -150,7 +161,7 @@ class TTLModule final : public Module
                 }
             }
 
-            // HIGH phase delay. This delays for the requested number of microseconds before inactivating the pulse
+            // Delays for the requested number of microseconds before inactivating the pulse.
             if (execution_parameters.stage == 2)
             {
                 // Blocks for the pulse_duration of microseconds, relative to the time of the last AdvanceCommandStage()
@@ -221,7 +232,7 @@ class TTLModule final : public Module
             }
         }
 
-        /// Checks the state of the input pin and, if the state does not match the recorded state, sends the new state
+        /// Checks the state of the input pin and, if the state does not match the previous state, sends the new state
         /// to the PC.
         void CheckState()
         {
@@ -240,17 +251,14 @@ class TTLModule final : public Module
             }
 
             // Evaluates the state of the pin. Averages the requested number of readouts to produce the final
-            // state-value (by default, averaging is disabled). To optimize communication, only sends data to the PC if
-            // the state has changed.
+            // state-value. To optimize communication, only sends data to the PC if the state has changed.
             if (const bool current_state = GetRawDigitalReadout(kPin, _custom_parameters.average_pool_size);
                 previous_input_status != current_state || once)
             {
                 // Updates the state tracker.
                 previous_input_status = current_state;
 
-                // Since this conditional is only reached if the read state differs from previous state, only determines
-                // which event code to use. If the state is true, sends InputOn message, otherwise sends InputOff
-                // message.
+                // If the state is true, sends InputOn message, otherwise sends InputOff message.
                 if (current_state) SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOn));
                 else SendData(static_cast<uint8_t>(kCustomStatusCodes::kInputOff));
 

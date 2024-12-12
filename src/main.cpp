@@ -19,7 +19,7 @@
 #include "module.h"
 #include "modules/break_module.h"
 #include "modules/encoder_module.h"
-#include "modules/sensor_module.h"
+#include "modules/lick_module.h"
 #include "modules/ttl_module.h"
 #include "modules/valve_module.h"
 #include "shared_assets.h"
@@ -33,15 +33,15 @@ Communication axmc_communication(Serial);  // Shared class that manages all inco
 
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
-TTLModule<33> mesoscope_ttl(1, 1, axmc_communication, DynamicRuntimeParameters);
-// TTLModule<34> ephys_ttl(1, 2, axmc_communication, DynamicRuntimeParameters); // Not used right now.
-// EncoderModule<33, 34, 35, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);
-BreakModule<29, false, true> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);
-// SensorModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);
-ValveModule<28, true> reward_valve(5, 2, axmc_communication, DynamicRuntimeParameters);
+TTLModule<33> mesoscope_frame(1, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
+// TTLModule<33> mesoscope_trigger(1, 2, axmc_communication, DynamicRuntimeParameters); // Actor
+// EncoderModule<33, 34, 35, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);  // Encoder
+BreakModule<29, false, true> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);  // Actor
+// LickModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
+ValveModule<28, true> reward_valve(5, 2, axmc_communication, DynamicRuntimeParameters);  // Actor
 
 // Packages all modules into an array to be managed by the Kernel class.
-Module* modules[] = {&mesoscope_ttl, &wheel_break, &reward_valve};
+Module* modules[] = {&mesoscope_frame, &wheel_break, &reward_valve};
 
 // Instantiates the Kernel class using the assets instantiated above.
 Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);

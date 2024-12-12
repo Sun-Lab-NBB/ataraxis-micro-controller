@@ -4,8 +4,8 @@
  * signals and notifying the PC if a significant change in the incoming signal is detected.
  */
 
-#ifndef AXMC_SENSOR_MODULE_H
-#define AXMC_SENSOR_MODULE_H
+#ifndef AXMC_LICK_MODULE_H
+#define AXMC_LICK_MODULE_H
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
@@ -25,7 +25,7 @@
  * @tparam kPin the analog pin whose state will be monitored to detect incoming sensor signals.
  */
 template <const uint8_t kPin>
-class SensorModule final : public Module
+class LickModule final : public Module
 {
         // Ensures that the pin does not interfere with LED pin.
         static_assert(
@@ -50,7 +50,7 @@ class SensorModule final : public Module
         };
 
         /// Initializes the TTLModule class by subclassing the base Module class.
-        SensorModule(
+        LickModule(
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
@@ -97,7 +97,7 @@ class SensorModule final : public Module
             return true;
         }
 
-        ~SensorModule() override = default;
+        ~LickModule() override = default;
 
     private:
         /// Stores custom addressable runtime parameters of the module.
@@ -159,4 +159,4 @@ class SensorModule final : public Module
         }
 };
 
-#endif  //AXMC_SENSOR_MODULE_H
+#endif  //AXMC_LICK_MODULE_H

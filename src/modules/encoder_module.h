@@ -1,11 +1,17 @@
 /**
  * @file
- * @brief The header file for the EncoderModule class, which allows interfacing with a rotary encoder to track the
- * direction and distance of a circular object movement.
+ * @brief The header-only file for the EncoderModule class. This class allows interfacing with a quadrature rotary
+ * encoder to monitor the direction and magnitude of connected object's rotation
  *
- * @attention This file is written in a way that is @b NOT compatible with any other library that uses
+ * @attention This file is written in a way that is @b NOT compatible with any other library or class that uses
  * AttachInterrupt(). Disable the 'ENCODER_USE_INTERRUPTS' macro defined at the top of the file to make this file
  * compatible with other interrupt libraries.
+ *
+ * @subsection enc_mod_dependencies Dependencies:
+ * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - Encoder.h for the low-level API that detects and tracks quadrature encoder pulses using interrupt pins.
+ * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_ENCODER_MODULE_H
@@ -21,12 +27,12 @@
 #include "shared_assets.h"
 
 /**
- * @brief Wraps an Encoder class instance and provides access to its pulse counter to evaluate the direction and
- * distance of a circular object movement.
+ * @brief Wraps an Encoder class instance and provides access to its pulse counter to monitor the direction and
+ * magnitude of connected object's rotation.
  *
  * This module is specifically designed to interface with quadrature encoders and track the direction and number of
- * encoder pulses between class method calls. In turn, this allows monitoring the direction and distance moved by the
- * rotating object connected to the encoder.
+ * encoder pulses between class method calls. The class only works with encoder pulses and expects the ModuleInterface
+ * class that receives the data on the PC to perform the necessary conversions to translate pulses into distance.
  *
  * @note Largely, this class is an API wrapper around the Paul Stoffregen's Encoder library, and it relies on efficient
  * interrupt logic to increase encoder tracking precision. To achieve the best performance, make sure both Pin A and
@@ -34,17 +40,17 @@
  *
  * @tparam kPinA the digital interrupt pin connected to the 'A' channel of the quadrature encoder.
  * @tparam kPinB the digital interrupt pin connected to the 'B' channel of the quadrature encoder.
- * @tparam kPinX the digital pin connected to the index signal of the quadrature encoder.
+ * @tparam kPinX the digital pin connected to the index ('X') channel of the quadrature encoder.
  * @tparam kInvertDirection if true, inverts the sign of the value returned by the encoder. By default, when
  * Pin B is triggered before Pin A, the pulse counter decreases, which corresponds to CW movement. When pin A is
  * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
- * this relationship, which is helpful to account for the mounting and wiring of the tracked rotating object.
+ * this relationship, which may be helpful, depending on how the encoder is mounted and wired.
  */
 template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kPinX, const bool kInvertDirection>
 class EncoderModule final : public Module
 {
         // Ensures that the encoder pins are different.
-        static_assert(kPinA != kPinB, "The two EncoderModule interrupt pins cannot be the same.");
+        static_assert(kPinA != kPinB != kPinX, "EncoderModule pins cannot be the same!");
 
         // Also ensures that encoder pins do not interfere with LED pin.
         static_assert(
@@ -59,7 +65,7 @@ class EncoderModule final : public Module
         );
         static_assert(
             kPinX != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different Index pin for EncoderModule "
+            "LED-connected pin is reserved for LED manipulation. Select a different Index (X) pin for EncoderModule "
             "instance."
         );
 
@@ -123,21 +129,21 @@ class EncoderModule final : public Module
         /// Sets up module hardware parameters.
         bool SetupModule() override
         {
-            // Since Encoder does not IndexPin, it has to be set to INPUT here
+            // Since Encoder class does not manage Index pin, it has to be set to INPUT here
             pinMode(kPinX, INPUT);
 
-            // Re-initializing the encoder class leads to global runtime shutdowns and is not really needed. Therefore,
-            // instead of resetting the encoder hardware, the setup only resets the pulse counter. The hardware is
-            // statically configured during Encoder class instantiation.
+            // Re-initializing the encoder class leads to runtime errors and is not really needed. Therefore,
+            // instead of resetting the encoder hardware via Encoder re-initialization, the setup only resets the
+            // pulse counter. The hardware is statically configured during Encoder class instantiation.
             _encoder.write(0);
 
             // Resets the overflow tracker
             _overflow = 0;
 
             // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.report_CCW      = true;  // Defaults to report rotation in the CCW direction.
-            _custom_parameters.report_CW       = true;  // Defaults to report rotation in the CW direction.
-            _custom_parameters.delta_threshold = 1;     // By default, the minimum change magnitude to report is 1.
+            _custom_parameters.report_CCW      = true;
+            _custom_parameters.report_CW       = true;
+            _custom_parameters.delta_threshold = 20;
 
             return true;
         }
@@ -150,7 +156,7 @@ class EncoderModule final : public Module
         {
                 bool report_CCW          = true;  ///< Determines whether to report changes in the CCW direction.
                 bool report_CW           = true;  ///< Determines whether to report changes in the CW direction.
-                uint32_t delta_threshold = 1;  ///< Sets the minimum pulse count change (delta) for reporting changes.
+                uint32_t delta_threshold = 20;    ///< The minimum pulse count change (delta) for reporting changes.
         } __attribute__((packed)) _custom_parameters;
 
         /// The encoder class that abstracts low-level access to the Encoder pins and provides an easy API to retrieve
@@ -159,18 +165,17 @@ class EncoderModule final : public Module
         Encoder _encoder = Encoder(kPinA, kPinB);  // HAS to be initialized statically or the runtime crashes!
 
         /// The multiplier is used to optionally invert the pulse counter sign to virtually flip the direction of
-        /// encoder readings. This is helpful if the encoder is mounted and wired in a way where CW rotation of the
-        /// tracked object produces CCW readout in the encoder. In other words, this is used to virtually align the
-        /// encoder readout direction to the tracked object rotation direction.
+        /// encoder readouts. This is helpful if the encoder is mounted and wired in a way where CW rotation of the
+        /// tracked object produces CCW readout in the encoder. This is used to virtually align the encoder readout
+        /// direction with the tracked object rotation direction.
         static constexpr int32_t kMultiplier = kInvertDirection ? -1 : 1;  // NOLINT(*-dynamic-static-initializers)
 
         /// This variable is used to accumulate insignificant encoder readouts to be reused during further calls.
         /// This allows filtering the rotation jitter of the tracked object while still accurately tracking small,
-        /// incremental
-        /// movements.
+        /// incremental movements.
         int32_t _overflow = 0;
 
-        /// Reads and resets the current encoder pulse counter and sends the result to the PC if it is significantly
+        /// Reads and resets the current encoder pulse counter. Sends the result to the PC if it is significantly
         /// different from previous readout. Note, the result will be transformed into an absolute value and its
         /// direction will be codified as the event code of the message transmitted to PC.
         void ReadEncoder()
@@ -191,7 +196,7 @@ class EncoderModule final : public Module
             // accumulate movement in the non-reported direction, which has to be 'canceled' by movement in the reported
             // direction before anything is actually sent to the PC. This accumulated 'inertia' is undesirable and has
             // to be avoided. The best way to use this class is to set delta_threshold to a comfortably small value that
-            // allows for adequate amortization of jitter.
+            // allows for adequate amortization of jitter, somewhere ~10-30 pulses.
             const auto positive_amortization    = static_cast<int32_t>(_custom_parameters.delta_threshold);
             const int32_t negative_amortization = -positive_amortization;
 
