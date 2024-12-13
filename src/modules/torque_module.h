@@ -1,7 +1,17 @@
 /**
  * @file
- * @brief The header file for the TorqueModule class, which enables bidirectional TTL communication with other hardware
- * systems.
+ * @brief The header-only file for the TorqueModule class. This class allows interfacing with a torque sensor used to
+ * monitor the torque applied to the connected object.
+ *
+ * @attention Since most torque sensors output a differential signal to code for the direction of the torque, this
+ * class is designed to work with an AD620 microvolt amplifier to straighten and amplify the output of the torque
+ * sensor.
+ *
+ * @subsection trq_mod_dependencies Dependencies:
+ * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
+ * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
+ * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_TORQUE_MODULE_H
@@ -13,7 +23,7 @@
 #include "shared_assets.h"
 
 /**
- * @brief Sends and receives Transistor-to-Transistor Logic (TTL) signals using two digital pins.
+ * @brief Monitors the signal sent by an AD620 amplifier connected to the torque sensor
  *
  * This module is specifically designed to send and receive TTL signals, which are often used to synchronize and
  * communicate between low-level hardware equipment. Currently, this module can work with one input and one output pin
