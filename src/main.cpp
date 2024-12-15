@@ -22,6 +22,7 @@
 #include "modules/lick_module.h"
 #include "modules/ttl_module.h"
 #include "modules/valve_module.h"
+#include "modules/torque_module.h"
 #include "shared_assets.h"
 
 // Pre-initializes global assets
@@ -34,11 +35,12 @@ Communication axmc_communication(Serial);  // Shared class that manages all inco
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
 TTLModule<33> mesoscope_frame(1, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
-// TTLModule<33> mesoscope_trigger(1, 2, axmc_communication, DynamicRuntimeParameters); // Actor
-// EncoderModule<33, 34, 35, false> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);  // Encoder
-BreakModule<29, false, true> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);  // Actor
-// LickModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
+TTLModule<33> mesoscope_trigger(1, 2, axmc_communication, DynamicRuntimeParameters); // Actor
+EncoderModule<33, 34, 35> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);  // Encoder
+BreakModule<29, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);  // Actor
+LickModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
 ValveModule<28, true> reward_valve(5, 2, axmc_communication, DynamicRuntimeParameters);  // Actor
+TorqueModule<16, 2048> torque_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
 
 // Packages all modules into an array to be managed by the Kernel class.
 Module* modules[] = {&mesoscope_frame, &wheel_break, &reward_valve};

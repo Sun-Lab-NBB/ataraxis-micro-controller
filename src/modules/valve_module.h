@@ -3,7 +3,7 @@
  * @brief The header-only file for the ValveModule class. This class allows interfacing with a solenoid valve to
  * controllably dispense precise amounts of fluid.
  *
- * @subsection vlv_mod_dependencies Dependencies:
+ * @section vlv_mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
@@ -44,7 +44,7 @@ class ValveModule final : public Module
         // Ensures that the pin does not interfere with LED pin.
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin for ValveModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for ValveModule instance."
         );
 
     public:
@@ -134,7 +134,7 @@ class ValveModule final : public Module
                 uint32_t pulse_duration    = 10000;  ///< The time, in microseconds, the valve is open during pulses.
                 uint32_t calibration_delay = 10000;  ///< The time, in microseconds, to wait between calibration pulses.
                 uint16_t calibration_count = 100;    ///< How many times to pulse the valve during calibration.
-        } __attribute__((packed)) _custom_parameters;
+        } PACKED_STRUCT _custom_parameters;
 
         /// Depending on the valve configuration, stores the digital signal that needs to be sent to the output pin to
         /// open the valve.

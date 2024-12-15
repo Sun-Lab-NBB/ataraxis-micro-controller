@@ -1,13 +1,15 @@
-Welcome to the SerializedTransferProtocol_Microcontroller Documentation
-========================================================================
+Welcome to ataraxis-micro-controller API documentation page
+===========================================================
 
-The SerializedTransferProtocol_Microcontroller (STP_M) library is a C++ library that is part of the broader
-multiplatform SerializedTransferProtocol (STP) project. The STP project provides a fast and reliable way of serializing
-and transferring data between different platforms, targeting realtime applications, such as scientific experiments. This
-particular implementation is designed specifically for Microcontroller platforms, such as Arduino and Teensy boards.
+ataraxis-micro-controller is a C++ library that provides methods for interfacing custom hardware managed by Teensy or
+Arduino SAM microcontrollers with project Ataraxis PC infrastructure.
+
+This library is part of the broader 'Ataraxis' science-automation project, developed in the
+`Sun Lab <https://neuroai.github.io/sunlab/>`_ at Cornell University.
 
 This website only contains the API documentation for the classes and methods offered by this library. See the project
-GitHub repository for installation instructions and library usage examples: `SerializedTransferProtocol_Microcontroller
-GitHub Repository <https://github.com/Sun-Lab-NBB/SerializedTransferProtocol-Microcontroller>`_.
+GitHub repository for installation instructions and library usage examples:
+`ataraxis-micro-controller GitHub repository <https://github.com/Sun-Lab-NBB/ataraxis-micro-controller>`_.
 
-.. _`SerializedTransferProtocol_Microcontroller GitHub Repository`: https://github.com/Sun-Lab-NBB/SerializedTransferProtocol-Microcontroller
+.. _`ataraxis-micro-controller GitHub repository`: https://github.com/Sun-Lab-NBB/ataraxis-micro-controller
+.. _`Sun Lab`: https://neuroai.github.io/sunlab/

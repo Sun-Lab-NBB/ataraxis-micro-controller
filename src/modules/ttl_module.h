@@ -4,7 +4,7 @@
  * @brief The header-only file for the TTLModule class. This class allows establishing bidirectional TTL
  * communication with other hardware systems, such as microcontrollers, cameras and data recording devices.
  *
- * @subsection ttl_mod_dependencies Dependencies:
+ * @section ttl_mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
@@ -37,7 +37,7 @@ class TTLModule final : public Module
 {
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin for TTLModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for TTLModule instance."
         );
 
     public:
@@ -130,7 +130,7 @@ class TTLModule final : public Module
         {
                 uint32_t pulse_duration = 10000;  ///< The time, in microseconds, the pin outputs HIGH during pulses.
                 uint8_t average_pool_size = 0;  ///< The number of digital readouts to average when checking pin state.
-        } __attribute__((packed)) _custom_parameters;
+        } PACKED_STRUCT _custom_parameters;
 
         /// Sends a digital pulse through the output pin, using the preconfigured pulse_duration of microseconds.
         /// Supports non-blocking execution and respects the global ttl_lock state.

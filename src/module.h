@@ -2,7 +2,7 @@
  * @file
  * @brief The header file for the base Module class, which is used as a parent for all custom module classes.
  *
- * @subsection mod_description Description:
+ * @section mod_description Description:
  *
  * @note Every custom module class should inherit from this class. This class serves two major purposes. First, it
  * provides a static interface used by Kernel and Communication classes. This enables Core classes from this library to
@@ -24,7 +24,7 @@
  * to be defined by developers for each custom module. Due to their consistent signature, the Kernel can use these
  * methods regardless of the specific implementation of each method.
  *
- * @subsection mod_developer_notes Developer Notes:
+ * @section mod_developer_notes Developer Notes:
  * This is one of the key Core level classes that is critically important for the functioning of the whole AMC codebase.
  * Generally, only Kernel developers with a good grasp of the codebase should be modifying this base class. This is
  * especially relevant for class versions that modify existing functionality and, as such, are likely to be incompatible
@@ -48,7 +48,7 @@
  * Regardless of the use method, any custom Module inheriting from the Module class has to implement ALL purely virtual
  * method to make the resultant class usable by the Kernel class.
  *
- * @subsection mod_dependencies Dependencies:
+ * @section mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
@@ -239,7 +239,7 @@ class Module
          * When repeating cyclic commands, the method ensures the recurrent timeout has expired before reactivating
          * the command.
          *
-         * @notes The Kernel uses this method to set up the command to be executed when RunActiveCommand() method is
+         * @note The Kernel uses this method to set up the command to be executed when RunActiveCommand() method is
          * called. Additionally, as a form of runtime scheduler optimization, RunActiveCommand() is only called if
          * this method returns true (activates a command). This ensures idle modules do not consume CPU time.
          *
@@ -351,7 +351,7 @@ class Module
          * correctly or does not have proper parameters may execute a command in a way that damages the managed physical
          * hardware.
          *
-         * @notes Experienced developers can replace the 'default' case of the RunActiveCommand() switch statement with
+         * @note Experienced developers can replace the 'default' case of the RunActiveCommand() switch statement with
          * a call to this method and return 'true' to the Kernel. This may save some processing time.
          */
         void SendCommandActivationError() const

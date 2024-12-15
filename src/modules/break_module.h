@@ -3,7 +3,7 @@
  * @brief The header-only file for the BreakModule class. This class allows interfacing with a break to dynamically
  * control the motion of break-coupled objects.
  *
- * @subsection brk_mod_dependencies Dependencies:
+ * @section brk_mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
@@ -40,7 +40,7 @@ class BreakModule final : public Module
         // Ensures that the output pin does not interfere with LED pin.
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin for BreakModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for BreakModule instance."
         );
 
     public:
@@ -122,7 +122,7 @@ class BreakModule final : public Module
         struct CustomRuntimeParameters
         {
                 uint8_t breaking_strength = 128;  ///< Determines the strength of the break when it uses the PWM mode.
-        } __attribute__((packed)) _custom_parameters;
+        } PACKED_STRUCT _custom_parameters;
 
         /// Depending on the break configuration, stores the digital signal that needs to be sent to the output pin to
         /// engage the break at maximum strength.

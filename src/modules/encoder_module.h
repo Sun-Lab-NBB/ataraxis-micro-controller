@@ -7,7 +7,7 @@
  * AttachInterrupt(). Disable the 'ENCODER_USE_INTERRUPTS' macro defined at the top of the file to make this file
  * compatible with other interrupt libraries.
  *
- * @subsection enc_mod_dependencies Dependencies:
+ * @section enc_mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - Encoder.h for the low-level API that detects and tracks quadrature encoder pulses using interrupt pins.
  * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
@@ -46,11 +46,13 @@
  * triggered before pin B, the counter increases, which corresponds to the CCW movement. This flag allows reversing
  * this relationship, which may be helpful, depending on how the encoder is mounted and wired.
  */
-template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kPinX, const bool kInvertDirection>
+template <const uint8_t kPinA, const uint8_t kPinB, const uint8_t kPinX, const bool kInvertDirection = false>
 class EncoderModule final : public Module
 {
         // Ensures that the encoder pins are different.
-        static_assert(kPinA != kPinB != kPinX, "EncoderModule pins cannot be the same!");
+        static_assert(kPinA != kPinB, "EncoderModule PinA and PinB cannot be the same!");
+        static_assert(kPinA != kPinX, "EncoderModule PinA and PinX cannot be the same!");
+        static_assert(kPinB != kPinX, "EncoderModule PinB and PinX cannot be the same!");
 
         // Also ensures that encoder pins do not interfere with LED pin.
         static_assert(
@@ -157,7 +159,7 @@ class EncoderModule final : public Module
                 bool report_CCW          = true;  ///< Determines whether to report changes in the CCW direction.
                 bool report_CW           = true;  ///< Determines whether to report changes in the CW direction.
                 uint32_t delta_threshold = 20;    ///< The minimum pulse count change (delta) for reporting changes.
-        } __attribute__((packed)) _custom_parameters;
+        } PACKED_STRUCT _custom_parameters;
 
         /// The encoder class that abstracts low-level access to the Encoder pins and provides an easy API to retrieve
         /// the automatically incremented encoder pulse vector. The vector can be reset by setting it to 0, and the
@@ -233,7 +235,7 @@ class EncoderModule final : public Module
 
             // If the value is negative, this is interpreted as rotation in the Clockwise direction.
             // If the delta is greater than the reporting threshold, sends it to the PC.
-            if (_overflow < 0 && delta >= _custom_parameters.delta_threshold)
+            if (_overflow < 0 && delta > _custom_parameters.delta_threshold)
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCW),
@@ -245,7 +247,7 @@ class EncoderModule final : public Module
 
             // If the value is positive, this is interpreted as the CCW movement direction.
             // Same as above, if the delta is greater than or equal to the readout threshold, sends the data to the PC.
-            else if (_overflow > 0 && delta >= _custom_parameters.delta_threshold)
+            else if (_overflow > 0 && delta > _custom_parameters.delta_threshold)
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCCW),

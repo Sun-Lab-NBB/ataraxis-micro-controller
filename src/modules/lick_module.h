@@ -7,7 +7,7 @@
  * class will likely work for other purposes that benefit from detecting wet or dry contacts, such as touch or lick
  * sensors.
  *
- * @subsection lck_mod_dependencies Dependencies:
+ * @section lck_mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - module.h for the shared Module class API access (integrates the custom module into runtime flow).
@@ -42,7 +42,7 @@ class LickModule final : public Module
         // Ensures that the pin does not interfere with LED pin.
         static_assert(
             kPin != LED_BUILTIN,
-            "LED-connected pin is reserved for LED manipulation. Select a different pin for LickModule class."
+            "LED-connected pin is reserved for LED manipulation. Select a different pin for LickModule instance."
         );
 
     public:
@@ -100,11 +100,11 @@ class LickModule final : public Module
             // Sets pin to Input mode.
             pinModeFast(kPin, INPUT);
 
-            // Resets the custom_parameters structure fields to their default values.
-            _custom_parameters.lower_threshold   = 0;      // Disables the lower threshold.
-            _custom_parameters.upper_threshold   = 65535;  // Disables the upper threshold.
-            _custom_parameters.delta_threshold   = 1000;   // Sets the threshold to ~25% of the full sensor range.
-            _custom_parameters.average_pool_size = 10;     // Averages 10 pin readouts.
+            // Resets the custom_parameters structure fields to their default values. Assumes 12-bit ADC resolution.
+            _custom_parameters.lower_threshold   = 1000;   // ~0.8 / 1.2 V, depending on CPU voltage rating.
+            _custom_parameters.upper_threshold   = 65535;  // 3.3/ 5.0 V, depending on CPU voltage rating.
+            _custom_parameters.delta_threshold   = 500;    // Reports changes of ~0.4 / 0.6 V steps.
+            _custom_parameters.average_pool_size = 50;     // Averages 50 readouts to eliminate noise.
 
             return true;
         }
@@ -115,11 +115,11 @@ class LickModule final : public Module
         /// Stores custom addressable runtime parameters of the module.
         struct CustomRuntimeParameters
         {
-                uint16_t lower_threshold  = 0;      ///< The lower boundary for signals to be reported to PC.
-                uint16_t upper_threshold  = 65535;  ///< The upper boundary for signals to be reported to PC.
-                uint16_t delta_threshold  = 1000;   ///< The minimum difference between pin checks to be reported to PC.
-                uint8_t average_pool_size = 10;     ///< The number of readouts to average into pin state value.
-        } __attribute__((packed)) _custom_parameters;
+                uint16_t lower_threshold = 1000;   ///< The lower boundary for signals to be reported to PC.
+                uint16_t upper_threshold = 65535;  ///< The upper boundary for signals to be reported to PC.
+                uint16_t delta_threshold = 500;  ///< The minimum signal difference between checks to be reported to PC.
+                uint8_t average_pool_size = 50;  ///< The number of readouts to average into pin state value.
+        } PACKED_STRUCT _custom_parameters;
 
         /// Checks the signal received by the input pin and, if necessary, reports it to the PC.
         void CheckState()
@@ -142,9 +142,8 @@ class LickModule final : public Module
             const auto delta =
                 static_cast<uint16_t>(abs(static_cast<int32_t>(signal) - static_cast<int32_t>(previous_readout)));
 
-            // Prevents reporting signals that are the same as the previous readout value. Also prevents sending signals
-            // that are not significantly different from the previous readout value.
-            if (delta == 0 || delta < _custom_parameters.delta_threshold)
+            // Prevents reporting signals that are not significantly different from the previous readout value.
+            if (delta <= _custom_parameters.delta_threshold)
             {
                 CompleteCommand();
                 return;
