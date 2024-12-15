@@ -3,63 +3,78 @@
 A C++ library for Arduino and Teensy microcontrollers that integrates user-defined hardware modules with Python clients
 running Ataraxis software.
 
+![c++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=C%2B%2B&logoColor=white)
+![arduino](https://img.shields.io/badge/Arduino-00878F?logo=arduino&logoColor=fff&style=plastic)
+![platformio](https://shields.io/badge/PlatformIO-E37B0D?style=flat&logo=platformio&logoColor=white)
+![license](https://img.shields.io/badge/license-GPLv3-blue)
+___
+
 ## Detailed Description
 
-This library supports the concurrent operation of many different hardware modules by providing unified communication 
-and task scheduling services. In turn, this allows developers to focus on implementing the hardware and logic of 
-their modules. This is achieved via the 2 main parts of the library: the TransportLayer class and the microcontroller 
-core classes.
+This library supports the concurrent operation of many unique user-defined hardware modules by providing communication 
+and task scheduling services. In turn, this allows developers to focus on implementing the modules, instead of worrying 
+about data transmission and control flow. This is achieved via the 2 main parts of the library: the TransportLayer class
+and the microcontroller Core classes (Communication, Kernel, and Module).
 
 The TransportLayer provides the serial protocol for bidirectionally communicating with a host-computer running the 
-[ataraxis-transport-layer](https://github.com/Sun-Lab-NBB/ataraxis-transport-layer) Python library. It has been tuned 
-for performance, achieving microsecond communication speeds while ensuring payload integrity. While the class is 
-originally designed to support the microcontroller core classes, it can also be used independently in non-Ataraxis 
-projects.
+[ataraxis-transport-layer](https://github.com/Sun-Lab-NBB/ataraxis-transport-layer) Python library. It is tuned 
+for performance, achieving microsecond communication speeds while ensuring the integrity of transmitted payloads. While 
+the class is originally designed to support the microcontroller Core classes, it can also be used as a standalone 
+module for independent projects.
 
-The microcontroller core provides the framework that integrates user-defined hardware with Python clients. To do so, it 
-defines a shared API that can be integrated into user-defined modules by subclassing the (base) Module class defined by 
-this library. It also provides the Kernel class that manages task scheduling during runtimes and the Communication 
-class, which allows custom modules to communicate to the PC via the TransportLayer binding.
+The microcontroller Core provides the framework that integrates user-defined hardware with Python clients. To do so, it 
+defines a shared API that can be integrated into user-defined modules by subclassing the (base) Module class. It also 
+provides the Kernel class that manages task scheduling during runtime, and the Communication class, which allows custom 
+modules to communicate to Python clients via the TransportLayer binding.
+___
 
 ## Features
 
-- Supports Arduino and Teensy microcontrollers built on SAM architecture.
-- Provides an easy-to-implement API that integrates any custom hardware module with Python clients running Ataraxis
-- software.
+- Supports Arduino and Teensy microcontrollers built on 
+[ARM architecture](https://en.wikipedia.org/wiki/Atmel_ARM-based_processors#Products).
+- Provides an easy-to-implement API that integrates any user-defined hardware with Python clients running Ataraxis
+  software.
 - Uses robust communication protocol that ensures data integrity via the Circular Redundancy Check (up to CRC-32) and 
-Consistent Overhead Byte Stuffing payload encoding.
+  Consistent Overhead Byte Stuffing payload encoding.
 - Abstracts communication and microcontroller runtime management through a set of Core classes that can be tuned to 
-optimize latency or throughput.
+  optimize latency or throughput.
 - GPL 3 License.
+___
 
 ## Table of Contents
 
 - [Dependencies](#dependencies)
 - [Installation](#installation)
 - [Usage](#usage)
+- [API Documentation](#api-documentation)
 - [Developers](#developers)
+- [Versioning](#versioning)
 - [Authors](#authors)
 - [License](#license)
 - [Acknowledgements](#Acknowledgments)
+___
 
 ## Dependencies
 
+### Main Dependency
 - An IDE or Framework capable of uploading microcontroller software. Use [Platformio](https://platformio.org/install) if
   you want to use the project the way it was built, tested, and used by the authors. Overall, it is highly encouraged to
-  at
-  least give this framework a try, as it greatly simplifies working with embedded projects.
+  at least give this framework a try, as it greatly simplifies working with embedded projects.
   Alternatively, [Arduino IDE](https://www.arduino.cc/en/software) is also fully compatible with this project and
-  satisfies this dependency.
+  satisfies this dependency, although its use is discouraged.
 
-- [Python](https://www.python.org/). This is only required for users that want to use the Platformio framework.
-  Platformio is known to specifically require the standalone version of Python to be installed to work properly, so it
-  is
-  highly advised to install the latest stable Python version in addition to any environment manager you may already
-  have.
+### Additional Dependencies
+These dependencies will be automatically resolved whenever the library is installed via Platformio. ***They are 
+mandatory for all other IDEs / Frameworks!***
 
-For users, all other library dependencies are installed automatically for all supported installation methods (see
-[Installation](#Installation) section). For developers, see the [Developers](#Developers) section for information on
-installing additional development dependencies.
+- [digitalWriteFast](https://github.com/ArminJo/digitalWriteFast).
+- [elapsedMillis](https://github.com/pfeerick/elapsedMillis/blob/master/elapsedMillis.h).
+- [Encoder](https://github.com/PaulStoffregen/Encoder). This dependency is **optional** if you do not intend to use the 
+  default EncoderModule class.
+
+For developers, see the [Developers](#developers) section for information on installing additional development 
+dependencies.
+___
 
 ## Installation
 
@@ -67,48 +82,26 @@ installing additional development dependencies.
 
 Note, installation from source is ***highly discouraged*** for everyone who is not an active project developer.
 Developers should see the [Developers](#Developers) section for more details on installing from source. The instructions
-below assume you are ***not*** a developer and additionally only cover source installation with Platformio, as this is
-the only framework that may benefit from installation from source.
+below assume you are ***not*** a developer.
 
-1. Download this repository to your local machine using your preferred method, such as Git-cloning.
-2. Remove the 'main.cpp' file from the 'src' directory of the project.
-3. Move all remaining 'src' directory contents into the appropriate destination ('include,' 'src' or 'libs') of your
-   project.
-4. Add ```include <serialized_transfer_protocol.h>``` to the top of the file(s) to access the STP API.
+1. Download this repository to your local machine using your preferred method, such as Git-cloning. Optionally, use one
+   of the stable releases from [GitHub](https://github.com/Sun-Lab-NBB/ataraxis-micro-controller).
+2. Remove the '[main.cpp](./src/main.cpp)' file from the 'src' directory of the project.
+3. Move all remaining '[src](./src)' contents, required by your project, into the appropriate destination 
+   ('include,' 'src' or 'libs') directory of your project.
+4. Add header file inclusions to the files that need access to the classes from this library, e.g.: 
+   ```include <module.h>```.
 
 ### Platformio
 
-Best method:
-
 1. Navigate to your platformio.ini file and add the following line to your target environment specification:
-   ```lib_deps = inkaros/SerializedTransferProtocol_Microcontroller@^1.0.0```. If you already have lib_deps
-   specification,
-   add the library specification to the existing list of used libraries.
-2. Add ```include <serialized_transfer_protocol.h>``` to the top of the file(s) to access the STP API.
-
-Alternatively, you can use the following method to add the library via platformio GUI:
-
-1. Use the following command from your CLI to navigate to platformio home page ```pio home```.
-2. In the left-hand navigation panel, select the 'Libraries' menu.
-3. Use the navigation bar of the 'Libraries' page to search for ```SerializedTransferProtocol_Microcontroller```.
-4. Click on the discovered library and in the library window click ```Add to project``` button. Make sure the library is
-   listed under 'inkaros' account (by Ivan Kondratyev).
-5. Select the target project and let platformio do the necessary .ini file modifications for you.
-6. Add ```include <serialized_transfer_protocol.h>``` to the top of the file(s) to access the STP API.
-
-### Arduino IDE
-
-Install this library using ArduinoIDE GUI:
-
-1. Navigate to the Library Manager menu using the left-hand panel.
-2. Use the search bar to search for ```SerializedTransferProtocol_Microcontroller```.
-3. Select the desired library version and click on the ```Install``` button. Make sure the library is listed under
-   'Inkaros' account (by Ivan Kondratyev).
-4. Add ```include <serialized_transfer_protocol.h>``` to the top of the file(s) to access the STP API.
+   ```lib_deps = inkaros/ataraxis-micro-controller@^1.0.0```. If you already have lib_deps specification, add the 
+   library specification to the existing list of used libraries.
+2. Add ```include <ataraxis_micro_controller.h>``` to the top of the file(s) that need to access classes from this 
+   library.
+___
 
 ## Usage
-See the API documentation[LINK STUB] for the detailed description of the project API and more use examples.
-
 
 ### TransportLayer
 The TransportLayer class provides an intermediate-level API for bidirectional communication over USB or UART interfaces. 
@@ -475,6 +468,14 @@ comm_class.ExtractParameters(data_message);
 uint8_t return_code = static_cast<uint8_t>( comm_class.module_dequeue.return_code);   // Extract return_code
 uint8_t command = static_cast<uint8_t>(comm_class.repeated_module_command.command);   // Extract command
 ```
+___
+
+## API Documentation
+
+See the [API documentation](https://ataraxis-micro-controller-api-docs.netlify.app/) for the detailed description of 
+the methods and classes exposed by components of this library. The API documentation includes the custom hardware 
+modules shipped with the library.
+___
 
 ## Developers
 
