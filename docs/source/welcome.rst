@@ -1,8 +1,8 @@
 Welcome to ataraxis-micro-controller API documentation page
 ===========================================================
 
-ataraxis-micro-controller is a C++ library that provides methods for interfacing custom hardware managed by Teensy or
-Arduino SAM microcontrollers with project Ataraxis PC infrastructure.
+ataraxis-micro-controller is a C++ library for Arduino and Teensy microcontrollers that integrates user-defined hardware
+modules with Python clients running Ataraxis software.
 
 This library is part of the broader 'Ataraxis' science-automation project, developed in the
 `Sun Lab <https://neuroai.github.io/sunlab/>`_ at Cornell University.
