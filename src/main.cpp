@@ -1,61 +1,49 @@
-// Arena Micro Controller (AMC) Main Executable
-
-// General Description
-//======================================================================================================================
-// AMC controller code is designed to make use of the commonly available DIY circuit boards such as Arduino and Teensy.
-// It acts as a low-level physical controller that can be communicated with using either Serial, MQTT or both
-// communication protocols. Regardless of the communication protocol, the PC sends binary commands in a predetermined
-// format that trigger specific, encapsulated controller behaviors. All low-level logic should preferentially be
-// implemented on the controller, and all high-level logic should be implemented in Python. This way, the fast execution
-// speeds of controller microcode are matched with the versatility of Python running on faster PC cores.
-//======================================================================================================================
-
-// Microcode Architecture
-//======================================================================================================================
-// The microcode is subdivided into multiple blocks, each corresponding to unique General Mode the controller can
-// operate in. Each GM has a special purpose, Rx/Tx data packaging and functions that are specifically tuned to support
-// the intended GM function. Many functions are further affected by particular physical implementations they are coupled
-// with (specific experimental apparatus designs). Where possible, the functions are designed to use configurable
-// parameters that can be set via Python to support adjusting the controller code to the particular controlled apparatus
-// without a manual code rewrite. The benefit of the architecture is the optimization of rx/tx protocols which cuts down
-// the communication time between the controller and PC, albeit at the cost of more manual tweaking compared to
-// solutions like Firmata protocol. Note, the architecture currently adopts the GM-based controller layout policy and
-// Query-based communication standards. This allows for overall code standardization and optimization across all
-// controller implementations, despite being less efficient in some particular use cases.
-
-// Currently, the used binary protocol supports 254 unique general modes, 25 commands (1 through 25) for each general
-// mode with 5 unique state markers (1 through 5). Overall, this should be enough for the vast majority of cases,
-// but these parameters can be further increased in the future by changing the protocol transmission variable types.
-
-// Code Version 2.0.0
-// This code is primarily designed as a companion for the main runtime written in python and running on the control PC.
-// See project https://github.com/Inkaros/Ataraxis for more details.
-// Author: Ivan Kondratyev (ik278@cornell.edu).
-//======================================================================================================================
+/**
+ * @file
+ * @brief Arena Micro Controller (AXMC) main executable.
+ *
+ * This executable showcases how to use this library and also provides the default functionality used by the
+ * SunLab.
+ *
+ * @notes This codebase is written to be integrated with the ataraxis-transport-layer PC library.
+ *
+ * See https://github.com/Sun-Lab-NBB/ataraxis-micro-controller for more details.
+ * API documentation: https://ataraxis-micro-controller-api-docs.netlify.app/
+ * Author: Ivan Kondratyev (Inkaros).
+ */
 
 // Dependencies
 #include "Arduino.h"
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
+#include "modules/break_module.h"
 #include "modules/encoder_module.h"
+#include "modules/lick_module.h"
 #include "modules/ttl_module.h"
+#include "modules/valve_module.h"
+#include "modules/torque_module.h"
 #include "shared_assets.h"
 
 // Pre-initializes global assets
 shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters;  // Shared controller-wide parameters
-constexpr uint8_t kControllerID = 101;                             // Unique ID for the controller
+constexpr uint8_t kControllerID = 123;                             // Unique ID for the controller
 
 // NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
 Communication axmc_communication(Serial);  // Shared class that manages all incoming and outgoing communications
 
 // Instantiates module classes. Each module class manages a specific type and instance of physical hardware, e.g.:
 // a treadmill motor.
-TTLModule<1> mesoscope_ttl(2, 1, axmc_communication, DynamicRuntimeParameters);
-EncoderModule<10, 11, false> wheel_encoder(3, 1, axmc_communication, DynamicRuntimeParameters);
+TTLModule<33> mesoscope_frame(1, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
+TTLModule<33> mesoscope_trigger(1, 2, axmc_communication, DynamicRuntimeParameters); // Actor
+EncoderModule<33, 34, 35> wheel_encoder(2, 1, axmc_communication, DynamicRuntimeParameters);  // Encoder
+BreakModule<29, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);  // Actor
+LickModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
+ValveModule<28, true> reward_valve(5, 2, axmc_communication, DynamicRuntimeParameters);  // Actor
+TorqueModule<16, 2048> torque_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);  // Sensor
 
 // Packages all modules into an array to be managed by the Kernel class.
-Module* modules[] = {&mesoscope_ttl, &wheel_encoder};
+Module* modules[] = {&mesoscope_frame, &wheel_break, &reward_valve};
 
 // Instantiates the Kernel class using the assets instantiated above.
 Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);
@@ -68,6 +56,10 @@ void setup()
     // Sets ADC resolution to 12 bits. Teensies can support 16 bits too, but 12 often produces cleaner readouts.
     analogReadResolution(12);
     axmc_kernel.Setup();  // Carries out the rest of the setup depending on the module configuration.
+
+    DynamicRuntimeParameters.action_lock = false;
+    DynamicRuntimeParameters.ttl_lock    = false;
+    reward_valve.QueueCommand(2, true);
 }
 
 // This function is executed continuously while the controller is powered. Since Kernel manages the runtime, only the

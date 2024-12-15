@@ -11,7 +11,7 @@
  * Communication class functions as an opinionated extension of the TransportLayer class, enforcing consistent
  * message structures and runtime error handling behaviors.
  *
- * @subsection developer_notes Developer Notes:
+ * @section developer_notes Developer Notes:
  *
  * This is a high-level API wrapper for the low-level TransportLayer class. It is used to define the
  * communicated payload microstructure and abstracts away all communication steps.
@@ -45,10 +45,11 @@
  *
  * - **Protocol**: |Start Byte| |Header Preamble| |Protocol Code| |Message Payload| |Delimiter Byte| |CRC Postamble|.
  *
- * @subsection dependencies Dependencies:
+ * @section comm_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
  * - shared_assets.h for globally shared assets, including communication_assets namespace.
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
  */
 
 #ifndef AXMC_COMMUNICATION_H
@@ -58,6 +59,7 @@
 #include <Arduino.h>
 #include "shared_assets.h"
 #include "transport_layer.h"
+#include "digitalWriteFast.h"
 
 // Statically defines the size of the Serial class reception buffer associated with different Arduino and Teensy board
 // architectures. This is required to ensure the Communication class is configured appropriately. If you need to adjust

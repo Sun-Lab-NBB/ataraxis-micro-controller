@@ -2,7 +2,7 @@
  * @file
  * @brief The header file for the Kernel class, which is used to manage the Microcontroller runtime.
  *
- * @subsection kern_description Description:
+ * @section kern_description Description:
  *
  * For most other classes of this library to work as expected, the Microcontroller should instantiate and use a Kernel
  * instance to manage its runtime. This class manages communication, resolves success and error codes and schedules
@@ -24,14 +24,14 @@
  * identify the controller and fully reset all hardware and software parameters of the controller. See the class
  * enumerations for specific command codes.
  *
- * @subsection kern_developer_notes Developer Notes:
+ * @section kern_developer_notes Developer Notes:
  * This class functions similar to major OS kernels, although it is considerably limited in scope. Specifically, it
  * manages all compatible Modules and handles communication with other Ataraxis systems. This class is very important
  * for the correct functioning of the library and, therefore, it should not be modified, if possible. Any modifications
  * to this class may require modifications to some or all other base (Core) classes of this library, as well as any
  * custom classes derived from the Core classes.
  *
- * @subsection mod_dependencies Dependencies:
+ * @section kern_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
@@ -78,7 +78,7 @@ class Kernel
 {
     public:
         /**
-         * @struct kKernelStatusCodes
+         * @enum kKernelStatusCodes
          * @brief Specifies the byte-codes for errors and states that can be encountered during Kernel class method
          * execution.
          *
@@ -107,7 +107,7 @@ class Kernel
         };
 
         /**
-         * @struct kKernelCommands
+         * @enum kKernelCommands
          * @brief Specifies the byte-codes for commands that can be executed during runtime.
          *
          * The Kernel class uses these byte-codes to communicate what command was executed when it sends data messages
@@ -456,7 +456,7 @@ class Kernel
         bool _setup_complete = false;
 
         /**
-         * @breif Attempts to receive (parse) a message from the data contained in the circular reception buffer of the
+         * @brief Attempts to receive (parse) a message from the data contained in the circular reception buffer of the
          * Communication class.
          *
          * The RuntimeCycle method repeatedly calls this method until it returns an undefined protocol code (0).

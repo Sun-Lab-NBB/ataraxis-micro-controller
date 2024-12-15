@@ -2,7 +2,7 @@
  * @file
  * @brief The header file for the base Module class, which is used as a parent for all custom module classes.
  *
- * @subsection mod_description Description:
+ * @section mod_description Description:
  *
  * @note Every custom module class should inherit from this class. This class serves two major purposes. First, it
  * provides a static interface used by Kernel and Communication classes. This enables Core classes from this library to
@@ -24,7 +24,7 @@
  * to be defined by developers for each custom module. Due to their consistent signature, the Kernel can use these
  * methods regardless of the specific implementation of each method.
  *
- * @subsection mod_developer_notes Developer Notes:
+ * @section mod_developer_notes Developer Notes:
  * This is one of the key Core level classes that is critically important for the functioning of the whole AMC codebase.
  * Generally, only Kernel developers with a good grasp of the codebase should be modifying this base class. This is
  * especially relevant for class versions that modify existing functionality and, as such, are likely to be incompatible
@@ -48,7 +48,7 @@
  * Regardless of the use method, any custom Module inheriting from the Module class has to implement ALL purely virtual
  * method to make the resultant class usable by the Kernel class.
  *
- * @subsection mod_dependencies Dependencies:
+ * @section mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
@@ -239,7 +239,7 @@ class Module
          * When repeating cyclic commands, the method ensures the recurrent timeout has expired before reactivating
          * the command.
          *
-         * @notes The Kernel uses this method to set up the command to be executed when RunActiveCommand() method is
+         * @note The Kernel uses this method to set up the command to be executed when RunActiveCommand() method is
          * called. Additionally, as a form of runtime scheduler optimization, RunActiveCommand() is only called if
          * this method returns true (activates a command). This ensures idle modules do not consume CPU time.
          *
@@ -288,9 +288,9 @@ class Module
                 execution_parameters.next_command != 0)
             {
                 // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
-                execution_parameters.command         = execution_parameters.next_command;
-                execution_parameters.noblock         = execution_parameters.next_noblock;
-                execution_parameters.stage           = 1;
+                execution_parameters.command = execution_parameters.next_command;
+                execution_parameters.noblock = execution_parameters.next_noblock;
+                execution_parameters.stage   = 1;
                 return true;  // Indicates there is a command to run.
             }
 
@@ -351,7 +351,7 @@ class Module
          * correctly or does not have proper parameters may execute a command in a way that damages the managed physical
          * hardware.
          *
-         * @notes Experienced developers can replace the 'default' case of the RunActiveCommand() switch statement with
+         * @note Experienced developers can replace the 'default' case of the RunActiveCommand() switch statement with
          * a call to this method and return 'true' to the Kernel. This may save some processing time.
          */
         void SendCommandActivationError() const
@@ -496,6 +496,19 @@ class Module
             return execution_parameters.command;
         }
 
+        /// This method completes the currently active command and ensures it will not run again if it is recurrent.
+        /// Use this method to abort the runtime of a command that runs into an error that is likely not recoverable.
+        /// Otherwise, if the command sends error messages to the PC, it may overwhelm the communication interface by
+        /// spamming the same error message.
+        void AbortCommand()
+        {
+            // Ensures the failed command is cleared from the recurrent queue. If the new_command flag is true,
+            // this indicates that the current command will be replaced with a new command anyway, so clearing
+            // the recurrent activation is not necessary.
+            if (!execution_parameters.new_command) ResetCommandQueue();
+            CompleteCommand();  // Finishes the command execution and sends the completion message to the PC.
+        }
+
         /**
          * @brief Resets the timer that tracks the delay between active command stages.
          *
@@ -565,7 +578,8 @@ class Module
             // Resolves and, if necessary, notifies the PC that the active command has been completed. This is only done
             // for commands that have finished their runtime. Specifically, recurrent commands do not report completion
             // until they are canceled or replaced by a new command. One-shot commands always report completion.
-            if (execution_parameters.new_command || execution_parameters.next_command == 0)
+            if (execution_parameters.new_command || execution_parameters.next_command == 0 ||
+                !execution_parameters.run_recurrently)
             {
                 // Since this automatically accesses execution_parameters.command for command code, this has to be
                 // called before resetting the command field.
@@ -576,6 +590,10 @@ class Module
             execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
             execution_parameters.recurrent_timer =
                 0;  // Resets the recurrent command timer when the command is completed
+
+            // If the command that has just been completed is not a recurrent command and there is no new command,
+            // resets the command queue to clear out the completed command data.
+            if (!execution_parameters.new_command && !execution_parameters.run_recurrently) ResetCommandQueue();
         }
 
         /**
@@ -713,25 +731,23 @@ class Module
          * @param value The boolean value to set the pin to.
          * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
          * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
-         * applicable, either of these parameters prevents setting the pin to HIGH and, instead, ensures the pin is set
-         * to LOW.
+         * applicable, either of these parameters prevents changing the pin output value.
          *
-         * @returns Current output level (HIGH or LOW) the pin has been set to.
+         * @returns bool @b true if the pin has been set to the requested value and @b false if the pin is locked and
+         * has not been set.
          */
         [[nodiscard]]
         bool DigitalWrite(const uint8_t pin, const bool value, const bool ttl_pin) const
         {
-            // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to LOW and returns
-            // the current value of the pin (LOW).
+            // If the appropriate lock parameter for the pin is enabled, returns false to indicate that the pin is
+            // locked.
             if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
-            {
-                digitalWriteFast(pin, LOW);
                 return false;
-            }
 
-            // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
+            // If the pin is not locked, sets it to the requested value and returns true to indicate tha the pin was
+            // triggered successfully.
             digitalWriteFast(pin, value);
-            return value;
+            return true;
         }
 
         /**
@@ -750,25 +766,22 @@ class Module
          * analog pin cycling behavior.
          * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
          * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
-         * applicable, either of these parameters prevents setting the pin to any positive value and, instead, ensures
-         * the pin is set to 0.
+         * applicable, either of these parameters prevents changing the pin output value.
          *
-         * @returns Current duty cycle (0 to 255) the pin has been set to.
+         * @returns bool @b true if the pin has been set to the requested value and @b false if the pin is locked and
+         * has not been set.
          */
         [[nodiscard]]
-        uint8_t AnalogWrite(const uint8_t pin, const uint8_t value, const bool ttl_pin) const
+        bool AnalogWrite(const uint8_t pin, const uint8_t value, const bool ttl_pin) const
         {
             // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to 0
             // (constantly off) and returns the current value of the pin (0).
             if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
-            {
-                analogWrite(pin, 0);
-                return 0;
-            }
+                return false;
 
             // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
             analogWrite(pin, value);
-            return value;
+            return true;
         }
 
         /**

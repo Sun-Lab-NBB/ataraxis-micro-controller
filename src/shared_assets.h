@@ -27,6 +27,17 @@
 #include <Arduino.h>
 
 /**
+ * @brief Runtime parameters structure with packed memory layout.
+ *
+ * Uses packed attribute to ensure the structure can be properly serialized during data transmission.
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define PACKED_STRUCT __attribute__((packed))
+#else
+#define PACKED_STRUCT
+#endif
+
+/**
  * @namespace shared_assets
  * @brief Provides all assets (structures, enumerations, functions) that are intended to be shared between the classes
  * of the library.
@@ -158,7 +169,7 @@ namespace shared_assets
             /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Same as action_lock,
             /// this only works for digital and analog writing methods inherited from the base Module class.
             bool ttl_lock = true;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
     // that is available to Teensy, some assets had to be reimplemented manually. They are implemented in as
@@ -292,7 +303,7 @@ namespace communication_assets
 
     /**
      * @enum kPrototypes
-     * @breif Stores prototype codes used by the Communication class to specify the data structure object that can be
+     * @brief Stores prototype codes used by the Communication class to specify the data structure object that can be
      * used to parse DataMessage objects.
      *
      * Since most transmitted data objects use a small set of data structures, it is possible to uniquely map each
@@ -347,7 +358,7 @@ namespace communication_assets
             /// The period of time, in microseconds, to delay before repeating (cycling) the command. This is only used
             /// if the cycle flag is True.
             uint32_t cycle_delay = 0;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct OneOffModuleCommand
@@ -373,7 +384,7 @@ namespace communication_assets
             /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise,
             /// the controller will run other commands concurrently, while waiting for the block to complete.
             bool noblock = false;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct DequeueModuleCommand
@@ -391,7 +402,7 @@ namespace communication_assets
             /// sender upon successfully processing the received command. This is to notify the sender that the command
             /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
             uint8_t return_code = 0;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct KernelCommand
@@ -408,7 +419,7 @@ namespace communication_assets
 
             /// The unique code of the command to execute.
             uint8_t command = 0;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct ModuleParameters
@@ -430,13 +441,13 @@ namespace communication_assets
             /// sender upon successfully processing the received command. This is to notify the sender that the command
             /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
             uint8_t return_code = 0;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct KernelParameters
      * @brief Instructs the Kernel to update the shared DynamicRuntimeParameters object with included data.
      *
-     * @notes Since the target data structure for this method is static and known at compile-time, the parser
+     * @note Since the target data structure for this method is static and known at compile-time, the parser
      * will be able to resolve the target structure in-place.
      */
     struct KernelParameters
@@ -449,14 +460,15 @@ namespace communication_assets
             /// Since Kernel parameter structure is known at compile-time, this message structure automatically knows
             /// the shape of the transmitted parameters' data.
             shared_assets::DynamicRuntimeParameters dynamic_parameters;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct ModuleData
      * @brief Communicates the event state-code of the sender Module and includes an additional data object.
      *
-     * @notes For messages that only need to transmit an event state-code, use ModuleStateMessage structure for better
+     * @note For messages that only need to transmit an event state-code, use ModuleStateMessage structure for better
      * efficiency.
+     *
      *
      * @warning Remember to add the data object matching the included prototype code to the message payload before
      * sending the message.
@@ -483,7 +495,7 @@ namespace communication_assets
             /// message. The PC will read the object data into the prototype object specified by this code.
             uint8_t prototype;
 
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct KernelData
@@ -511,7 +523,7 @@ namespace communication_assets
             /// message. The PC will read the object data into the prototype object specified by this code.
             uint8_t prototype;
 
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct ModuleState
@@ -537,7 +549,7 @@ namespace communication_assets
 
             /// The unique code of the event within the command runtime that prompted the data transmission.
             uint8_t event;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
     /**
      * @struct KernelState
@@ -557,7 +569,7 @@ namespace communication_assets
 
             /// The unique code of the event within the command runtime that prompted the data transmission.
             uint8_t event;
-    } __attribute__((packed));
+    } PACKED_STRUCT;
 
 }  // namespace communication_assets
 

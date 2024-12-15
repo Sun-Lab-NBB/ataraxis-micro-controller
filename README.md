@@ -1,25 +1,35 @@
-# SerializedTransferProtocol-Microcontroller
+# ataraxis-micro-controller
 
-The version of the SerializedTransferProtocol (STP) project intended to be used with Microcontroller platforms such as
-Arduino and Teensy to enable fast bidirectional communication with other devices over the USB or UART interface, using
-serialized payloads.
+A C++ library for Arduino and Teensy microcontrollers that integrates user-defined hardware modules with Python clients
+running Ataraxis software.
 
 ## Detailed Description
 
-The SerializedTransferProtocol_Microcontroller (STP_M) library is a C++ library that is part of the broader
-multiplatform SerializedTransferProtocol (STP) project. The STP project provides a fast and reliable way of serializing
-and transferring data between different platforms, targeting realtime applications, such as scientific experiments. This
-particular implementation is designed specifically for Microcontroller platforms, such as Arduino and Teensy boards, and
-uses the serial USB or UART interface of the board to communicate with the connected device (most commonly the host PC).
+This library supports the concurrent operation of many different hardware modules by providing unified communication 
+and task scheduling services. In turn, this allows developers to focus on implementing the hardware and logic of 
+their modules. This is achieved via the 2 main parts of the library: the TransportLayer class and the microcontroller 
+core classes.
+
+The TransportLayer provides the serial protocol for bidirectionally communicating with a host-computer running the 
+[ataraxis-transport-layer](https://github.com/Sun-Lab-NBB/ataraxis-transport-layer) Python library. It has been tuned 
+for performance, achieving microsecond communication speeds while ensuring payload integrity. While the class is 
+originally designed to support the microcontroller core classes, it can also be used independently in non-Ataraxis 
+projects.
+
+The microcontroller core provides the framework that integrates user-defined hardware with Python clients. To do so, it 
+defines a shared API that can be integrated into user-defined modules by subclassing the (base) Module class defined by 
+this library. It also provides the Kernel class that manages task scheduling during runtimes and the Communication 
+class, which allows custom modules to communicate to the PC via the TransportLayer binding.
 
 ## Features
 
-- Supports all Arduino and Teensy architectures and platforms.
-- Only minor modifications are needed to add support for more architectures / platforms.
-- Uses Consistent Overhead Byte Stuffing (COBS) to encode payloads.
-- Supports Circular Redundancy Check (CRC) 8-, 16- and 32-bit polynomials to ensure data integrity during transmission.
-- Fully configurable through Constructor and Template parameters.
-- Seamlessly integrates with other STP project modules, simplifying cross-platform communication.
+- Supports Arduino and Teensy microcontrollers built on SAM architecture.
+- Provides an easy-to-implement API that integrates any custom hardware module with Python clients running Ataraxis
+- software.
+- Uses robust communication protocol that ensures data integrity via the Circular Redundancy Check (up to CRC-32) and 
+Consistent Overhead Byte Stuffing payload encoding.
+- Abstracts communication and microcontroller runtime management through a set of Core classes that can be tuned to 
+optimize latency or throughput.
 - GPL 3 License.
 
 ## Table of Contents
@@ -532,9 +542,7 @@ This project is licensed under the GPL3 License: see the [LICENSE](LICENSE) file
 
 - All Sun Lab [WEBSITE LINK STUB] members for providing the inspiration and comments during the development of this
   library.
-- My NBB Cohort for answering 'random questions' pertaining to the desired library functionality.
-- [PowerBroker2](https://github.com/PowerBroker2) and his
-  [SerialTransfer](https://github.com/PowerBroker2/SerialTransfer) for inspiring this library and serving as an example
-  and benchmark. This library is in some ways similar and in other ways different from his library, and it is
-  highly encouraged to check SerialTransfer as a good alternative with non-overlapping functionality that may be better
-  for your project.
+- [PowerBroker2](https://github.com/PowerBroker2) and his 
+[SerialTransfer](https://github.com/PowerBroker2/SerialTransfer) for inspiring this library and serving as an example 
+and benchmark. Check SerialTransfer as a good alternative with non-overlapping functionality that may be better for your
+project.
