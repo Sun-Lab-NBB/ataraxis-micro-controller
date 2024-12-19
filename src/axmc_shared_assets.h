@@ -5,10 +5,9 @@
  * @section axmc_sa_description Description:
  *
  * This file contains:
- * - shared_assets namespace that stores general-purpose assets shared between library classes. This includes
- * implementations of some std:: namespace functions, such as is_same_v.
+ * - axmc_shared_assets namespace that stores general-purpose assets shared between library classes.
  * - communication_assets namespace that stores structures and enumerations used by the Communication, Kernel and
- * (base) Module classes to support bidirectional communication with other Ataraxis systems.
+ * (base) Module classes to support bidirectional communication with the PC.
  *
  * @section axmc_sa_developer_notes Developer Notes:
  *
@@ -27,9 +26,10 @@
 #include <Arduino.h>
 
 /**
- * @brief Runtime parameters structure with packed memory layout.
+ * @brief A structure with packed memory layout.
  *
- * Uses packed attribute to ensure the structure can be properly serialized during data transmission.
+ * Uses packed attribute to ensure the structure can be properly serialized during data transmission. This specification
+ * should be used by all structures whose data is sent to the PC or received from the PC.
  */
 #if defined(__GNUC__) || defined(__clang__)
 #define PACKED_STRUCT __attribute__((packed))
@@ -38,98 +38,22 @@
 #endif
 
 /**
- * @namespace shared_assets
+ * @namespace axmc_shared_assets
  * @brief Provides all assets (structures, enumerations, functions) that are intended to be shared between the classes
  * of the library.
  *
  * The shared assets are primarily used to simplify library development by storing co-dependent assets in the same
  * place. Additionally, it simplifies using these assets with template classes from the library.
  */
-namespace shared_assets
+namespace axmc_shared_assets
 {
-    /**
-     * @enum kCOBSProcessorCodes
-     * @brief Assigns meaningful names to all status codes used by the COBSProcessor class.
-     *
-     * @note Due to the unified approach to status-coding in this library, this enumeration should only use code values
-     * in the range of 11 through 50. This is to simplify chained error handling in the TransportLayer class of the
-     * library.
-     */
-    enum class kCOBSProcessorCodes : uint8_t
-    {
-        kStandby                       = 11,  ///< The value used to initialize the cobs_status variable
-        kEncoderTooSmallPayloadSize    = 12,  ///< Encoder failed to encode payload because payload size is too small
-        kEncoderTooLargePayloadSize    = 13,  ///< Encoder failed to encode payload because payload size is too large
-        kEncoderPacketLargerThanBuffer = 14,  ///< Encoded payload buffer is too small to accommodate the packet
-        kPayloadAlreadyEncoded         = 15,  ///< Cannot encode payload as it is already encoded (overhead value != 0)
-        kPayloadEncoded                = 16,  ///< Payload was successfully encoded into a transmittable packet
-        kDecoderTooSmallPacketSize     = 17,  ///< Decoder failed to decode the packet because packet size is too small
-        kDecoderTooLargePacketSize     = 18,  ///< Decoder failed to decode the packet because packet size is too large
-        kDecoderPacketLargerThanBuffer = 19,  ///< Packet size to be decoded is larger than the storage buffer size
-        kDecoderUnableToFindDelimiter  = 20,  ///< Decoder failed to find the delimiter at the end of the packet
-        kDecoderDelimiterFoundTooEarly = 21,  ///< Decoder found a delimiter before reaching the end of the packet
-        kPacketAlreadyDecoded          = 22,  ///< Cannot decode the packet as it is already decoded (overhead == 0)
-        kPayloadDecoded                = 23,  ///< Payload was successfully decoded from the received packet
-    };
-
-    /**
-     * @enum kCRCProcessorCodes
-     * @brief Assigns meaningful names to all status codes used by the CRCProcessor class.
-     *
-     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 51 through 100. This is to simplify chained error handling in the
-     * TransportLayer class of the library.
-     */
-    enum class kCRCProcessorCodes : uint8_t
-    {
-        kStandby                            = 51,  ///< The value used to initialize the crc_status variable
-        kCalculateCRCChecksumBufferTooSmall = 52,  ///< Checksum calculator failed, the packet exceeds buffer space
-        kCRCChecksumCalculated              = 53,  ///< Checksum was successfully calculated
-        kAddCRCChecksumBufferTooSmall       = 54,  ///< Not enough remaining buffer space to add checksum to buffer
-        kCRCChecksumAddedToBuffer           = 55,  ///< Checksum was successfully added to the buffer
-        kReadCRCChecksumBufferTooSmall      = 56,  ///< Not enough remaining space inside buffer to get checksum from it
-        kCRCChecksumReadFromBuffer          = 57,  ///< Checksum was successfully read from the buffer
-    };
-
-    /**
-     * @enum kTransportLayerCodes
-     * @brief Assigns meaningful names to all status codes used by the TransportLayer class.
-     *
-     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 101 through 150. This is to simplify chained error handling in the
-     * TransportLayer class of the library.
-     */
-    enum class kTransportLayerCodes : uint8_t
-    {
-        kStandby                     = 101,  ///< The default value used to initialize the transfer_status variable
-        kPacketConstructed           = 102,  ///< Packet was successfully constructed
-        kPacketSent                  = 103,  ///< Packet was successfully transmitted
-        kPacketStartByteFound        = 104,  ///< Packet start byte was found
-        kPacketStartByteNotFound     = 105,  ///< Packet start byte was not found in the incoming stream
-        kPayloadSizeByteFound        = 106,  ///< Payload size byte was found
-        kPayloadSizeByteNotFound     = 107,  ///< Payload size byte was not found in the incoming stream
-        kInvalidPayloadSize          = 108,  ///< Received payload size is not valid
-        kPacketTimeoutError          = 109,  ///< Packet parsing failed due to stalling (reception timeout)
-        kNoBytesToParseFromBuffer    = 110,  ///< Stream class reception buffer had no packet bytes to parse
-        kPacketParsed                = 111,  ///< Packet was successfully parsed
-        kCRCCheckFailed              = 112,  ///< CRC check failed, the incoming packet is corrupted
-        kPacketValidated             = 113,  ///< Packet was successfully validated
-        kPacketReceived              = 114,  ///< Packet was successfully received
-        kWriteObjectBufferError      = 115,  ///< Not enough space in the buffer payload region to write the object
-        kObjectWrittenToBuffer       = 116,  ///< The object has been written to the buffer
-        kReadObjectBufferError       = 117,  ///< Not enough bytes in the buffer payload region to read the object from
-        kObjectReadFromBuffer        = 118,  ///< The object has been read from the buffer
-        kDelimiterNotFoundError      = 119,  ///< Delimiter byte not found at the end of the packet
-        kDelimiterFoundTooEarlyError = 120,  ///< Delimiter byte was found before reaching the end of the packet
-        kPostambleTimeoutError       = 121,  ///< The Postamble was not received within the specified time frame
-    };
-
     /**
      * @enum kCommunicationCodes
      * @brief Assigns meaningful names to all status codes used by the Communication class.
      *
      * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 151 through 200.
+     * values in the range of 151 through 200. Codes below 150 are reserved for the ataraxis-transport-layer-mc
+     * library.
      */
     enum class kCommunicationCodes : uint8_t
     {
@@ -149,7 +73,7 @@ namespace shared_assets
 
     /**
      * @struct DynamicRuntimeParameters
-     * @brief Stores global runtime parameters shared by all core classes and addressable through the Kernel class.
+     * @brief Stores global runtime parameters shared by all library classes and addressable through the Kernel class.
      *
      * These parameters broadly affect the runtime of all classes derived from the base Module class. They are
      * addressable through the Kernel class using the Communication interface.
@@ -170,64 +94,10 @@ namespace shared_assets
             /// this only works for digital and analog writing methods inherited from the base Module class.
             bool ttl_lock = true;
     } PACKED_STRUCT;
-
-    // Since Arduino Mega (the lower-end board this code was tested with) boards do not have access to 'cstring' header
-    // that is available to Teensy, some assets had to be reimplemented manually. They are implemented in as
-    // similar of a way as possible to be drop-in replaceable with std:: namespace.
-
-    /**
-     * @brief A type trait that determines if two types are the same.
-     *
-     * @tparam T The first type.
-     * @tparam U The second type.
-     *
-     * This struct is used to compare two types at compile-time. It defines a static constant member `value` which is
-     * set to `false` by default, indicating that the two types are different.
-     */
-    template <typename T, typename U>
-    struct is_same
-    {
-            /// The default value used by the specification for two different input types.
-            static constexpr bool value = false;
-    };
-
-    /**
-      * @brief Specialization of is_same for the case when both types are the same.
-      *
-      * @tparam T The type to compare.
-      *
-      * This specialization is used when both type parameters are the same. In this case, the static constant member
-      * `value` is set to `true`, indicating that the types are indeed the same.
-      */
-    template <typename T>
-    struct is_same<T, T>
-    {
-            /// The default value used by the specification for two identical types.
-            static constexpr bool value = true;
-    };
-
-    /**
-     * @brief A helper variable template that provides a convenient way to access the value of is_same.
-     *
-     * @tparam T The first type.
-     * @tparam U The second type.
-     *
-     * This variable template is declared as `constexpr`, allowing it to be used in compile-time expressions. It
-     * provides a more concise way to check if two types are the same, without the need to explicitly access the
-     * `value` member of the `is_same` struct.
-     *
-     * Example usage:
-     * @code
-     * static_assert(is_same_v<int, int>, "int and int are the same");
-     * static_assert(!is_same_v<int, float>, "int and float are different");
-     * @endcode
-     */
-    template <typename T, typename U>
-    constexpr bool is_same_v = is_same<T, U>::value;  // NOLINT(*-dynamic-static-initializers)
-}  // namespace shared_assets
+}  // namespace axmc_shared_assets
 
 /**
- * @namespace communication_assets
+ * @namespace axmc_communication_assets
  * @brief Provides all assets (structures, enumerations, variables) necessary to interface with and support the
  * runtime of the Communication class.
  *
@@ -235,7 +105,7 @@ namespace shared_assets
  * Module. Do not modify or access these assets from any class derived from the base Module class or any other custom
  * class.
  */
-namespace communication_assets
+namespace axmc_communication_assets
 {
     /**
      * @enum kProtocols
@@ -306,28 +176,140 @@ namespace communication_assets
      * @brief Stores prototype codes used by the Communication class to specify the data structure object that can be
      * used to parse DataMessage objects.
      *
-     * Since most transmitted data objects use a small set of data structures, it is possible to uniquely map each
-     * used data object structure to a unique prototype code. In turn, this allows optimizing data reception and logging
-     * on the PC side as objet types can be obtained during a single reception cycle (the message instructs parser on
-     * how to read the object).'
+     * Since most transmitted data objects use a small set of data structures, it is possible to map each used data
+     * object structure to a unique prototype code. In turn, this allows optimizing data reception and logging on the PC
+     * side as objet types can be obtained during a single reception cycle (the message instructs parser on
+     * how to read the object).
      *
      * @note While this approach essentially limits the number of valid prototype codes to 255 (256 if 0 is made a valid
-     * code), realistically, this si more than enough to cover a very wide range of runtime cases.
+     * code), realistically, this is more than enough to cover a very wide range of runtime cases.
      */
     enum class kPrototypes : uint8_t
     {
-        /// A single uint8_t value.
-        kOneUnsignedByte = 1,
-        /// An array made up of two uint8_t values.
-        kTwoUnsignedBytes = 2,
-        /// An array made up of three uint8_t values.
-        kThreeUnsignedBytes = 3,
-        /// An array made up of four uint8_t values.
-        kFourUnsignedBytes = 4,
-        /// A single uint32_t value.
-        kOneUnsignedLong = 5,
-        /// A single uint16_t value.
-        kOneUnsignedShort = 6,
+        // Boolean
+        /// A single bool value.
+        kOneBool = 1,
+        /// An array made up of two bool values.
+        kTwoBools = 2,
+        /// An array made up of three bool values.
+        kThreeBools = 3,
+        /// An array made up of four bool values.
+        kFourBools = 4,
+        /// An array made up of five bool values.
+        kFiveBools = 5,
+
+        // Unsigned integers
+        /// A single unsigned byte (uint8_t) value.
+        kOneUint8 = 10,
+        /// An array made up of two unsigned byte (uint8_t) values.
+        kTwoUint8s = 11,
+        /// An array made up of three unsigned byte (uint8_t) values.
+        kThreeUint8s = 12,
+        /// An array made up of four unsigned byte (uint8_t) values.
+        kFourUint8s = 13,
+        /// An array made up of five unsigned byte (uint8_t) values.
+        kFiveUint8s = 14,
+
+        /// A single unsigned short (uint16_t) value.
+        kOneUint16 = 20,
+        /// An array made up of two unsigned short (uint16_t) values.
+        kTwoUint16s = 21,
+        /// An array made up of three unsigned short (uint16_t) values.
+        kThreeUint16s = 22,
+        /// An array made up of four unsigned short (uint16_t) values.
+        kFourUint16s = 23,
+        /// An array made up of five unsigned short (uint16_t) values.
+        kFiveUint16s = 24,
+
+        /// A single unsigned long (uint32_t) value.
+        kOneUint32 = 30,
+        /// An array made up of two unsigned long (uint32_t) values.
+        kTwoUint32s = 31,
+        /// An array made up of three unsigned long (uint32_t) values.
+        kThreeUint32s = 32,
+        /// An array made up of four unsigned long (uint32_t) values.
+        kFourUint32s = 33,
+        /// An array made up of five unsigned long (uint32_t) values.
+        kFiveUint32s = 34,
+
+        /// A single unsigned long long (uint64_t) value.
+        kOneUint64 = 40,
+        /// An array made up of two unsigned long long (uint64_t) values.
+        kTwoUint64s = 41,
+        /// An array made up of three unsigned long long (uint64_t) values.
+        kThreeUint64s = 42,
+        /// An array made up of four unsigned long long (uint64_t) values.
+        kFourUint64s = 43,
+        /// An array made up of five unsigned long long (uint64_t) values.
+        kFiveUint64s = 44,
+
+        // Signed integers
+        /// A single signed byte (int8_t) value.
+        kOneInt8 = 50,
+        /// An array made up of two signed byte (int8_t) values.
+        kTwoInt8s = 51,
+        /// An array made up of three signed byte (int8_t) values.
+        kThreeInt8s = 52,
+        /// An array made up of four signed byte (int8_t) values.
+        kFourInt8s = 53,
+        /// An array made up of five signed byte (int8_t) values.
+        kFiveInt8s = 54,
+
+        /// A single signed short (int16_t) value.
+        kOneInt16 = 60,
+        /// An array made up of two signed short (int16_t) values.
+        kTwoInt16s = 61,
+        /// An array made up of three signed short (int16_t) values.
+        kThreeInt16s = 62,
+        /// An array made up of four signed short (int16_t) values.
+        kFourInt16s = 63,
+        /// An array made up of five signed short (int16_t) values.
+        kFiveInt16s = 64,
+
+        /// A single signed long (int32_t) value.
+        kOneInt32 = 70,
+        /// An array made up of two signed long (int32_t) values.
+        kTwoInt32s = 71,
+        /// An array made up of three signed long (int32_t) values.
+        kThreeInt32s = 72,
+        /// An array made up of four signed long (int32_t) values.
+        kFourInt32s = 73,
+        /// An array made up of five signed long (int32_t) values.
+        kFiveInt32s = 74,
+
+        /// A single signed long long (int64_t) value.
+        kOneInt64 = 80,
+        /// An array made up of two signed long long (int64_t) values.
+        kTwoInt64s = 81,
+        /// An array made up of three signed long long (int64_t) values.
+        kThreeInt64s = 82,
+        /// An array made up of four signed long long (int64_t) values.
+        kFourInt64s = 83,
+        /// An array made up of five signed long long (int64_t) values.
+        kFiveInt64s = 84,
+
+        // Floating point
+        /// A single 32-bit float value.
+        kOneFloat32 = 90,
+        /// An array made up of two 32-bit float values.
+        kTwoFloat32s = 91,
+        /// An array made up of three 32-bit float values.
+        kThreeFloat32s = 92,
+        /// An array made up of four 32-bit float values.
+        kFourFloat32s = 93,
+        /// An array made up of five 32-bit float values.
+        kFiveFloat32s = 94,
+
+        /// A single 64-bit double value.
+        kOneFloat64 = 100,
+        /// An array made up of two 64-bit double values.
+        kTwoFloat64s = 101,
+        /// An array made up of three 64-bit double values.
+        kThreeFloat64s = 102,
+        /// An array made up of four 64-bit double values.
+        kFourFloat64s = 103,
+        /// An array made up of five 64-bit double values.
+        kFiveFloat64s = 104,
     };
 
     /**
@@ -336,7 +318,7 @@ namespace communication_assets
      */
     struct RepeatedModuleCommand
     {
-            /// The type-code of the module to which the command is addressed.
+            /// The type (family) code of the module to which the command is addressed.
             uint8_t module_type = 0;
 
             /// The specific module ID within the broader module family specified by module_type.
@@ -344,19 +326,18 @@ namespace communication_assets
 
             /// When this field is set to a value other than 0, the Communication class will send this code back to the
             /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            /// was received intact. Setting this field to 0 disables delivery receipts.
             uint8_t return_code = 0;
 
-            /// The unique code of the command to execute.
+            /// The module-type-specific code of the command to execute.
             uint8_t command = 0;
 
             /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
-            /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise,
-            /// the controller will run other commands concurrently, while waiting for the block to complete.
+            /// runtime will block in-place for any time-waiting loops during command execution. Otherwise,
+            /// the controller will run other commands while waiting for the block to complete.
             bool noblock = false;
 
-            /// The period of time, in microseconds, to delay before repeating (cycling) the command. This is only used
-            /// if the cycle flag is True.
+            /// The period of time, in microseconds, to delay before repeating (cycling) the command.
             uint32_t cycle_delay = 0;
     } PACKED_STRUCT;
 
@@ -366,7 +347,7 @@ namespace communication_assets
      */
     struct OneOffModuleCommand
     {
-            /// The type-code of the module to which the command is addressed.
+            /// The type (family) code of the module to which the command is addressed.
             uint8_t module_type = 0;
 
             /// The specific module ID within the broader module family specified by module_type.
@@ -374,15 +355,15 @@ namespace communication_assets
 
             /// When this field is set to a value other than 0, the Communication class will send this code back to the
             /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            /// was received intact. Setting this field to 0 disables delivery receipts.
             uint8_t return_code = 0;
 
-            /// The unique code of the command to execute.
+            /// The module-type-specific code of the command to execute.
             uint8_t command = 0;
 
             /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
             /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise,
-            /// the controller will run other commands concurrently, while waiting for the block to complete.
+            /// the controller will run other commands while waiting for the block to complete.
             bool noblock = false;
     } PACKED_STRUCT;
 
@@ -392,7 +373,7 @@ namespace communication_assets
      */
     struct DequeueModuleCommand
     {
-            /// The type-code of the module to which the command is addressed.
+            /// The type (family) code of the module to which the command is addressed.
             uint8_t module_type = 0;
 
             /// The specific module ID within the broader module family specified by module_type.
@@ -400,7 +381,7 @@ namespace communication_assets
 
             /// When this field is set to a value other than 0, the Communication class will send this code back to the
             /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            /// was received intact. Setting this field to 0 disables delivery receipts.
             uint8_t return_code = 0;
     } PACKED_STRUCT;
 
@@ -408,16 +389,16 @@ namespace communication_assets
      * @struct KernelCommand
      * @brief Instructs the Kernel to run the specified command exactly once.
      *
-     * Currently, the Kernel only supports blocking one-off commands.
+     * Currently, the Kernel only supports blocking non-repeated (one-off) commands.
      */
     struct KernelCommand
     {
             /// When this field is set to a value other than 0, the Communication class will send this code back to the
             /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            /// was received intact. Setting this field to 0 disables delivery receipts.
             uint8_t return_code = 0;
 
-            /// The unique code of the command to execute.
+            /// The Kernel-specific code of the command to execute.
             uint8_t command = 0;
     } PACKED_STRUCT;
 
@@ -425,13 +406,14 @@ namespace communication_assets
      * @struct ModuleParameters
      * @brief Instructs the addressed Module to overwrite its custom parameters object with the included object data.
      *
-     * @warning Module parameters are stored in a module-family-specific structure, whose layout will not be known at
-     * by the parser at message reception. The Kernel class will use the included module type and id information from
-     * the message to call the addressed Module's public API method that will extract the parameters.
+     * @warning Module parameters are stored in a module-family-specific structure, whose layout will not be known by
+     * the parser at message reception. The Kernel class will use the included module type and id information from
+     * the message to call the addressed Module's public API method that will extract the parameters directly from the
+     * reception buffer.
      */
     struct ModuleParameters
     {
-            /// The type-code of the module to which the parameter configuration is addressed.
+            /// The type (family) code of the module to which the parameter configuration is addressed.
             uint8_t module_type = 0;
 
             /// The specific module ID within the broader module family specified by module_type.
@@ -439,7 +421,7 @@ namespace communication_assets
 
             /// When this field is set to a value other than 0, the Communication class will send this code back to the
             /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            /// was received intact. Setting this field to 0 disables delivery receipts.
             uint8_t return_code = 0;
     } PACKED_STRUCT;
 
@@ -454,12 +436,12 @@ namespace communication_assets
     {
             /// When this field is set to a value other than 0, the Communication class will send this code back to the
             /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact, ensuring message delivery. Setting this field to 0 disables delivery assurance.
+            /// was received intact. Setting this field to 0 disables delivery receipts.
             uint8_t return_code = 0;
 
-            /// Since Kernel parameter structure is known at compile-time, this message structure automatically knows
-            /// the shape of the transmitted parameters' data.
-            shared_assets::DynamicRuntimeParameters dynamic_parameters;
+            /// Since Kernel parameter structure is known at compile-time, this message structure automatically formats
+            /// the parameter data to match the format used by the Kernel.
+            axmc_shared_assets::DynamicRuntimeParameters dynamic_parameters;
     } PACKED_STRUCT;
 
     /**
@@ -469,26 +451,25 @@ namespace communication_assets
      * @note For messages that only need to transmit an event state-code, use ModuleStateMessage structure for better
      * efficiency.
      *
-     *
      * @warning Remember to add the data object matching the included prototype code to the message payload before
      * sending the message.
      */
     struct ModuleData
     {
-            /// The unique message protocol used by this structure. Including the protocol with the message structure
-            /// allows optimizing data transmission.
+            /// The code of the message protocol used by this structure.
             uint8_t protocol;
 
-            /// The type-code of the module which sent the data message.
+            /// The type (family) code of the module which sent the data message.
             uint8_t module_type;
 
             /// The specific module ID within the broader module family specified by module_type.
             uint8_t module_id;
 
-            /// The unique code of the command the module was executing when it sent the data message.
+            /// The module-type-specific code of the command the module was executing when it sent the data message.
             uint8_t command;
 
-            /// The unique code of the event within the command runtime that prompted the data transmission.
+            /// The module-type-specific code of the event within the command runtime that prompted the data
+            /// transmission.
             uint8_t event;
 
             /// The byte-code of the prototype object that can be used to decode the object data included with this
@@ -509,14 +490,13 @@ namespace communication_assets
      * */
     struct KernelData
     {
-            /// The unique message protocol used by this structure. Including the protocol with the message structure
-            /// allows optimizing data transmission.
+            /// The code of the message protocol used by this structure.
             uint8_t protocol;
 
-            /// The unique code of the command the kernel was executing when it sent the data message.
+            /// The Kernel-specific code of the command the kernel was executing when it sent the data message.
             uint8_t command;
 
-            /// The unique code of the event within the command runtime that prompted the data transmission.
+            /// The Kernel-specific code of the event within the command runtime that prompted the data transmission.
             uint8_t event;
 
             /// The byte-code of the prototype object that can be used to decode the object data included with this
@@ -534,20 +514,20 @@ namespace communication_assets
      */
     struct ModuleState
     {
-            /// The unique message protocol used by this structure. Including the protocol with the message structure
-            /// allows optimizing data transmission.
+            /// The code of the message protocol used by this structure.
             uint8_t protocol;
 
-            /// The type-code of the module which sent the data message.
+            /// The type (family) code of the module which sent the data message.
             uint8_t module_type;
 
             /// The specific module ID within the broader module family specified by module_type.
             uint8_t module_id;
 
-            /// The unique code of the command the module was executing when it sent the data message.
+            /// The module-type-specific code of the command the module was executing when it sent the data message.
             uint8_t command;
 
-            /// The unique code of the event within the command runtime that prompted the data transmission.
+            /// The module-type-specific code of the event within the command runtime that prompted the data
+            /// transmission.
             uint8_t event;
     } PACKED_STRUCT;
 
@@ -560,17 +540,16 @@ namespace communication_assets
      */
     struct KernelState
     {
-            /// The unique message protocol used by this structure. Including the protocol with the message structure
-            /// allows optimizing data transmission.
+            /// The code of the message protocol used by this structure.
             uint8_t protocol;
 
-            /// The unique code of the command the kernel was executing when it sent the data message.
+            /// The Kernel-specific code of the command the Kernel was executing when it sent the data message.
             uint8_t command;
 
-            /// The unique code of the event within the command runtime that prompted the data transmission.
+            /// The Kernel-specific code of the event within the command runtime that prompted the data transmission.
             uint8_t event;
     } PACKED_STRUCT;
 
-}  // namespace communication_assets
+}  // namespace axmc_communication_assets
 
 #endif  //AXMC_SHARED_ASSETS_H

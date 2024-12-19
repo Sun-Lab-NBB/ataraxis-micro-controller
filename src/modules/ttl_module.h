@@ -16,8 +16,8 @@
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
+#include "axmc_shared_assets.h"
 #include "module.h"
-#include "shared_assets.h"
 
 /**
  * @brief Sends or receives Transistor-to-Transistor Logic (TTL) signals using the specified digital pin.
@@ -67,7 +67,7 @@ class TTLModule final : public Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             Module(module_type, module_id, communication, dynamic_parameters)
         {}

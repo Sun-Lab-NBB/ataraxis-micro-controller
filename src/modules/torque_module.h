@@ -19,8 +19,8 @@
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
+#include "axmc_shared_assets.h"
 #include "module.h"
-#include "shared_assets.h"
 
 /**
  * @brief Monitors the signal sent by the torque sensor through an AD620 microvolt amplifier.
@@ -72,7 +72,7 @@ class TorqueModule final : public Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             Module(module_type, module_id, communication, dynamic_parameters)
         {}
@@ -170,7 +170,7 @@ class TorqueModule final : public Module
                 // CCW torque.
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kCCWTorque),
-                    communication_assets::kPrototypes::kOneUnsignedShort,
+                    axmc_communication_assets::kPrototypes::kOneUnsignedShort,
                     signal
                 );
                 previous_readout = signal;  // Overwrites the previous readout with the current signal.
@@ -180,7 +180,7 @@ class TorqueModule final : public Module
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kCWTorque),
-                    communication_assets::kPrototypes::kOneUnsignedShort,
+                    axmc_communication_assets::kPrototypes::kOneUnsignedShort,
                     signal
                 );
                 previous_readout = signal;  // Overwrites the previous readout with the current signal.

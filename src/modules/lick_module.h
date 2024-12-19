@@ -19,8 +19,8 @@
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
+#include "axmc_shared_assets.h"
 #include "module.h"
-#include "shared_assets.h"
 
 /**
  * @brief Monitors the state of a custom conductive lick sensor for significant state changes and notifies the PC when
@@ -66,7 +66,7 @@ class LickModule final : public Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             Module(module_type, module_id, communication, dynamic_parameters)
         {}
@@ -155,7 +155,7 @@ class LickModule final : public Module
                 // Sends the detected signal to the PC.
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kChanged),
-                    communication_assets::kPrototypes::kOneUnsignedShort,
+                    axmc_communication_assets::kPrototypes::kOneUnsignedShort,
                     signal
                 );
 

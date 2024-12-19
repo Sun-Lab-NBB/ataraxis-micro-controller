@@ -62,8 +62,8 @@
 #include <Arduino.h>
 #include <digitalWriteFast.h>
 #include <elapsedMillis.h>
+#include "axmc_shared_assets.h"
 #include "communication.h"
-#include "shared_assets.h"
 
 /**
  * @brief Serves as the parent for all custom module classes, providing methods for other Core classes to interface with
@@ -161,7 +161,7 @@ class Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             _module_type(module_type),
             _module_id(module_id),
@@ -475,7 +475,7 @@ class Module
         /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
         /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
-        const shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
+        const axmc_shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 
         // UTILITY METHODS.
         // These methods are designed to help developers with writing custom module classes. They are not accessed by
@@ -813,7 +813,7 @@ class Module
          */
         template <typename ObjectType = void>
         void
-        SendData(const uint8_t event_code, const communication_assets::kPrototypes prototype, const ObjectType& object)
+        SendData(const uint8_t event_code, const axmc_communication_assets::kPrototypes prototype, const ObjectType& object)
         {
             // Packages and sends the data to the connected system via the Communication class
             const bool success = _communication.SendDataMessage(

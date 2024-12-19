@@ -23,8 +23,8 @@
 
 #include <Arduino.h>
 #include <Encoder.h>
+#include "axmc_shared_assets.h"
 #include "module.h"
-#include "shared_assets.h"
 
 /**
  * @brief Wraps an Encoder class instance and provides access to its pulse counter to monitor the direction and
@@ -96,7 +96,7 @@ class EncoderModule final : public Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             Module(module_type, module_id, communication, dynamic_parameters)
         {}
@@ -239,7 +239,7 @@ class EncoderModule final : public Module
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCW),
-                    communication_assets::kPrototypes::kOneUnsignedLong,
+                    axmc_communication_assets::kPrototypes::kOneUnsignedLong,
                     delta
                 );
                 _overflow = 0;  // Resets the overflow, as all tracked pulses have been 'consumed' and sent to the PC.
@@ -251,7 +251,7 @@ class EncoderModule final : public Module
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCCW),
-                    communication_assets::kPrototypes::kOneUnsignedLong,
+                    axmc_communication_assets::kPrototypes::kOneUnsignedLong,
                     delta
                 );
                 _overflow = 0;  // Resets the overflow, as all tracked pulses have been 'consumed' and sent to the PC.
@@ -305,7 +305,7 @@ class EncoderModule final : public Module
             // Sends the average PPR count to the PC.
             SendData(
                 static_cast<uint8_t>(kCustomStatusCodes::kPPR),
-                communication_assets::kPrototypes::kOneUnsignedShort,
+                axmc_communication_assets::kPrototypes::kOneUnsignedShort,
                 average_ppr
             );
 

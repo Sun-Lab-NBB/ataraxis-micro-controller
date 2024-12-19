@@ -15,8 +15,8 @@
 
 #include <Arduino.h>
 #include <digitalWriteFast.h>
+#include "axmc_shared_assets.h"
 #include "module.h"
-#include "shared_assets.h"
 
 /**
  * @brief Sends digital signals to dispense precise amounts of fluid via the managed solenoid valve.
@@ -72,7 +72,7 @@ class ValveModule final : public Module
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
         ) :
             Module(module_type, module_id, communication, dynamic_parameters)
         {}

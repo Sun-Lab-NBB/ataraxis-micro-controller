@@ -47,9 +47,9 @@
 #include <Arduino.h>
 #include <digitalWriteFast.h>
 #include <elapsedMillis.h>
+#include "axmc_shared_assets.h"
 #include "communication.h"
 #include "module.h"
-#include "shared_assets.h"
 
 /**
  * @brief Provides the central runtime loop and methods that control data reception, runtime flow (task scheduling),
@@ -146,7 +146,7 @@ class Kernel
         Kernel(
             const uint8_t controller_id,
             Communication& communication,
-            shared_assets::DynamicRuntimeParameters& dynamic_parameters,
+            axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters,
             Module* (&module_array)[kModuleNumber]
         ) :
             _modules(module_array),
@@ -210,7 +210,7 @@ class Kernel
 
                     SendData(
                         static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError),
-                        communication_assets::kPrototypes::kTwoUnsignedBytes,
+                        axmc_communication_assets::kPrototypes::kTwoUnsignedBytes,
                         error_object
                     );
 
@@ -287,13 +287,13 @@ class Kernel
                 uint8_t return_code;      // Stores the return code of the received message.
 
                 // Uses the message protocol of the returned message to execute appropriate logic to handle the message.
-                switch (static_cast<communication_assets::kProtocols>(protocol))
+                switch (static_cast<axmc_communication_assets::kProtocols>(protocol))
                 {
                     // Returned protocol 0 indicates that the data was not received. This may be due to no data to
                     // receive or due to a reception pipeline error. In either case, this ends the reception loop.
-                    case communication_assets::kProtocols::kUndefined: break_loop = true; break;
+                    case axmc_communication_assets::kProtocols::kUndefined: break_loop = true; break;
 
-                    case communication_assets::kProtocols::kKernelParameters:
+                    case axmc_communication_assets::kProtocols::kKernelParameters:
 
                         // If the message contains a non-zero return code, sends it back to the PC to acknowledge
                         // message reception
@@ -306,7 +306,7 @@ class Kernel
                         SendData(static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersSet));
                         break;
 
-                    case communication_assets::kProtocols::kModuleParameters:
+                    case axmc_communication_assets::kProtocols::kModuleParameters:
                         return_code = _communication.module_parameter.return_code;
                         if (return_code) SendReceptionCode(return_code);
 
@@ -333,7 +333,7 @@ class Kernel
                             };
                             SendData(
                                 static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError),
-                                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                                axmc_communication_assets::kPrototypes::kTwoUnsignedBytes,
                                 error_object
                             );
                         }
@@ -342,7 +342,7 @@ class Kernel
                         SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet));
                         break;
 
-                    case communication_assets::kProtocols::kKernelCommand:
+                    case axmc_communication_assets::kProtocols::kKernelCommand:
                         return_code = _communication.kernel_command.return_code;
                         if (return_code) SendReceptionCode(return_code);
 
@@ -351,7 +351,7 @@ class Kernel
                         RunKernelCommand();
                         break;
 
-                    case communication_assets::kProtocols::kDequeueModuleCommand:
+                    case axmc_communication_assets::kProtocols::kDequeueModuleCommand:
                         return_code = _communication.module_dequeue.return_code;
                         if (return_code) SendReceptionCode(return_code);
                         target_module = ResolveTargetModule(
@@ -368,7 +368,7 @@ class Kernel
                         _modules[static_cast<size_t>(target_module)]->ResetCommandQueue();
                         break;
 
-                    case communication_assets::kProtocols::kOneOffModuleCommand:
+                    case axmc_communication_assets::kProtocols::kOneOffModuleCommand:
                         return_code = _communication.one_off_module_command.return_code;
                         if (return_code) SendReceptionCode(return_code);
 
@@ -386,7 +386,7 @@ class Kernel
                         );
                         break;
 
-                    case communication_assets::kProtocols::KRepeatedModuleCommand:
+                    case axmc_communication_assets::kProtocols::KRepeatedModuleCommand:
                         return_code = _communication.repeated_module_command.return_code;
                         if (return_code) SendReceptionCode(return_code);
 
@@ -411,7 +411,7 @@ class Kernel
                         // PC.Includes the invalid protocol value in the message.
                         SendData(
                             static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
-                            communication_assets::kPrototypes::kOneUnsignedByte,
+                            axmc_communication_assets::kPrototypes::kOneUnsignedByte,
                             _communication.protocol_code
                         );
                         break;
@@ -449,7 +449,7 @@ class Kernel
         /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
         /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
-        shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
+        axmc_shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 
         /// This flag tracks whether the Setup() method has been called before calling the RuntimeCycle() method. This
         /// is used to ensure the kernel is properly configured before running commands.
@@ -480,7 +480,7 @@ class Kernel
             // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
             // an error and should be handled as a valid 'no need to do anything' case.
             if (_communication.communication_status !=
-                static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive))
+                static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kNoBytesToReceive))
             {
                 // For legitimately failed runtimes, sends an error message to the PC.
                 _communication.SendCommunicationErrorMessage(
@@ -491,7 +491,7 @@ class Kernel
 
             // Regardless of the source of communication failure, uses 'kUndefined' protocol (0) code return to indicate
             // that no valid data to process was received.
-            return static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
+            return static_cast<uint8_t>(axmc_communication_assets::kProtocols::kUndefined);
         }
 
         /**
@@ -522,7 +522,7 @@ class Kernel
          */
         template <typename ObjectType>
         void
-        SendData(const uint8_t event_code, const communication_assets::kPrototypes prototype, const ObjectType& object)
+        SendData(const uint8_t event_code, const axmc_communication_assets::kPrototypes prototype, const ObjectType& object)
         {
             // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendDataMessage(kernel_command, event_code, prototype, object)) return;
@@ -561,7 +561,7 @@ class Kernel
         {
             // Packages and sends the service message to the PC. If the message was sent, ends the runtime
             if (_communication.SendServiceMessage(
-                    static_cast<uint8_t>(communication_assets::kProtocols::kIdentification),
+                    static_cast<uint8_t>(axmc_communication_assets::kProtocols::kIdentification),
                     _controller_id
                 ))
                 return;
@@ -580,7 +580,7 @@ class Kernel
         {
             // Packages and sends the service message to the PC. If the message was sent, ends the runtime
             if (_communication.SendServiceMessage(
-                    static_cast<uint8_t>(communication_assets::kProtocols::kReceptionCode),
+                    static_cast<uint8_t>(axmc_communication_assets::kProtocols::kReceptionCode),
                     reception_code
                 ))
                 return;
@@ -656,7 +656,7 @@ class Kernel
             const uint8_t errors[2] = {target_type, target_id};
             SendData(
                 static_cast<uint8_t>(kKernelStatusCodes::kTargetModuleNotFound),
-                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                axmc_communication_assets::kPrototypes::kTwoUnsignedBytes,
                 errors
             );
             return -1;

@@ -1,15 +1,18 @@
 /**
  * @file
  * @brief The header file for the Communication class, which is used to establish and maintain bidirectional
- * communication with other Ataraxis systems over the USB or UART interface.
+ * communication with host-computers (PCs) running ataraxis-communication-interface Python library, over the USB or UART
+ * interface.
  *
  * @section comm_description Description:
  *
  * @note A single instance of this class should be created inside the main.cpp file and provided as a reference input
- * to Kernel and (base) Module-derived classes.
+ * to Kernel and Module-derived classes.
  *
  * Communication class functions as an opinionated extension of the TransportLayer class, enforcing consistent
- * message structures and runtime error handling behaviors.
+ * message structures and runtime error handling behaviors for all classes derived from this library. Generally, only
+ * Core developers should work directly with the Communication class. All custom modules should use the API derived
+ * from the base Module class to send and receive data messages.
  *
  * @section developer_notes Developer Notes:
  *
@@ -17,38 +20,13 @@
  * communicated payload microstructure and abstracts away all communication steps.
  *
  * @attention For this class to work as intended, its configuration, message layout structures and status codes should
- * be the same as those used by the Ataraxis system this class communicates with. Make sure that both communicating
- * parties are configured appropriately!
- *
- * @subsubsection rx_tx_data_structures_overview Rx/Tx Data Structures Overview
- *
- * These datastructures are used to serialize and deserialize the data for Serial transmission. Each incoming or
- * outgoing serial stream consists of a package macrostructure (handled by TransportLayer class), and microstructure,
- * defined via Communication class message layouts (Protocols). Each supported message layout, available through the
- * communication_assets namespace, is uniquely configured to optimally support the intended communication format.
- *
- * @attention It is expected that every incoming or outgoing payload uses the first non-metadata byte to store the
- * protocol code. This code is used to interpret the rest of the message. Further, it is expected that each transmitted
- * packet contains a single message.
- *
- * @note The physical payload limit is 254 bytes, so there is a cap on how much data can be sent as a single packet.
- * This class contains validation mechanisms that raise errors if the buffer overflows, although this is considered an
- * unlikely scenario if the class is used as intended.
- *
- * @subsubsection rx_tx_datastructures_visualization Byte-Stream Anatomy Visualized:
- *
- * This is a rough outline of how the Rx and Tx data streams look. Each |block| represents a structure either provided
- * by this class or TransportLayer class. Only the datastructures defined inside this class are relevant for data
- * serialization and deserialization, TransportLayer handles processing the preamble and postamble structures of
- * each stream before deserializing the custom datastructures of this project. Note, only the Protocol Code and
- * Message Payload count towards the 254-byte limit for message payload.
- *
- * - **Protocol**: |Start Byte| |Header Preamble| |Protocol Code| |Message Payload| |Delimiter Byte| |CRC Postamble|.
+ * be identical to those used by the PC companion library (ataraxis-communication-interface).
  *
  * @section comm_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * - axtlmc_shared_assets.h for TransportLayer status code enumerations.
  * - transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
- * - shared_assets.h for globally shared assets, including communication_assets namespace.
+ * - axmc_shared_assets.h for globally shared assets, including axmc_communication_assets namespace.
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  */
 
@@ -57,51 +35,10 @@
 
 // Dependencies:
 #include <Arduino.h>
-#include "shared_assets.h"
-#include "transport_layer.h"
+#include <axtlmc_shared_assets.h>
+#include <transport_layer.h>
+#include "axmc_shared_assets.h"
 #include "digitalWriteFast.h"
-
-// Statically defines the size of the Serial class reception buffer associated with different Arduino and Teensy board
-// architectures. This is required to ensure the Communication class is configured appropriately. If you need to adjust
-// the TransportLayer class buffers (for example, because you manually increased the buffer size used by the Serial
-// class of your board), do it by editing or specifying a new preprocessor directive below. It is HIGHLY advised not to
-// tamper with these settings, however, and to always have the kSerialBufferSize set exactly to the size of the Serial
-// class reception buffer.
-#if defined(ARDUINO_ARCH_SAM)
-// Arduino Due (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-
-#elif defined(ARDUINO_ARCH_SAMD)
-// Arduino Zero, MKR series (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-
-#elif defined(ARDUINO_ARCH_NRF52)
-// Arduino Nano 33 BLE (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-
-// Note, teensies are identified based on the processor model. This WILL need to be updated for future versions of
-// Teensy boards.
-#elif defined(CORE_TEENSY)
-#if defined(__MK20DX128__) || defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__) || \
-    defined(__IMXRT1062__)
-// Teensy 3.x, 4.x (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 1024;
-#else
-// Teensy 2.0, Teensy++ 2.0 (USB serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 256;
-#endif
-
-#elif defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_MEGA) ||  \
-    defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
-    defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__)
-// Arduino Uno, Mega, and other AVR-based boards (UART serial) maximum reception buffer size in bytes.
-static constexpr uint16_t kSerialBufferSize = 64;
-
-#else
-// Default fallback for unsupported boards is the reasonable minimum buffer size
-static constexpr uint16_t kSerialBufferSize = 64;
-
-#endif
 
 /**
  * @class Communication
@@ -125,31 +62,31 @@ class Communication
 {
     public:
         /// Tracks the most recent class runtime status.
-        uint8_t communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kStandby);
+        uint8_t communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kStandby);
 
         /// Stores the protocol code of the last received message.
-        uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kUndefined);
+        uint8_t protocol_code = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kUndefined);
 
         /// Stores the last received Module-addressed recurrent (repeated) command message data.
-        communication_assets::RepeatedModuleCommand repeated_module_command;
+        axmc_communication_assets::RepeatedModuleCommand repeated_module_command;
 
         /// Stores the last received Module-addressed non-recurrent (one-off) command message data.
-        communication_assets::OneOffModuleCommand one_off_module_command;
+        axmc_communication_assets::OneOffModuleCommand one_off_module_command;
 
         /// Stores the last received Kernel-addressed command message data.
-        communication_assets::KernelCommand kernel_command;
+        axmc_communication_assets::KernelCommand kernel_command;
 
         /// Stores the last received Module-addressed dequeue message data.
-        communication_assets::DequeueModuleCommand module_dequeue;
+        axmc_communication_assets::DequeueModuleCommand module_dequeue;
 
         /// Stores the last received Module-addressed parameters message header data. Note, the parameter object
         /// is not contained in this structure! Instead, it has to be parsed separately by calling the
         /// ExtractModuleParameters() method.
-        communication_assets::ModuleParameters module_parameter;
+        axmc_communication_assets::ModuleParameters module_parameter;
 
         /// Stores the last received Kernel-addressed parameters message data. This structure stores the entire
         /// message, including the parameter object.
-        communication_assets::KernelParameters kernel_parameters;
+        axmc_communication_assets::KernelParameters kernel_parameters;
 
         /**
          * @brief Instantiates a new Communication class object.
@@ -243,21 +180,21 @@ class Communication
             const uint8_t module_id,
             const uint8_t command,
             const uint8_t event_code,
-            const communication_assets::kPrototypes prototype,
+            const axmc_communication_assets::kPrototypes prototype,
             const ObjectType& object
         )
         {
             // Ensures that the input fits inside the message payload buffer. Since this statement is evaluated at
             // compile time, it does not impact runtime speed.
             static_assert(
-                sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(communication_assets::ModuleData),
+                sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(axmc_communication_assets::ModuleData),
                 "The provided object is too large to fit inside the message payload buffer. This check accounts for "
                 "the size of the ModuleData header that will be sent with the object."
             );
 
             // Constructs the message header
-            const communication_assets::ModuleData message {
-                static_cast<uint8_t>(communication_assets::kProtocols::kModuleData),
+            const axmc_communication_assets::ModuleData message {
+                static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData),
                 module_type,
                 module_id,
                 command,
@@ -275,7 +212,7 @@ class Communication
             // If any writing attempt from above fails, breaks the runtime with an error status.
             if (next_index == 0)
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
@@ -283,12 +220,13 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
             // Returns with a success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
@@ -298,21 +236,21 @@ class Communication
         bool SendDataMessage(
             const uint8_t command,
             const uint8_t event_code,
-            const communication_assets::kPrototypes prototype,
+            const axmc_communication_assets::kPrototypes prototype,
             const ObjectType& object
         )
         {
             // Ensures that the input fits inside the message payload buffer. Since this statement is evaluated at
             // compile time, it does not impact runtime speed.
             static_assert(
-                sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(communication_assets::KernelData),
+                sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(axmc_communication_assets::KernelData),
                 "The provided object is too large to fit inside the message payload buffer. This check accounts for "
                 "the size of the KernelData header that will be sent with the object."
             );
 
             // Constructs the message header
-            const communication_assets::KernelData message {
-                static_cast<uint8_t>(communication_assets::kProtocols::kKernelData),
+            const axmc_communication_assets::KernelData message {
+                static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData),
                 command,
                 event_code,
                 static_cast<uint8_t>(prototype)
@@ -328,7 +266,7 @@ class Communication
             // If any writing attempt from above fails, breaks the runtime with an error status.
             if (next_index == 0)
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
@@ -336,12 +274,13 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
             // Returns with a success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
@@ -382,8 +321,8 @@ class Communication
         )
         {
             // Constructs the message header
-            const communication_assets::ModuleState message {
-                static_cast<uint8_t>(communication_assets::kProtocols::kModuleState),
+            const axmc_communication_assets::ModuleState message {
+                static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState),
                 module_id,
                 module_type,
                 command,
@@ -393,7 +332,7 @@ class Communication
             //Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
@@ -401,12 +340,13 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
             // Returns with a success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
@@ -415,8 +355,8 @@ class Communication
         bool SendStateMessage(const uint8_t command, const uint8_t event_code)
         {
             // Constructs the message header
-            const communication_assets::KernelState message {
-                static_cast<uint8_t>(communication_assets::kProtocols::kKernelState),
+            const axmc_communication_assets::KernelState message {
+                static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelState),
                 command,
                 event_code
             };
@@ -424,7 +364,7 @@ class Communication
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
                 return false;
             }
 
@@ -432,12 +372,13 @@ class Communication
             if (!_transport_layer.SendData())
             {
                 // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
                 return false;
             }
 
             // Returns with a success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
             return true;
         }
 
@@ -483,7 +424,7 @@ class Communication
                 module_id,
                 command,
                 error_code,
-                communication_assets::kPrototypes::kTwoUnsignedBytes,
+                axmc_communication_assets::kPrototypes::kTwoUint8s,
                 errors
             );
 
@@ -503,7 +444,7 @@ class Communication
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
-            SendDataMessage(command, error_code, communication_assets::kPrototypes::kTwoUnsignedBytes, errors);
+            SendDataMessage(command, error_code, axmc_communication_assets::kPrototypes::kTwoUint8s, errors);
 
             // As a fallback in case the error message does not reach the connected system, sets the class status to
             // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
@@ -538,18 +479,19 @@ class Communication
         bool SendServiceMessage(const uint8_t protocol_code, const uint8_t service_code)
         {
             // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
-            if (const auto protocol = static_cast<communication_assets::kProtocols>(protocol_code);
-                protocol == communication_assets::kProtocols::kReceptionCode ||
-                protocol == communication_assets::kProtocols::kIdentification)
+            const auto protocol = static_cast<axmc_communication_assets::kProtocols>(protocol_code);
+            if (protocol == axmc_communication_assets::kProtocols::kReceptionCode ||
+                protocol == axmc_communication_assets::kProtocols::kIdentification)
             {
                 // Constructs the message array. This is qualitatively similar to how the rest of the message structures
                 // work, but it is easier to use an array here.
                 const uint8_t message[2] = {protocol_code, service_code};
 
                 // If writing the dat to transmission buffer, breaks the runtime with an error status.
-                if (const uint16_t next_index = _transport_layer.WriteData(message); next_index == 0)
+                const uint16_t next_index = _transport_layer.WriteData(message);
+                if (next_index == 0)
                 {
-                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kPackingError);
+                    communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
                     return false;
                 }
 
@@ -557,17 +499,18 @@ class Communication
                 if (!_transport_layer.SendData())
                 {
                     // If send operation fails, returns with an error status
-                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kTransmissionError);
+                    communication_status =
+                        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
                     return false;
                 }
 
                 // Returns with a success code
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageSent);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
                 return true;
             }
 
             // If input protocol code is not one of the valid Service protocol codes, aborts with an error
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol);
             return false;
         }
 
@@ -608,68 +551,70 @@ class Communication
                 // kNoBytesToParseFromBuffer constant. If message reception failed with any other code, returns with
                 // error status.
                 if (_transport_layer.transfer_status !=
-                    static_cast<uint8_t>(shared_assets::kTransportLayerCodes::kNoBytesToParseFromBuffer))
+                    static_cast<uint8_t>(axtlmc_shared_assets::kTransportLayerCodes::kNoBytesToParseFromBuffer))
                 {
-                    communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kReceptionError);
+                    communication_status =
+                        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kReceptionError);
                     return false;
                 }
 
                 // Otherwise, returns with a status that indicates non-error failure.
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kNoBytesToReceive);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kNoBytesToReceive);
                 return false;
             }
 
             // If the message is received and decoded, extracts the protocol code of the received message and uses it to
             // parse the rest of the message
-            if (const uint16_t next_index = _transport_layer.ReadData(protocol_code); next_index != 0)
+            const uint16_t next_index = _transport_layer.ReadData(protocol_code);
+            if (next_index != 0)
             {
                 // Pre-sets the status to the success code, assuming the switch below will resolve the message.
                 // The status will be overridden as necessary if the switch statement fails for any reason.
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kMessageReceived);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived);
 
                 // Uses efficient switch logic to resolve and handle the data based on the protocol code
-                switch (static_cast<communication_assets::kProtocols>(protocol_code))
+                switch (static_cast<axmc_communication_assets::kProtocols>(protocol_code))
                 {
-                    case communication_assets::kProtocols::KRepeatedModuleCommand:
+                    case axmc_communication_assets::kProtocols::KRepeatedModuleCommand:
                         // The 'if' checks for the implicit 'next_index' returned by the ReadData() method to not be 0.
                         // 0 indicates that the data was not read successfully. Any other number indicates successful
                         // read operation. Inlining everything makes the code more readable.
                         if (_transport_layer.ReadData(repeated_module_command, next_index)) return true;
                         break;
 
-                    case communication_assets::kProtocols::kOneOffModuleCommand:
+                    case axmc_communication_assets::kProtocols::kOneOffModuleCommand:
                         if (_transport_layer.ReadData(one_off_module_command, next_index)) return true;
                         break;
 
-                    case communication_assets::kProtocols::kDequeueModuleCommand:
+                    case axmc_communication_assets::kProtocols::kDequeueModuleCommand:
                         if (_transport_layer.ReadData(module_dequeue, next_index)) return true;
                         break;
 
-                    case communication_assets::kProtocols::kKernelCommand:
+                    case axmc_communication_assets::kProtocols::kKernelCommand:
                         if (_transport_layer.ReadData(kernel_command, next_index)) return true;
                         break;
 
-                    case communication_assets::kProtocols::kModuleParameters:
+                    case axmc_communication_assets::kProtocols::kModuleParameters:
                         // Reads the HEADER of the message into the storage structure. This gives Kernel class enough
                         // information to address the message, but this is NOT the whole message. To retrieve parameter
                         // data bundled with the message, use ExtractModuleParameters() method.
                         if (_transport_layer.ReadData(module_parameter, next_index)) return true;
                         break;
 
-                    case communication_assets::kProtocols::kKernelParameters:
+                    case axmc_communication_assets::kProtocols::kKernelParameters:
                         if (_transport_layer.ReadData(kernel_parameters, next_index)) return true;
                         break;
 
                     default:
                         // If input protocol code is not one of the valid protocols, aborts with an error status.
                         communication_status =
-                            static_cast<uint8_t>(shared_assets::kCommunicationCodes::kInvalidProtocol);
+                            static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol);
                         return false;
                 }
             }
 
             // If any of the data reading method calls failed (returned a next_index == 0), returns with error status
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParsingError);
             return false;
         }
 
@@ -713,9 +658,10 @@ class Communication
         {
             // Ensures this method cannot be called (successfully) unless the message currently stored in the reception
             // buffer is a ModuleParameters message.
-            if (protocol_code != static_cast<uint8_t>(communication_assets::kProtocols::kModuleParameters))
+            if (protocol_code != static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleParameters))
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kExtractionForbidden);
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kExtractionForbidden);
                 return false;
             }
 
@@ -723,9 +669,10 @@ class Communication
             // with the message. The '-1' accounts for the protocol code (first variable of each message) that precedes
             // the message structure.
             if (static_cast<uint8_t>(bytes_to_read) !=
-                _transport_layer.get_rx_payload_size() - sizeof(communication_assets::ModuleParameters) - 1)
+                _transport_layer.get_rx_payload_size() - sizeof(axmc_communication_assets::ModuleParameters) - 1)
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParameterMismatch);
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParameterMismatch);
                 return false;
             }
 
@@ -733,19 +680,19 @@ class Communication
             // structure (by reference). If ReadData() returns 0 (false), the extraction has failed.
             if (!_transport_layer.ReadData(prototype, kParameterObjectIndex))
             {
-                communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParsingError);
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParsingError);
                 return false;
             }
 
             // Returns with success code
-            communication_status = static_cast<uint8_t>(shared_assets::kCommunicationCodes::kParametersExtracted);
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted);
             return true;  // Successfully extracted parameters.
         }
 
     private:
         /// Stores the minimum valid incoming payload size. Currently, this is the size of the KernelCommandMessage
         /// (2 bytes) + 1 Protocol byte. This value is used to optimize incoming message reception behavior.
-        static constexpr uint16_t kMinimumPayloadSize = sizeof(communication_assets::KernelCommand) + 1;
+        static constexpr uint16_t kMinimumPayloadSize = sizeof(axmc_communication_assets::KernelCommand) + 1;
 
         /// Stores the size of the CRC Checksum postamble in bytes. This is directly dependent on the variable type used
         /// for the PolynomialType template parameter when specializing the TransportLayer class. At the time of
@@ -772,7 +719,7 @@ class Communication
         /// first step parses the message header and identifies the target module. The second step asks the module to
         /// extract the parameter data, since the module knows what data structure to expect. This index is used to
         /// continue reading message data from the point where the parser finished reading the message header.
-        static constexpr uint16_t kParameterObjectIndex = sizeof(communication_assets::ModuleParameters) + 1;
+        static constexpr uint16_t kParameterObjectIndex = sizeof(axmc_communication_assets::ModuleParameters) + 1;
 
         /// The bound TransportLayer instance that abstracts low-level data communication steps. This class statically
         /// specializes and initializes the TransportLayer to use sensible defaults. It is highly advised not to alter
