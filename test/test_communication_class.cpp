@@ -220,639 +220,355 @@ void TestSendServiceMessageErrors()
     );
 }
 
-// Tests the errors associated with the ReceiveMessage() method of the Communication class
-// These tests focus specifically on errors raised by only this method; COBS and CRC related errors should be
-// tested by their respective test functions.
-void TestReceiveMessageReceptionErrorNoCRCandCOBSCalculation()
+// Tests the functioning of the Communication class ReceiveMessage() method. This function tests the reception of all
+// valid incoming message structures. For ModuleParameters message, the method only verifies the parsing of the header.
+// A different function tests module parameter extraction.
+void TestReceiveMessage()
 {
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-
-    // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
-    // CYCLE_DELAY[4], DELIMITER, CRC[2]
-    const uint8_t test_buffer[16] = {129, 10, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    // Converts the test_buffer (uint8_t array) into an uint16_t array for compatibility with the rx_buffer.
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-
-    // Does NOT calculate the CRC for the COBS-encoded buffer.
-    // Copies the fully encoded package into the rx_buffer to simulate packet reception and test ReceiveData() method.
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kReceptionError),
-        comm_class.communication_status
-    );
-}
-
-// kCommunicationParsingError
-void TestReceiveMessageReceivedNoBytesToReceive()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-
-    comm_class.ReceiveMessage();
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kNoBytesToReceive),
-        comm_class.communication_status
-    );
-}
-
-void TestReceiveMessageReceivedRepeatedModuleCommand()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<1, 2> cobs_class;
-
-    // Zero out command_message fields
-    comm_class.repeated_module_command.module_type = 0;
-    comm_class.repeated_module_command.module_id   = 0;
-    comm_class.repeated_module_command.return_code = 0;
-    comm_class.repeated_module_command.command     = 0;
-    comm_class.repeated_module_command.noblock     = false;
-    comm_class.repeated_module_command.cycle_delay = 0;
-
-    // Currently, the layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK,
-    // CYCLE_DELAY[4], DELIMITER, CRC[2]
-    uint8_t test_buffer[16] = {129, 10, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
-        comm_class.communication_status
-    );
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.repeated_module_command.module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, comm_class.repeated_module_command.return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(0, comm_class.repeated_module_command.command);      // Check command
-    TEST_ASSERT_FALSE(comm_class.repeated_module_command.noblock);               // Check noblock
-}
-
-void TestReceiveMessageReceivedOneOffModuleCommand()
-{
-    StreamMock<254> mock_port;
+    StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
     COBSProcessor<> cobs_class;
 
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, COMMAND, NOBLOCK, DELIMITER, CRC[2]
-    uint8_t test_buffer[12] = {129, 6, 0, 2, 0, 5, 8, 0, 0, 0, 0, 0};
+    // Verifies correct non-error no-success scenario, where the buffer does not contain any bytes to receive.
+    comm_class.ReceiveMessage();
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kNoBytesToReceive),
+        comm_class.communication_status
+    );
 
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
+    mock_port.reset();  // Resets the mock port
 
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
+    // Verifies RepeatedModuleCommand reception.
+    uint8_t test_buffer_1[16] = {129, 10, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    // Adds the CRC to the end of the buffer. The insertion location has to be statically shifted to account for the
-    // metadata preamble bytes
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[12] = {};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_1, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_1, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
+    // Receives and verifies the message data.
     comm_class.ReceiveMessage();
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        comm_class.communication_status
+    );
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);           // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.repeated_module_command.module_id);             // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(4, comm_class.repeated_module_command.return_code);           // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(5, comm_class.repeated_module_command.command);               // Check command
+    TEST_ASSERT_FALSE(comm_class.repeated_module_command.noblock);                        // Check noblock
+    TEST_ASSERT_EQUAL_UINT32(0, comm_class.repeated_module_command.cycle_delay);  // Check cycle_delay
 
+    mock_port.reset();  // Resets the mock port
+
+    // Verifies OneOffModuleCommand reception.
+    uint8_t test_buffer_2[12] = {129, 6, 0, 2, 0, 1, 2, 3, 1, 0, 0, 0};
+
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_2, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_2, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_2); ++i)
+    {
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_2[i]);
+    }
+
+    // Receives and verifies the message data.
+    comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(0, comm_class.one_off_module_command.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(5, comm_class.one_off_module_command.module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(8, comm_class.one_off_module_command.return_code);  // Check return_code
-}
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.one_off_module_command.module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.one_off_module_command.return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.one_off_module_command.command);      // Check command
+    TEST_ASSERT_TRUE(comm_class.one_off_module_command.noblock);                // Check noblock
 
-void TestReceiveMessageReceivedDequeueModuleCommand()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    mock_port.reset();  // Resets the mock port
 
-    // The correct layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, DELIMITER, CRC[2]
-    uint8_t test_buffer[10] = {129, 4, 0, 3, 19, 3, 0, 0, 0, 0};
+    // Verifies DequeModuleCommand reception.
+    uint8_t test_buffer_3[10] = {129, 4, 0, 3, 1, 2, 3, 0, 0, 0};
 
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[10] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_3, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_3, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_3, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_3); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_3[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
+    // Receives and verifies the message data.
     comm_class.ReceiveMessage();
-
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(19, comm_class.module_dequeue.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_dequeue.module_id);     // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(0, comm_class.module_dequeue.return_code);   // Check return_code
-}
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_dequeue.module_type);  // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_dequeue.module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_dequeue.return_code);  // Check return_code
 
-void TestReceiveMessageReceivedKernelCommand()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    mock_port.reset();  // Resets the mock port
 
-    // The correct layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, RETURN_CODE, COMMAND, DELIMITER, CRC[2]
-    uint8_t test_buffer[9] = {129, 3, 0, 4, 0, 3, 0, 0, 0};
+    // Verifies KernelCommand reception.
+    uint8_t test_buffer_4[9] = {129, 3, 0, 4, 1, 2, 0, 0, 0};
 
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[9] = {};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_4, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_4, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_4, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_4); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_4[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
+    // Receives and verifies the message data.
     comm_class.ReceiveMessage();
-
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(0, comm_class.kernel_command.return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.kernel_command.command);      // Check return_code
-}
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_command.return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.kernel_command.command);      // Check return_code
 
-void TestReceiveMessageReceivedModuleParameters()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    mock_port.reset();  // Resets the mock port
 
-    // Instantiates a ModuleParameters with payload.
-    // The layout is: START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE_TYPE, MODULE_ID, RETURN_CODE, DELIMITER, CRC[2]
-    uint8_t test_buffer[10] = {129, 4, 0, 5, 1, 20, 1, 0, 0, 0};
+    // Verifies ModuleParameters reception. Note, this only verifies the header of the message. Parameter extraction is
+    // verified by a different test function.
+    uint8_t test_buffer_5[11] = {129, 4, 0, 5, 1, 2, 3, 4, 0, 0, 0};  // 4 simulates parameter object data
 
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[10] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_5, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_5, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_5, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_5); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_5[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
+    // Receives and verifies the message data.
     comm_class.ReceiveMessage();
-
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_parameter.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(20, comm_class.module_parameter.module_id);   // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_parameter.return_code);  // Check return_code
-}
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_parameter.module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_parameter.return_code);  // Check return_code
 
-void TestReceiveMessageReceivedKernelParameters()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    mock_port.reset();  // Resets the mock port
 
-    // The current layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, RETURN_CODE, DYNAMIC_PARAMETERS, DELIMITER, CRC[2]
-    uint8_t test_buffer[10] = {129, 4, 0, 6, 1, 1, 1, 0, 0, 0};
+    // Verifies KernelParameters reception.
+    uint8_t test_buffer_6[10] = {129, 4, 0, 6, 1, 0, 1, 0, 0, 0};
 
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[10] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_6, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_6, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_6, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_6); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_6[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
+    // Receives and verifies message data.
     comm_class.ReceiveMessage();
-
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_parameters.return_code);                     // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_parameters.dynamic_parameters.action_lock);  // Check action_lock
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_parameters.dynamic_parameters.ttl_lock);     // Check ttl_lock
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_parameters.return_code);            // Check return_code
+    TEST_ASSERT_FALSE(comm_class.kernel_parameters.dynamic_parameters.action_lock);  // Check action_lock
+    TEST_ASSERT_TRUE(comm_class.kernel_parameters.dynamic_parameters.ttl_lock);      // Check ttl_lock
 }
 
-void TestReceiveMessageInvalidProtocolErrorArbitraryProtocolValue()
+// Tests the error-handling behavior of the Communication class ReceiveMessage() method.
+void TestReceiveMessageErrors()
 {
-    StreamMock<254> mock_port;
+    StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
     COBSProcessor<> cobs_class;
 
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, OBJECT_SIZE, OBJECT, DELIMITER, CRC[2]
-    uint8_t test_buffer[16] = {129, 10, 0, 100, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};  // 100 is an invalid protocol code
+    // Verifies that failing one of the reception steps, such as COBS decoding or CRC verification, correctly raises
+    // kReceptionError.
+    const uint8_t test_buffer_1[16] = {129, 10, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Skips COBS and CRC to produce an invalid packet. Writes the invalid packet into the mock reception buffer.
+    for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
+    // Triggers and verifies the error.
     comm_class.ReceiveMessage();
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kReceptionError),
+        comm_class.communication_status
+    );
 
+    mock_port.reset(); // Resets the mock port
+
+    // Verifies that receiving a message with an invalid protocol code correctly raises kInvalidProtocol. Note,
+    // protocols used by the outgoing messages (such as KernelData) are also considered invalid.
+    constexpr auto invalid_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
+    uint8_t test_buffer_2[16] = {129, 10, 0, invalid_protocol, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
+
+    // Packages test message data into the mock reception buffer.
+    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_2, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_2, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_2); ++i)
+    {
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_2[i]);
+    }
+
+    // Triggers and verifies the error.
+    comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
     );
-}
 
-void TestReceiveMessageParsingErrorRepeatedModuleMissingParameter()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    mock_port.reset(); // Resets the mock port
 
-    // Zeroes-out the test structure
-    comm_class.repeated_module_command.module_type = 0;
-    comm_class.repeated_module_command.module_id   = 0;
-    comm_class.repeated_module_command.return_code = 0;
-    comm_class.repeated_module_command.command     = 0;
-    comm_class.repeated_module_command.noblock     = false;
-    comm_class.repeated_module_command.cycle_delay = 0;
+    // Verifies that receiving an incomplete message (message that deviates from its mandated layout) correctly raises
+    // kParsingError.
+    uint8_t test_buffer_3[16] = {129, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-    // The correct layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, COMMAND, NO_BLOCK, CYCLE[4], DELIMITER, CRC[2]
-
-    // This is missing a byte for CYCLE-DELAY
-    uint8_t test_buffer[16] = {129, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-
-    // Simulates COBS encoding the buffer.
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_3, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_3, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_3, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_3); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_3[i]);
     }
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
 
+    // Triggers and verifies the error.
     comm_class.ReceiveMessage();
-
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParsingError),
         comm_class.communication_status
     );
 }
 
-// Tests the errors associated with the ExtractParameter() method of the Communication class
-// These tests focus specifically on errors raised by only this method; COBS and CRC errors should be
-// tested by their respective test functions.
-void TestExtractParametersExtractionForbidden()
+// Tests the functioning of the Communication class ExtractModuleParameters() method. Tests two likely parameter storage
+// formats: structure and array.
+void TestExtractModuleParameters()
 {
-    StreamMock<254> mock_port;
+    StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<1, 2> cobs_class;
+    COBSProcessor<> cobs_class;
 
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE_TYPE, MODULE_ID, OBJECT[6], DELIMITER, CRC[2]
-    // The message is not a ModuleParameters message
-    uint8_t test_buffer[16] = {129, 10, 0, 3, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
+    // Verifies that extracting parameters into an array works as expected
+    uint8_t test_buffer_1[16] = {129, 10, 0, 5, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
 
-    // Simulates COBS encoding the buffer.
-    uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
+    // Packages test message data into the mock reception buffer.
+    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_1, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_1, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
     {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
     }
 
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
+    // Defines the test array which serves as parameter extraction target.
+    uint8_t extract_data[6] = {};
 
+    // Receives the message, extracts and verifies parameter data.
     comm_class.ReceiveMessage();
+    comm_class.ExtractModuleParameters(extract_data);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
+        comm_class.communication_status
+    );
+    const uint8_t expected_data[6] = {5, 1, 2, 3, 4, 5,};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data, extract_data, sizeof(expected_data));
 
-    uint8_t extract_into[6] = {0};
+    mock_port.reset(); // Resets the mock port
+
+    //Verifies that extracting parameter data into a structure works as expected
+    uint8_t test_buffer_2[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
+
+    // Packages test message data into the mock reception buffer.
+    packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
+    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_2, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_2, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_2); ++i)
+    {
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_2[i]);
+    }
+
+    // Defines the test structure which serves as parameter extraction target.
+    struct TestStructure
+    {
+        uint8_t id      = 1;
+        uint8_t data[5] = {};
+    } PACKED_STRUCT test_structure;  // Has to be packed to properly align the data
+
+    // Call the ExtractParameters function, expecting a successful extraction
+    comm_class.ReceiveMessage();
+    comm_class.ExtractModuleParameters(test_structure);
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
+        comm_class.communication_status
+    );
+    TEST_ASSERT_EQUAL_UINT8(9, test_structure.id);
+    const uint8_t expected_data_2[5] = {1, 2, 3, 4, 5,};
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data_2, test_structure.data, sizeof(expected_data_2));
+}
+
+// Tests the error-handling behavior of the Communication class ExtractModuleParameters() method. Note, this function
+// does not test ParsingError, as it is currently impossible to trigger this condition without modifying the class
+// source code.
+void TestExtractModuleParametersErrors()
+{
+    StreamMock<60> mock_port;
+    Communication comm_class(mock_port);
+    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
+    COBSProcessor<> cobs_class;
+
+    // Verifies that calling ExtractParameters() after receiving a message with a protocol code other than
+    // kModuleParameters raises ExtractionForbidden error.
+    constexpr auto protocol_code = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kUndefined);
+    uint8_t test_buffer_1[16] = {129, 10, 0, protocol_code, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
+
+    // Packages test message data into the mock reception buffer.
+    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
+    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_1, 2, packet_size);
+    crc_class.AddCRCChecksumToBuffer(test_buffer_1, packet_size + 2, crc_checksum);
+    for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
+    {
+        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
+    }
+
+    // Triggers and verifies the error.
+    comm_class.ReceiveMessage();
+    uint8_t extract_into[6] = {};
     comm_class.ExtractModuleParameters(extract_into);
-
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kExtractionForbidden),
         comm_class.communication_status
     );
-}
 
-void TestExtractParametersArrayDestination()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<1, 2> cobs_class;
+    mock_port.reset(); // Resets the mock port
 
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL,  MODULE_TYPE, MODULE_ID, OBJECT[6], DELIMITER, CRC[2]
-    uint8_t test_buffer[16] = {129, 10, 0, 5, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
+    // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of parameters
+    // block inside the serial buffer raises a kParameterMismatch error.
+    comm_class.protocol_code = 5; // Manually sets the protocol code to kModuleParameters
 
-    // Simulates COBS encoding the buffer.
-    uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    uint8_t extract_into[6] = {0};
-    comm_class.ExtractModuleParameters(extract_into);
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
-        comm_class.communication_status
-    );
-}
-
-void TestExtractParametersStructDestination()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<1, 2> cobs_class;
-
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, OBJECT[6], DELIMITER, CRC[2]
-    uint8_t test_buffer[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
-
-    // Simulates COBS encoding the buffer.
-    uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    // Define a test array to extract parameters into
-    struct TestStructure
-    {
-            uint8_t id      = 1;
-            uint8_t data[5] = {0};
-    } test_structure;
-
-    // Call the ExtractParameters function, expecting a successful extraction
-    comm_class.ExtractModuleParameters(test_structure);
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
-        comm_class.communication_status
-    );
-}
-
-void TestExtractParametersSizeMismatchDestinationSizeLarger()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<1, 2> cobs_class;
-
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL,  MODULE, ID, RETURN_CODE, OBJECT[3], DELIMITER, CRC[2]
-    uint8_t test_buffer[16] = {129, 10, 0, 5, 2, 3, 4, 5, 1, 5, 0, 0, 0};
-
-    // Simulates COBS encoding the buffer.
-    uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer. The insertion location has to be statically shifted to account for the
-    // metadata preamble bytes
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[16] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    // Input structure with larger size than transmitted data
-    struct DataMessage
-    {
-            uint8_t id       = 0;
-            uint8_t data[10] = {0};
-    } data_message;
-
-    bool success = comm_class.ExtractModuleParameters(data_message);
-
-    TEST_ASSERT_FALSE(success);
+    // Prototype is larger than stored data size
+    uint8_t invalid_prototype_2[12] = {};  // Prototype is smaller than stored data size
+    TEST_ASSERT_FALSE(comm_class.ExtractModuleParameters(invalid_prototype_2));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParameterMismatch),
-        comm_class.communication_status
-    );
-}
-
-void TestExtractParametersSizeMismatchDestinationSizeSmaller()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<1, 2> cobs_class;
-
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL,  MODULE, ID, RETURN_CODE, OBJECT[8], DELIMITER, CRC[2]
-    uint8_t test_buffer[18] = {129, 12, 0, 5, 2, 3, 4, 5, 1, 2, 3, 4, 5, 18, 30, 0, 0, 0};
-
-    // Simulates COBS encoding the buffer.
-    uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer. The insertion location has to be statically shifted to account for the
-    // metadata preamble bytes
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[18] = {0};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    // Input structure with smaller size than transmitted data
-    struct DataMessage
-    {
-            uint8_t id   = 0;
-            uint8_t data = 0;
-    } data_message;
-
-    const bool success = comm_class.ExtractModuleParameters(data_message);
-
-    TEST_ASSERT_FALSE(success);
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParameterMismatch),
-        comm_class.communication_status
-    );
-}
-
-void TestExtractParametersParsingErrorLargeTransmittedData()
-{
-    StreamMock<254> mock_port;
-    Communication comm_class(mock_port);
-    CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
-
-    // Instantiates an array with larger size than the max payload size
-    // Currently, the layout is:
-    // START, PAYLOAD_SIZE, OVERHEAD, PROTOCOL, MODULE, ID, RETURN_CODE, OBJECT, DELIMITER, CRC[2]
-
-    uint8_t test_buffer[266] = {};
-
-    // Simulates COBS encoding the buffer.
-    test_buffer[0]             = 129;
-    test_buffer[1]             = 4;
-    test_buffer[2]             = 0;
-    test_buffer[3]             = 5;
-    test_buffer[4]             = 2;
-    test_buffer[5]             = 3;
-    test_buffer[6]             = 4;
-    const uint16_t packet_size = cobs_class.EncodePayload(test_buffer, 0);
-
-    // Calculates the CRC for the COBS-encoded buffer.
-    const uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer, 2, packet_size);
-
-    // Adds the CRC to the end of the buffer.
-    crc_class.AddCRCChecksumToBuffer(test_buffer, packet_size + 2, crc_checksum);
-
-    uint16_t test_buffer_uint16[266] = {};
-    for (size_t i = 0; i < sizeof(test_buffer); ++i)
-    {
-        test_buffer_uint16[i] = static_cast<uint16_t>(test_buffer[i]);
-    }
-
-    memcpy(mock_port.rx_buffer, test_buffer_uint16, sizeof(test_buffer_uint16));
-
-    comm_class.ReceiveMessage();
-
-    uint8_t extract_into[256] = {};
-    comm_class.ExtractModuleParameters(extract_into);
-
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParsingError),
         comm_class.communication_status
     );
 }
@@ -878,24 +594,12 @@ int RunUnityTests()
     RUN_TEST(TestSendServiceMessageErrors);
 
     // ReceiveMessage
-    RUN_TEST(TestReceiveMessageReceptionErrorNoCRCandCOBSCalculation);
-    RUN_TEST(TestReceiveMessageReceivedNoBytesToReceive);
-    RUN_TEST(TestReceiveMessageReceivedRepeatedModuleCommand);
-    RUN_TEST(TestReceiveMessageReceivedOneOffModuleCommand);
-    RUN_TEST(TestReceiveMessageReceivedDequeueModuleCommand);
-    RUN_TEST(TestReceiveMessageReceivedKernelCommand);
-    RUN_TEST(TestReceiveMessageReceivedModuleParameters);
-    RUN_TEST(TestReceiveMessageReceivedKernelParameters);
-    RUN_TEST(TestReceiveMessageInvalidProtocolErrorArbitraryProtocolValue);
-    RUN_TEST(TestReceiveMessageParsingErrorRepeatedModuleMissingParameter);
+    RUN_TEST(TestReceiveMessage);
+    RUN_TEST(TestReceiveMessageErrors);
 
-    //ExtractParameter
-    RUN_TEST(TestExtractParametersExtractionForbidden);
-    RUN_TEST(TestExtractParametersArrayDestination);
-    RUN_TEST(TestExtractParametersStructDestination);
-    RUN_TEST(TestExtractParametersSizeMismatchDestinationSizeSmaller);
-    RUN_TEST(TestExtractParametersSizeMismatchDestinationSizeLarger);
-    RUN_TEST(TestExtractParametersParsingErrorLargeTransmittedData);
+    // ExtractModuleParameters
+    RUN_TEST(TestExtractModuleParameters);
+    RUN_TEST(TestExtractModuleParametersErrors);
 
     return UNITY_END();
 }

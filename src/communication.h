@@ -522,23 +522,21 @@ class Communication
         }
 
         /**
-         * @brief Parses the next available message received from the PC and stored inside the serial port reception
-         * buffer.
+         * @brief Parses the next available PC-sent message stored inside the serial port reception buffer.
          *
-         * This method will only attempt message reception (parsing) if the Serial interface buffer, managed by the
-         * TransportLayer class, has the minimum number of bytes required to represent the smallest possible message.
+         * This method will only attempt message reception (parsing) if the serial interface buffer, managed by the
+         * TransportLayer class, has the minimum number of bytes required to represent the smallest valid message.
          *
-         * @note If this method returns true, use 'protocol_code' class attribute to access the protocol code of the
-         * parsed message. Based on the protocol code, use the appropriate class attribute to access the parsed message
-         * data.
+         * @note If this method returns true, it uses the 'protocol_code' to store the protocol of the received message.
+         * In turn, that determines which of the class attributes stores the parsed message data.
          *
          * @attention If the received message is a ModuleParameters message, call ExtractModuleParameters() method to
-         * finalize message parsing. This method DOES NOT extract Module parameter data from the received message.
+         * finalize message parsing. This method DOES NOT extract Module parameter data from the serial buffer.
          *
-         * @returns True if a message was successfully received and parsed, false otherwise. Note, if this method
-         * returns false, this does not necessarily indicate runtime error. Use 'communication_status' class attribute
-         * to determine the cause of the failure. kCommunicationNoBytesToReceive status code from
-         * shared_assets::kCommunicationCodes indicates a non-error failure.
+         * @returns True if a message was successfully received and parsed, false otherwise. If this method returns
+         * false, this does not necessarily indicate runtime error. Use 'communication_status' class attribute to
+         * determine the cause of the failure. kNoBytesToReceive status code from
+         * axmc_shared_assets::kCommunicationCodes indicates a non-error failure.
          *
          * Example usage:
          * @code
@@ -626,8 +624,8 @@ class Communication
         }
 
         /**
-         * @brief Extracts the parameter data transmitted with the ModuleParameters message and uses it to set the input
-         * structure values.
+         * @brief Extracts the parameter data transmitted with the ModuleParameters message and uses it to overwrite the
+         * memory of the input 'prototype' object.
          *
          * This method executes the second step of the ModuleParameter message reception process. It extracts the
          * necessary number of bytes to overwrite the input structure's memory with incoming message data. Kernel
@@ -638,10 +636,10 @@ class Communication
          *
          * @tparam ObjectType The type of the input structure object. This is resolved automatically and allows using
          * this method with most valid objet structures.
-         * @param prototype The data structure instance whose memory needs to be overwritten with received data.
-         * @param bytes_to_read The number of bytes that make up the prototype. This is used as an extra safety check to
-         * ensure the parameter data extracted from the message (whose size is known) matches the size expected by the
-         * structure.
+         * @tparam bytes_to_read The number of bytes that make up the prototype. This is used as an extra safety check
+         * to ensure the parameter data extracted from the message (whose size is known) matches the size expected by
+         * the structure.
+         * @param prototype The object whose memory needs to be overwritten with received data.
          *
          * @returns True if the parameter data was successfully extracted and set, false otherwise.
          *
@@ -660,9 +658,19 @@ class Communication
          * bool success = comm_class.ExtractParameters(data_message);  // Attempts to receive the message
          * @endcode
          */
-        template <typename ObjectType>
-        bool ExtractModuleParameters(ObjectType& prototype, const uint16_t& bytes_to_read = sizeof(ObjectType))
+        template <typename ObjectType, size_t bytes_to_read = sizeof(ObjectType)>
+        bool ExtractModuleParameters(ObjectType& prototype)
         {
+
+            // This guards against invalid calls at compile time
+            static_assert(
+                bytes_to_read > 0 && bytes_to_read <= 250,
+                "Unable to extract received module parameters as the method has received an invalid 'prototype' input. "
+                "Since a single received message payload exceed 254 bytes and ModuleParameters message header data "
+                "reserves 4 bytes, a valid prototype object cannot exceed 250 bytes in size. Also, since sending empty"
+                "parameter messages is not allowed, the prototype has to be greater than 0."
+            );
+
             // Ensures this method cannot be called (successfully) unless the message currently stored in the reception
             // buffer is a ModuleParameters message.
             if (protocol_code != static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleParameters))
