@@ -42,8 +42,9 @@
 
 /**
  * @class Communication
- * @brief Exposes methods that allow establishing and maintaining bidirectional serialized communication with a PC
- * running the ataraxis-communication-interface library via the internal binding of the TransportLayer class.
+ * @brief Exposes methods that allow establishing and maintaining bidirectional serialized communication with a
+ * host-computer (PC) running the ataraxis-communication-interface library via the internal binding of the
+ * TransportLayer class.
  *
  * This class handles all communications between the microcontroller and the PC over the USB (preferred) or UART serial
  * interface. To do so, the class extends the TransportLayer class methods to send and receive a statically defined set
@@ -93,7 +94,12 @@ class Communication
          * @brief Instantiates a new Communication class object.
          *
          * Critically, the constructor also initializes the TransportLayer class as part of its runtime, which is
-         * essential for the correct functioning of the communication interface.
+         * essential for the correct functioning of the communication interface. The class uses CRC-16 polynomial for
+         * data integrity verification and dynamically configures TransportLayer buffer sizes to not exceed the size
+         * of the microcontroller's serial buffer.
+         *
+         * @warning This class can reserve up to ~1kB of RAM to store runtime data. On supported lower-end
+         * microcontrollers, this number may be lowered up to ~700 bytes due to adaptive optimization.
          *
          * @note Make sure that the referenced Stream interface is initialized via its 'begin' method before calling
          * Communication class methods.
@@ -153,8 +159,8 @@ class Communication
          * @param command The byte-code specifying the command executed by the module that sent the data message.
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param prototype The byte-code specifying the prototype object that can be used to deserialize the included
-         * object data. For this to work as expected, the microcontroller and the PC need to share the same
-         * prototype_code-to-object mapping.
+         * object data. All valid prototype codes are stored in the axmc_communication_assets::kPrototypes
+         * enumeration.
          * @param object Additional data object to be sent along with the message. Currently, only one object is
          * supported per each Data message.
          *
@@ -165,12 +171,12 @@ class Communication
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * const uint8_t module_type = 112        // Example module type
-         * const uint8_t module_id = 12;          // Example module ID
-         * const uint8_t command = 88;            // Example command code
-         * const uint8_t event_code = 221;        // Example event code
-         * const uint8_t prototype = 1;           // Prototype codes are available from communication_assets namespace.
-         * const uint8_t placeholder_object = 0;  // Meaningless, placeholder object
+         * const uint8_t module_type = 112  // Example module type
+         * const uint8_t module_id = 12;    // Example module ID
+         * const uint8_t command = 88;      // Example command code
+         * const uint8_t event_code = 221;  // Example event code
+         * auto prototype = axmc_communication_assets::kPrototypes::kOneUint8;  // Prototype code.
+         * const uint8_t placeholder_object = 255;  // Has to be a single unsigned integer!
          * comm_class.SendDataMessage(module_type, module_id, command, event_code, prototype, placeholder_object);
          * @endcode
          */
@@ -184,8 +190,7 @@ class Communication
             const ObjectType& object
         )
         {
-            // Ensures that the input fits inside the message payload buffer. Since this statement is evaluated at
-            // compile time, it does not impact runtime speed.
+            // Ensures that the input fits inside the message payload buffer.
             static_assert(
                 sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(axmc_communication_assets::ModuleData),
                 "The provided object is too large to fit inside the message payload buffer. This check accounts for "
@@ -287,8 +292,9 @@ class Communication
         /**
          * @brief Packages the input data into the ModuleState structure and sends it to the connected PC.
          *
-         * @note This method is essentially a version of SendDataMessage that is optimized to not use additional data
-         * objects and execute faster. Otherwise, it behaves exactly like SendDataMessage.
+         * This method is very similar to SendDataMessage, but is optimized to not use additional data objects. It
+         * will execute slightly faster, and the payloads transmitted by this method may be significantly smaller than
+         * those transmitted by SendDataMessage.
          *
          * @note This method is specialized to send Module messages. There is an overloaded version of this method that
          * only takes command and event_code arguments, which allows sending data messages from the Kernel class.
@@ -459,9 +465,11 @@ class Communication
          * payload structure, but the meaning of the transmitted byte-code depends on the used protocol.
          *
          * @note Currently, this method only supports kIdentification and kReceptionCode protocols from the
-         * kProtocols enumeration available from the communication_assets namespace.
+         * kProtocols enumeration available from the axmc_communication_assets namespace.
          *
-         * @param protocol_code The byte-code specifying the protocol to use for the transmitted message.
+         * @param protocol The byte-code specifying the protocol to use for the transmitted message. Has to be either
+         * axmc_communication_assets::kProtocols::kReceptionCode or
+         * axmc_communication_assets::kProtocols::kIdentification.
          * @param service_code The byte-code specifying the byte-code to be transmitted as message payload.
          *
          * @returns True if the message was successfully sent, false otherwise.
@@ -471,21 +479,20 @@ class Communication
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * const uint8_t protocol_code = static_cast<uint8_t>(communication_assets::kProtocols::kReceptionCode);
+         * auto protocol = axmc_communication_assets::kProtocols::kReceptionCode;  // Protocol code
          * const uint8_t code = 112;      // Example service code
-         * comm_class.SendServiceMessage(protocol_code, code);
+         * comm_class.SendServiceMessage(protocol, code);
          * @endcode
          */
-        bool SendServiceMessage(const uint8_t protocol_code, const uint8_t service_code)
+        bool SendServiceMessage(const axmc_communication_assets::kProtocols protocol, const uint8_t service_code)
         {
             // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
-            const auto protocol = static_cast<axmc_communication_assets::kProtocols>(protocol_code);
             if (protocol == axmc_communication_assets::kProtocols::kReceptionCode ||
                 protocol == axmc_communication_assets::kProtocols::kIdentification)
             {
                 // Constructs the message array. This is qualitatively similar to how the rest of the message structures
                 // work, but it is easier to use an array here.
-                const uint8_t message[2] = {protocol_code, service_code};
+                const uint8_t message[2] = {static_cast<uint8_t>(protocol), service_code};
 
                 // If writing the dat to transmission buffer, breaks the runtime with an error status.
                 const uint16_t next_index = _transport_layer.WriteData(message);

@@ -1,20 +1,20 @@
-// Due to certain issues with reconnecting to Teensy boards when running separate test suits, this test suit acts as a
-// single centralized hub for running all available tests for all supported classes and methods of the
-// ataraxis-micro-controller library. Declare all required tests using separate functions (as needed) and then add the
-// tests to be evaluated to the RunUnityTests function at the bottom of this file. Comment unused tests out if needed.
-
 // This test suit only covers the Communication class. Kernel and Modules are tested with a fully functional
 // communication interface using Python bindings. The idea behind this design pattern is that this test suit, together
 // with TransportLayer tests, ensures that the microcontroller can talk to the PC. The PC then takes over the testing.
 
+// Due to certain issues with reconnecting to Teensy boards when running separate test suits, this test suit acts as a
+// single centralized hub for running all available tests for the Communication class. Declare all required tests using
+// separate functions (as needed) and then add the tests to be evaluated to the RunUnityTests function at the bottom of
+// this file.
+
 // Dependencies
-#include <Arduino.h>  // For Arduino functions
-#include <unity.h>    // This is the C testing framework, no connection to the Unity game engine
-#include "axmc_shared_assets.h"
-#include "cobs_processor.h"  // COBSProcessor class
-#include "communication.h"   // Communication class
-#include "crc_processor.h"   // CRCProcessor class
-#include "stream_mock.h"     // StreamMock class required for Communication class testing
+#include <Arduino.h>             // For Arduino functions
+#include <unity.h>               // This is the C testing framework, no connection to the Unity game engine
+#include "axmc_shared_assets.h"  // Library shared assets
+#include "cobs_processor.h"      // COBSProcessor class
+#include "communication.h"       // Communication class
+#include "crc_processor.h"       // CRCProcessor class
+#include "stream_mock.h"         // StreamMock class required for Communication class testing
 
 // This function is called automatically before each test function. Currently not used.
 void setUp()
@@ -48,12 +48,12 @@ void TestSendDataMessage()
     // Kernel test
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
     comm_class.SendDataMessage(command, event_code, prototype, test_object);
-    constexpr uint16_t expected_kernel[5] = {kernel_protocol, command, event_code, prototype_code, test_object};
+    constexpr uint16_t expected_kernel[6] = {kernel_protocol, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -63,13 +63,13 @@ void TestSendDataMessage()
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
     comm_class.SendDataMessage(module_type, module_id, command, event_code, prototype, test_object);
-    constexpr uint16_t expected_module[7] =
-        {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object};
+    constexpr uint16_t expected_module[8] =
+        {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
-    for (int i = 0; i < 7; ++i)
+    for (int i = 0; i < 8; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -92,12 +92,12 @@ void TestSendStateMessage()
 
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelState);
     comm_class.SendStateMessage(command, event_code);
-    constexpr uint16_t expected_kernel[3] = {kernel_protocol, command, event_code};
+    constexpr uint16_t expected_kernel[4] = {kernel_protocol, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
-    for (int i = 0; i < 3; ++i)
+    for (int i = 0; i < 4; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -107,12 +107,12 @@ void TestSendStateMessage()
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState);
     comm_class.SendStateMessage(module_type, module_id, command, event_code);
-    constexpr uint16_t expected_module[5] = {module_protocol, module_type, module_id, command, event_code};
+    constexpr uint16_t expected_module[6] = {module_protocol, module_type, module_id, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -130,7 +130,7 @@ void SendCommunicationErrorMessage()
     constexpr uint8_t module_id     = 2;
     constexpr uint8_t command       = 3;
     constexpr uint8_t error_code    = 4;
-    comm_class.communication_status = 189;  // Manually sets the Communication class status code.
+    comm_class.communication_status = 189;                     // Manually sets the Communication class status code.
     uint8_t tl_status = comm_class.GetTransportLayerStatus();  // Extracts the current Transport Layer status.
 
     // Defines the prototype byte-code. Communication errors contain two uint8 values: Communication and
@@ -141,29 +141,29 @@ void SendCommunicationErrorMessage()
     // Error messages use the appropriate Data protocol code.
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
     comm_class.SendCommunicationErrorMessage(command, error_code);
-    const uint16_t expected_kernel[6] = {kernel_protocol, 3, 4, prototype_code, 189, tl_status};
+    const uint16_t expected_kernel[7] = {kernel_protocol, 3, 4, prototype_code, 189, tl_status, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < 7; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
 
-    mock_port.reset();                                               // Resets the mock port
-    comm_class.communication_status = 65;                            // Resets the communication class status.
+    mock_port.reset();                                 // Resets the mock port
+    comm_class.communication_status = 65;              // Resets the communication class status.
     tl_status = comm_class.GetTransportLayerStatus();  // Re-extracts the current Transport Layer status.
 
     // Module error message
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
     comm_class.SendCommunicationErrorMessage(module_type, module_id, command, error_code);
-    const uint16_t expected_module[8] = {module_protocol, 1, 2, 3, 4, prototype_code, 65, tl_status};
+    const uint16_t expected_module[9] = {module_protocol, 1, 2, 3, 4, prototype_code, 65, tl_status, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 9; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -178,8 +178,8 @@ void TestSendServiceMessage()
     constexpr uint8_t service_code = 111;  // Uses the same test service code for all messages.
 
     // Reception message
-    auto protocol_code                   = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kReceptionCode);
-    const uint16_t expected_reception[2] = {protocol_code, service_code};
+    auto protocol_code                   = axmc_communication_assets::kProtocols::kReceptionCode;
+    const uint16_t expected_reception[2] = {static_cast<uint8_t>(protocol_code), service_code};
     comm_class.SendServiceMessage(protocol_code, service_code);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
@@ -193,8 +193,8 @@ void TestSendServiceMessage()
     mock_port.reset();  // Resets the mock port
 
     // Identification message
-    protocol_code = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kIdentification);
-    const uint16_t expected_identification[2] = {protocol_code, service_code};
+    protocol_code                             = axmc_communication_assets::kProtocols::kIdentification;
+    const uint16_t expected_identification[2] = {static_cast<uint8_t>(protocol_code), service_code};
     comm_class.SendServiceMessage(protocol_code, service_code);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
@@ -213,7 +213,7 @@ void TestSendServiceMessageErrors()
     Communication comm_class(mock_port);
 
     // Attempts to pass an invalid protocol code.
-    comm_class.SendServiceMessage(200, 112);
+    comm_class.SendServiceMessage(axmc_communication_assets::kProtocols::kUndefined, 112);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol),
         comm_class.communication_status
