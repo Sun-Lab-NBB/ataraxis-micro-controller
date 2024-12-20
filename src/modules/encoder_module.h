@@ -239,7 +239,7 @@ class EncoderModule final : public Module
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCW),
-                    axmc_communication_assets::kPrototypes::kOneUnsignedLong,
+                    axmc_communication_assets::kPrototypes::kOneUint32,
                     delta
                 );
                 _overflow = 0;  // Resets the overflow, as all tracked pulses have been 'consumed' and sent to the PC.
@@ -251,7 +251,7 @@ class EncoderModule final : public Module
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kRotatedCCW),
-                    axmc_communication_assets::kPrototypes::kOneUnsignedLong,
+                    axmc_communication_assets::kPrototypes::kOneUint32,
                     delta
                 );
                 _overflow = 0;  // Resets the overflow, as all tracked pulses have been 'consumed' and sent to the PC.
@@ -305,7 +305,7 @@ class EncoderModule final : public Module
             // Sends the average PPR count to the PC.
             SendData(
                 static_cast<uint8_t>(kCustomStatusCodes::kPPR),
-                axmc_communication_assets::kPrototypes::kOneUnsignedShort,
+                axmc_communication_assets::kPrototypes::kOneUint16,
                 average_ppr
             );
 

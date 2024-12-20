@@ -170,7 +170,7 @@ class TorqueModule final : public Module
                 // CCW torque.
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kCCWTorque),
-                    axmc_communication_assets::kPrototypes::kOneUnsignedShort,
+                    axmc_communication_assets::kPrototypes::kOneUint16,
                     signal
                 );
                 previous_readout = signal;  // Overwrites the previous readout with the current signal.
@@ -180,7 +180,7 @@ class TorqueModule final : public Module
             {
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kCWTorque),
-                    axmc_communication_assets::kPrototypes::kOneUnsignedShort,
+                    axmc_communication_assets::kPrototypes::kOneUint16,
                     signal
                 );
                 previous_readout = signal;  // Overwrites the previous readout with the current signal.

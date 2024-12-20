@@ -25,9 +25,9 @@
  * @section comm_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - axtlmc_shared_assets.h for TransportLayer status code enumerations.
+ * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
  * - axmc_shared_assets.h for globally shared assets, including axmc_communication_assets namespace.
- * - digitalWriteFast.h for fast digital pin manipulation methods.
  */
 
 #ifndef AXMC_COMMUNICATION_H
@@ -36,18 +36,19 @@
 // Dependencies:
 #include <Arduino.h>
 #include <axtlmc_shared_assets.h>
+#include <digitalWriteFast.h>
 #include <transport_layer.h>
 #include "axmc_shared_assets.h"
-#include "digitalWriteFast.h"
 
 /**
  * @class Communication
- * @brief Exposes methods that allow establishing and maintaining bidirectional serialized communication with other
- * Ataraxis systems via the internal binding of the TransportLayer library.
+ * @brief Exposes methods that allow establishing and maintaining bidirectional serialized communication with a PC
+ * running the ataraxis-communication-interface library via the internal binding of the TransportLayer class.
  *
- * This class handles all communications between the Microcontroller and the PC over the USB (preferred) or UART serial
- * interface. To do so, the class statically extends the TransportLayer class methods to enforce the consistent
- * communication structure used by the Ataraxis project.
+ * This class handles all communications between the microcontroller and the PC over the USB (preferred) or UART serial
+ * interface. To do so, the class extends the TransportLayer class methods to send and receive a statically defined set
+ * of messages with known layout. All supported message structures are available from the axmc_communication_assets
+ * namespace.
  *
  * @note This class is intended to be used both by custom modules (classes derived from the base Module class) and
  * the Kernel class. Overall, this class defines and maintains a rigid payload microstructure that acts on top of the
@@ -121,11 +122,10 @@ class Communication
         {}
 
         /**
-         * @brief Returns the latest status code of the TransportLayer class used by the Communication class.
+         * @brief Returns the most recent status code of the TransportLayer class used by the Communication class.
          *
-         * This method is used by the Kernel class when handling Communication class errors. Specifically, knowing the
-         * status code of the TransportLayer class is crucial for understanding the root cause of Communication
-         * class errors.
+         * This method is used  when handling Communication class errors. Knowing the status code of the TransportLayer
+         * class is crucial for understanding the root cause of Communication class errors.
          */
         [[nodiscard]]
         uint8_t GetTransportLayerStatus() const
@@ -154,7 +154,7 @@ class Communication
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param prototype The byte-code specifying the prototype object that can be used to deserialize the included
          * object data. For this to work as expected, the microcontroller and the PC need to share the same
-         * prototype_code to object mapping.
+         * prototype_code-to-object mapping.
          * @param object Additional data object to be sent along with the message. Currently, only one object is
          * supported per each Data message.
          *
@@ -323,8 +323,8 @@ class Communication
             // Constructs the message header
             const axmc_communication_assets::ModuleState message {
                 static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState),
-                module_id,
                 module_type,
+                module_id,
                 command,
                 event_code
             };
@@ -694,36 +694,20 @@ class Communication
         /// (2 bytes) + 1 Protocol byte. This value is used to optimize incoming message reception behavior.
         static constexpr uint16_t kMinimumPayloadSize = sizeof(axmc_communication_assets::KernelCommand) + 1;
 
-        /// Stores the size of the CRC Checksum postamble in bytes. This is directly dependent on the variable type used
-        /// for the PolynomialType template parameter when specializing the TransportLayer class. At the time of
-        /// writing, valid values are 1 (for uint8_t), 2 (for uint16_t) and 4 (for uint32_t). The local TransportLayer
-        /// binding uses CRC-16 by default (byte size: 2).
-        static constexpr uint8_t kCRCSize = 2;
-
-        /// Stores the size of the metadata variables used by the TransportLayer class. At the time of writing, this
-        /// includes: the start byte, payload size byte, COBS overhead byte and COBS delimiter byte. A total of 4 bytes.
-        static constexpr uint8_t kMetadataSize = 4;
-
-        /// Combines the CRC and Metadata sizes to calculate the transmission buffer space reserved for TransportLayer
-        /// variables. This value is used to calculate the (remaining) payload buffer space.
-        static constexpr uint8_t kReservedNonPayloadSize = kCRCSize + kMetadataSize;
-
-        /// Calculates maximum transmitted and received payload size. At a maximum, this can be 254 bytes
+        /// Calculates the maximum transmitted and received payload sizes. At a maximum, this can be 254 bytes
         /// (COBS limitation). For most controllers, this will be a lower value that depends on the available buffer
-        /// space and the space reserved for TransportLayer variables.
-        static constexpr uint16_t kMaximumPayloadSize =  // NOLINT(*-dynamic-static-initializers)
-            min(kSerialBufferSize - kReservedNonPayloadSize, 254);
+        /// space and the space reserved for TransportLayer variables. Note, this reuses kSerialBufferSize constant
+        /// defined inside transport_layer.h to determine the serial buffer size!
+        static constexpr uint8_t kMaximumPayloadSize = min(kSerialBufferSize - 6, 254);
 
-        /// Stores the first index of the parameter object in the incoming ModuleParameters message payload.
-        /// Since Module-addressed parameter objects can vary to a great extent, they are retrieved in two steps. The
-        /// first step parses the message header and identifies the target module. The second step asks the module to
-        /// extract the parameter data, since the module knows what data structure to expect. This index is used to
-        /// continue reading message data from the point where the parser finished reading the message header.
-        static constexpr uint16_t kParameterObjectIndex = sizeof(axmc_communication_assets::ModuleParameters) + 1;
+        /// Stores the start index of the parameter object data in the incoming ModuleParameters message payload. This
+        /// relies on the fact that the header of each ModuleParameter is always the same size, whereas the parameter
+        /// data section varies in length.
+        static constexpr uint8_t kParameterObjectIndex = sizeof(axmc_communication_assets::ModuleParameters) + 1;
 
-        /// The bound TransportLayer instance that abstracts low-level data communication steps. This class statically
-        /// specializes and initializes the TransportLayer to use sensible defaults. It is highly advised not to alter
-        /// default initialization parameters unless you know what you are doing.
+        /// The bound TransportLayer instance that abstracts low-level data communication steps. Communication
+        /// statically specializes and initializes the TransportLayer to use sensible defaults. It is highly advised
+        /// not to alter default initialization parameters unless you know what you are doing.
         TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize, kMinimumPayloadSize> _transport_layer;
 };
 

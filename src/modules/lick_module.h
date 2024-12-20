@@ -155,7 +155,7 @@ class LickModule final : public Module
                 // Sends the detected signal to the PC.
                 SendData(
                     static_cast<uint8_t>(kCustomStatusCodes::kChanged),
-                    axmc_communication_assets::kPrototypes::kOneUnsignedShort,
+                    axmc_communication_assets::kPrototypes::kOneUint16,
                     signal
                 );
 

@@ -46,7 +46,6 @@
 // Dependencies
 #include <Arduino.h>
 #include <digitalWriteFast.h>
-#include <elapsedMillis.h>
 #include "axmc_shared_assets.h"
 #include "communication.h"
 #include "module.h"
@@ -210,7 +209,7 @@ class Kernel
 
                     SendData(
                         static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError),
-                        axmc_communication_assets::kPrototypes::kTwoUnsignedBytes,
+                        axmc_communication_assets::kPrototypes::kTwoUint8s,
                         error_object
                     );
 
@@ -333,7 +332,7 @@ class Kernel
                             };
                             SendData(
                                 static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError),
-                                axmc_communication_assets::kPrototypes::kTwoUnsignedBytes,
+                                axmc_communication_assets::kPrototypes::kTwoUint8s,
                                 error_object
                             );
                         }
@@ -411,7 +410,7 @@ class Kernel
                         // PC.Includes the invalid protocol value in the message.
                         SendData(
                             static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
-                            axmc_communication_assets::kPrototypes::kOneUnsignedByte,
+                            axmc_communication_assets::kPrototypes::kOneUint8,
                             _communication.protocol_code
                         );
                         break;
@@ -521,8 +520,11 @@ class Kernel
          * match the object structure declared by the prototype code for the PC to deserialize the object.
          */
         template <typename ObjectType>
-        void
-        SendData(const uint8_t event_code, const axmc_communication_assets::kPrototypes prototype, const ObjectType& object)
+        void SendData(
+            const uint8_t event_code,
+            const axmc_communication_assets::kPrototypes prototype,
+            const ObjectType& object
+        )
         {
             // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendDataMessage(kernel_command, event_code, prototype, object)) return;
@@ -656,7 +658,7 @@ class Kernel
             const uint8_t errors[2] = {target_type, target_id};
             SendData(
                 static_cast<uint8_t>(kKernelStatusCodes::kTargetModuleNotFound),
-                axmc_communication_assets::kPrototypes::kTwoUnsignedBytes,
+                axmc_communication_assets::kPrototypes::kTwoUint8s,
                 errors
             );
             return -1;

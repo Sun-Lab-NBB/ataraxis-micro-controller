@@ -25,12 +25,6 @@
 #include "modules/ttl_module.h"
 #include "modules/valve_module.h"
 
-#if defined(ARDUINO_ARCH_SAM) || defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_NRF52) || defined(CORE_TEENSY)
-constexpr bool adc_setup = true;
-#else
-constexpr bool adc_setup = false;
-#endif
-
 // Pre-initializes global assets
 axmc_shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters;  // Shared controller-wide parameters
 constexpr uint8_t kControllerID = 123;                                  // Unique ID for the controller
@@ -46,7 +40,7 @@ EncoderModule<33, 34, 35> wheel_encoder(2, 1, axmc_communication, DynamicRuntime
 BreakModule<29, false> wheel_break(3, 1, axmc_communication, DynamicRuntimeParameters);       // Actor
 LickModule<15> lick_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);               // Sensor
 ValveModule<28, true> reward_valve(5, 2, axmc_communication, DynamicRuntimeParameters);       // Actor
-TorqueModule<16, 2048> torque_sensor(4, 1, axmc_communication, DynamicRuntimeParameters);     // Sensor
+TorqueModule<16, 2048> torque_sensor(6, 1, axmc_communication, DynamicRuntimeParameters);     // Sensor
 
 // Packages all modules into an array to be managed by the Kernel class.
 Module* modules[] = {&mesoscope_frame, &wheel_break, &reward_valve};
@@ -58,11 +52,12 @@ Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, 
 // need to be executed here.
 void setup()
 {
-    Serial.begin(115200);  // Initializes the serial port at 115200 bauds, the baudrate is ignored for teensy boards.
 
-    // Sets the analog read resolution to 12 bits for those boards that support setting the ADC resolution. Teensies
-    // support resolutions up to 16 bits, but 12 tends to be a good balance between signal clarity and resolution.
-    if (adc_setup) analogReadResolution(12);
+#if defined(ARDUINO_ARCH_SAM) || defined(ARDUINO_ARCH_SAMD) || defined(ARDUINO_ARCH_NRF52) || defined(CORE_TEENSY)
+    analogReadResolution(12);
+#endif
+
+    Serial.begin(115200);  // Initializes the serial port at 115200 bauds, the baudrate is ignored for teensy boards.
 
     axmc_kernel.Setup();  // Carries out the rest of the setup depending on the module configuration.
 

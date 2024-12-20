@@ -705,8 +705,7 @@ class Module
             if (!execution_parameters.noblock)
             {
                 // Blocks until delay_duration has passed
-                while (execution_parameters.delay_timer <= delay_duration)
-                    ;
+                while (execution_parameters.delay_timer <= delay_duration);
             }
 
             // Evaluates whether the requested number of microseconds has passed. If the duration was enforced above,
@@ -812,8 +811,11 @@ class Module
          * match the object structure declared by the prototype code for the PC to deserialize the object.
          */
         template <typename ObjectType = void>
-        void
-        SendData(const uint8_t event_code, const axmc_communication_assets::kPrototypes prototype, const ObjectType& object)
+        void SendData(
+            const uint8_t event_code,
+            const axmc_communication_assets::kPrototypes prototype,
+            const ObjectType& object
+        )
         {
             // Packages and sends the data to the connected system via the Communication class
             const bool success = _communication.SendDataMessage(
