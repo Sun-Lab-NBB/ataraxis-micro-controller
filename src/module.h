@@ -132,10 +132,9 @@ class Module
         enum class kCoreStatusCodes : uint8_t
         {
             kStandBy              = 0,  ///< The code used to initialize the module_status variable.
-            kDataSendingError     = 1,  ///< An error has occurred when sending a Data message to the PC.
-            kStateSendingError    = 2,  ///< An error has occurred when sending a State message to the PC.
-            kCommandCompleted     = 3,  ///< Currently active command has been completed and will not be cycled again.
-            kCommandNotRecognized = 4,  ///< The RunActiveCommand() method was unable to recognize the command.
+            kTransmissionError    = 1,  ///< Encountered a communication error wen sending data to the PC.
+            kCommandCompleted     = 2,  ///< Currently active command has been completed and will not be cycled again.
+            kCommandNotRecognized = 3,  ///< The RunActiveCommand() method was unable to recognize the command.
         };
 
         /**
@@ -339,6 +338,15 @@ class Module
         }
 
         /**
+         * @brief Returns the combined type and id value of the Module instance.
+         */
+        [[nodiscard]]
+        uint8_t GetModuleTypeID() const
+        {
+            return _module_type_id;
+        }
+
+        /**
          * @brief Sends an error message to notify the PC that the module did not recognize an executed command.
          *
          * The Kernel uses this method to notify the PC when RunActiveCommand() API method returns 'false'. In turn,
@@ -467,6 +475,10 @@ class Module
         /// The specific ID of the module. This code has to be unique within the module family, as it identifies
         /// specific module instance.
         const uint8_t _module_id;
+
+        /// Combines type and id byte-codes into a single uint16 value that is expected to be unique for each module
+        /// instance active at the same time.
+        const uint16_t _module_type_id = (_module_type << 8) | _module_id;
 
         /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
         /// the connected Ataraxis system.
@@ -836,7 +848,7 @@ class Module
                 _module_type,
                 _module_id,
                 execution_parameters.command,
-                static_cast<uint8_t>(kCoreStatusCodes::kDataSendingError)
+                static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
             );
         }
 
@@ -863,7 +875,7 @@ class Module
                 _module_type,
                 _module_id,
                 execution_parameters.command,
-                static_cast<uint8_t>(kCoreStatusCodes::kStateSendingError)
+                static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
             );
         }
 };

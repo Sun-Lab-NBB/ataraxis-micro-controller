@@ -166,7 +166,12 @@ namespace axmc_communication_assets
         /// Protocol used to identify the controller to the PC. This is a service message protocol that transmits the
         /// unique ID of the controller to the PC. This is primarily used to determine the USB ports used by specific
         /// controllers.
-        kIdentification = 12,
+        kControllerIdentification = 12,
+
+        /// Protocol used by the Kernel to identify all managed modules to the PC. This protocol transmits unit16 values
+        /// produced by combining the type and ID code of each managed module. This is used to ensure that the PC and
+        /// the controller are configured with the same number, types and ID-codes of hardware modules.
+        kModuleIdentification = 13,
     };
 
     /**

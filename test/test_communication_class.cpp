@@ -178,9 +178,11 @@ void TestSendServiceMessage()
     constexpr uint8_t service_code = 111;  // Uses the same test service code for all messages.
 
     // Reception message
-    auto protocol_code                   = axmc_communication_assets::kProtocols::kReceptionCode;
-    const uint16_t expected_reception[2] = {static_cast<uint8_t>(protocol_code), service_code};
-    comm_class.SendServiceMessage(protocol_code, service_code);
+    constexpr uint16_t expected_reception[2] = {
+        static_cast<uint8_t>(axmc_communication_assets::kProtocols::kReceptionCode),
+        service_code
+    };
+    comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
@@ -192,10 +194,12 @@ void TestSendServiceMessage()
 
     mock_port.reset();  // Resets the mock port
 
-    // Identification message
-    protocol_code                             = axmc_communication_assets::kProtocols::kIdentification;
-    const uint16_t expected_identification[2] = {static_cast<uint8_t>(protocol_code), service_code};
-    comm_class.SendServiceMessage(protocol_code, service_code);
+    // ControllerIdentification message
+    constexpr uint16_t expected_identification[2] = {
+        static_cast<uint8_t>(axmc_communication_assets::kProtocols::kControllerIdentification),
+        service_code
+    };
+    comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(service_code);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
@@ -204,20 +208,28 @@ void TestSendServiceMessage()
     {
         TEST_ASSERT_EQUAL_UINT16(expected_identification[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
-}
 
-// Tests the error-handling behavior of the Communication class SendServiceMessage() method.
-void TestSendServiceMessageErrors()
-{
-    StreamMock<60> mock_port;
-    Communication comm_class(mock_port);
+    mock_port.reset();  // Resets the mock port
 
-    // Attempts to pass an invalid protocol code.
-    comm_class.SendServiceMessage(axmc_communication_assets::kProtocols::kUndefined, 112);
+    // ModuleIdentification message
+    constexpr uint16_t module_type_id                    = 300;
+    constexpr uint16_t expected_module_identification[3] = {
+        static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleIdentification),
+        44,
+        1
+    };
+    comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(module_type_id);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
         comm_class.communication_status
     );
+    for (int i = 0; i < 3; ++i)
+    {
+        TEST_ASSERT_EQUAL_UINT16(
+            expected_module_identification[i],
+            mock_port.tx_buffer[i + 3]
+        );  // Verifies the message data
+    }
 }
 
 // Tests the functioning of the Communication class ReceiveMessage() method. This function tests the reception of all
@@ -257,11 +269,11 @@ void TestReceiveMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);           // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.repeated_module_command.module_id);             // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, comm_class.repeated_module_command.return_code);           // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(5, comm_class.repeated_module_command.command);               // Check command
-    TEST_ASSERT_FALSE(comm_class.repeated_module_command.noblock);                        // Check noblock
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);   // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.repeated_module_command.module_id);     // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(4, comm_class.repeated_module_command.return_code);   // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(5, comm_class.repeated_module_command.command);       // Check command
+    TEST_ASSERT_FALSE(comm_class.repeated_module_command.noblock);                // Check noblock
     TEST_ASSERT_EQUAL_UINT32(0, comm_class.repeated_module_command.cycle_delay);  // Check cycle_delay
 
     mock_port.reset();  // Resets the mock port
@@ -412,12 +424,12 @@ void TestReceiveMessageErrors()
         comm_class.communication_status
     );
 
-    mock_port.reset(); // Resets the mock port
+    mock_port.reset();  // Resets the mock port
 
     // Verifies that receiving a message with an invalid protocol code correctly raises kInvalidProtocol. Note,
     // protocols used by the outgoing messages (such as KernelData) are also considered invalid.
     constexpr auto invalid_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
-    uint8_t test_buffer_2[16] = {129, 10, 0, invalid_protocol, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
+    uint8_t test_buffer_2[16]       = {129, 10, 0, invalid_protocol, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
     uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
@@ -435,7 +447,7 @@ void TestReceiveMessageErrors()
         comm_class.communication_status
     );
 
-    mock_port.reset(); // Resets the mock port
+    mock_port.reset();  // Resets the mock port
 
     // Verifies that receiving an incomplete message (message that deviates from its mandated layout) correctly raises
     // kParsingError.
@@ -489,10 +501,17 @@ void TestExtractModuleParameters()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
         comm_class.communication_status
     );
-    const uint8_t expected_data[6] = {5, 1, 2, 3, 4, 5,};
+    const uint8_t expected_data[6] = {
+        5,
+        1,
+        2,
+        3,
+        4,
+        5,
+    };
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data, extract_data, sizeof(expected_data));
 
-    mock_port.reset(); // Resets the mock port
+    mock_port.reset();  // Resets the mock port
 
     //Verifies that extracting parameter data into a structure works as expected
     uint8_t test_buffer_2[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
@@ -509,8 +528,8 @@ void TestExtractModuleParameters()
     // Defines the test structure which serves as parameter extraction target.
     struct TestStructure
     {
-        uint8_t id      = 1;
-        uint8_t data[5] = {};
+            uint8_t id      = 1;
+            uint8_t data[5] = {};
     } PACKED_STRUCT test_structure;  // Has to be packed to properly align the data
 
     // Call the ExtractParameters function, expecting a successful extraction
@@ -521,7 +540,13 @@ void TestExtractModuleParameters()
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(9, test_structure.id);
-    const uint8_t expected_data_2[5] = {1, 2, 3, 4, 5,};
+    const uint8_t expected_data_2[5] = {
+        1,
+        2,
+        3,
+        4,
+        5,
+    };
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data_2, test_structure.data, sizeof(expected_data_2));
 }
 
@@ -538,7 +563,7 @@ void TestExtractModuleParametersErrors()
     // Verifies that calling ExtractParameters() after receiving a message with a protocol code other than
     // kModuleParameters raises ExtractionForbidden error.
     constexpr auto protocol_code = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kUndefined);
-    uint8_t test_buffer_1[16] = {129, 10, 0, protocol_code, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
+    uint8_t test_buffer_1[16]    = {129, 10, 0, protocol_code, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
     uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
@@ -558,11 +583,11 @@ void TestExtractModuleParametersErrors()
         comm_class.communication_status
     );
 
-    mock_port.reset(); // Resets the mock port
+    mock_port.reset();  // Resets the mock port
 
     // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of parameters
     // block inside the serial buffer raises a kParameterMismatch error.
-    comm_class.protocol_code = 5; // Manually sets the protocol code to kModuleParameters
+    comm_class.protocol_code = 5;  // Manually sets the protocol code to kModuleParameters
 
     // Prototype is larger than stored data size
     uint8_t invalid_prototype_2[12] = {};  // Prototype is smaller than stored data size
@@ -591,7 +616,6 @@ int RunUnityTests()
 
     // SendServiceMessage
     RUN_TEST(TestSendServiceMessage);
-    RUN_TEST(TestSendServiceMessageErrors);
 
     // ReceiveMessage
     RUN_TEST(TestReceiveMessage);

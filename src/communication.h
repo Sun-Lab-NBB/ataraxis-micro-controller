@@ -24,7 +24,7 @@
  *
  * @section comm_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - axtlmc_shared_assets.h for TransportLayer status code enumerations.
+ * - axtlmc_shared_assets.h for TransportLayer status code enumerations and is_same_v implementation.
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - transport_layer.h for low-level methods for sending and receiving messages over USB or UART Serial port.
  * - axmc_shared_assets.h for globally shared assets, including axmc_communication_assets namespace.
@@ -461,16 +461,16 @@ class Communication
         /**
          * @brief Uses the requested protocol to send the input service_code to the PC.
          *
-         * This method is used to transmit all Service messages. All service messages use the same minimalistic one-byte
-         * payload structure, but the meaning of the transmitted byte-code depends on the used protocol.
+         * This method is used to transmit all Service messages. All service messages contain a protocol code and a
+         * single scalar 'code' value. However, the bit-width and the meaning of each service code depends on the
+         * particular protocol code value.
          *
-         * @note Currently, this method only supports kIdentification and kReceptionCode protocols from the
-         * kProtocols enumeration available from the axmc_communication_assets namespace.
-         *
-         * @param protocol The byte-code specifying the protocol to use for the transmitted message. Has to be either
-         * axmc_communication_assets::kProtocols::kReceptionCode or
-         * axmc_communication_assets::kProtocols::kIdentification.
-         * @param service_code The byte-code specifying the byte-code to be transmitted as message payload.
+         * @tparam protocol The byte-code specifying the protocol to use for the transmitted message. Has to be either
+         * axmc_communication_assets::kProtocols::kReceptionCode,
+         * axmc_communication_assets::kProtocols::kControllerIdentification or
+         * axmc_communication_assets::kProtocols::kModuleIdentification.
+         * @tparam ObjectType The type of the service code. Has to be either uint8_t, uint16_t or uint32_t.
+         * @param service_code The scalar service code to be transmitted to the PC.
          *
          * @returns True if the message was successfully sent, false otherwise.
          *
@@ -479,46 +479,54 @@ class Communication
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * auto protocol = axmc_communication_assets::kProtocols::kReceptionCode;  // Protocol code
-         * const uint8_t code = 112;      // Example service code
-         * comm_class.SendServiceMessage(protocol, code);
+         * // Protocol is given as template, service code as an uint8_t argument
+         * comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(112);
          * @endcode
          */
-        bool SendServiceMessage(const axmc_communication_assets::kProtocols protocol, const uint8_t service_code)
+        template <const axmc_communication_assets::kProtocols protocol, typename ObjectType>
+        bool SendServiceMessage(const ObjectType service_code)
         {
-            // Currently, only Idle and ReceptionCode protocols are considered valid ServiceMessage protocols.
-            if (protocol == axmc_communication_assets::kProtocols::kReceptionCode ||
-                protocol == axmc_communication_assets::kProtocols::kIdentification)
+            // Ensures the communication protocol is one of the supported Service protocols.
+            static_assert(
+                protocol == axmc_communication_assets::kProtocols::kReceptionCode ||
+                    protocol == axmc_communication_assets::kProtocols::kControllerIdentification ||
+                    protocol == axmc_communication_assets::kProtocols::kModuleIdentification,
+                "Encountered an invalid ServiceMessage protocol code. Use one of the supported Service protocols from "
+                "the axmc_communication_assets::kProtocols enumerations."
+            );
+
+            // Ensures that the provide service_code is of the correct type.
+            static_assert(
+                axtlmc_shared_assets::is_same_v<ObjectType, uint8_t> ||
+                    axtlmc_shared_assets::is_same_v<ObjectType, uint16_t> ||
+                    axtlmc_shared_assets::is_same_v<ObjectType, uint32_t>,
+                "Encountered an invalid ServiceMessage service code type. Currently, only scalar uint8_t, uint16_t or "
+                "uint32_t service codes are supported."
+            );
+
+            // Packages hte input protocol code and the service code into the transmission buffer
+            uint16_t next_index = _transport_layer.WriteData(static_cast<uint8_t>(protocol));
+            if (next_index!= 0) next_index          = _transport_layer.WriteData(service_code, next_index);
+
+            // If writing the data to transmission buffer, breaks the runtime with an error status.
+            if (next_index == 0)
             {
-                // Constructs the message array. This is qualitatively similar to how the rest of the message structures
-                // work, but it is easier to use an array here.
-                const uint8_t message[2] = {static_cast<uint8_t>(protocol), service_code};
-
-                // If writing the dat to transmission buffer, breaks the runtime with an error status.
-                const uint16_t next_index = _transport_layer.WriteData(message);
-                if (next_index == 0)
-                {
-                    communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
-                    return false;
-                }
-
-                // Sends the data to the PC
-                if (!_transport_layer.SendData())
-                {
-                    // If send operation fails, returns with an error status
-                    communication_status =
-                        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
-                    return false;
-                }
-
-                // Returns with a success code
-                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
-                return true;
+                communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kPackingError);
+                return false;
             }
 
-            // If input protocol code is not one of the valid Service protocol codes, aborts with an error
-            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol);
-            return false;
+            // Sends the data to the PC
+            if (!_transport_layer.SendData())
+            {
+                // If send operation fails, returns with an error status
+                communication_status =
+                    static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kTransmissionError);
+                return false;
+            }
+
+            // Returns with a success code
+            communication_status = static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent);
+            return true;
         }
 
         /**
@@ -658,10 +666,9 @@ class Communication
          * bool success = comm_class.ExtractParameters(data_message);  // Attempts to receive the message
          * @endcode
          */
-        template <typename ObjectType, size_t bytes_to_read = sizeof(ObjectType)>
+        template <typename ObjectType, const size_t bytes_to_read = sizeof(ObjectType)>
         bool ExtractModuleParameters(ObjectType& prototype)
         {
-
             // This guards against invalid calls at compile time
             static_assert(
                 bytes_to_read > 0 && bytes_to_read <= 250,

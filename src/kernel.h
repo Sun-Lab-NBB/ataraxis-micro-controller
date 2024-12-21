@@ -1,43 +1,31 @@
 /**
  * @file
- * @brief The header file for the Kernel class, which is used to manage the Microcontroller runtime.
+ * @brief The header file for the Kernel class, which is used to interface and manage the runtime of custom hardware
+ * modules.
  *
  * @section kern_description Description:
  *
- * For most other classes of this library to work as expected, the Microcontroller should instantiate and use a Kernel
- * instance to manage its runtime. This class manages communication, resolves success and error codes and schedules
- * commands to be executed. Due to the static API exposed by the (base) Module class, Kernel will natively integrate
- * with any Module-derived class logic. This allows seamlessly integrated custom modules with already existing
- * Ataraxis control structure, improving overall codebase flexibility.
+ * This class manages PC-microcontroller communication and schedules and executes commands addressed to custom hardware
+ * modules. Due to the static API exposed by the (base) Module class, from which all custom modules are expected to
+ * inherit, Kernel seamlessly integrates custom hardware modules with the centralized interface running on the
+ * host-computer (PC).
  *
- * @note A single instance of this class should be created in the main.cpp file. It should be provided with an instance
- * of the Communication class and an array of pointers to Module-derived classes during instantiation.
- *
- * The Kernel class contains two major runtime-flow functions that have to be called as part of the setup() and
- * loop() methods of the main.cpp or main.ino file:
- * - Setup(): Initializes the hardware (e.g.: pin modes) for all managed modules. This command only needs to be
- * called once, during setup() method runtime.
- * - RuntimeCycle(): Aggregates all other steps necessary to receive and process PC data and execute Kernel and Module
- * commands. This command needs to be called repeatedly, during loop() method runtime.
- *
- * Additionally, the Kernel class supports PC-addressable command execution. Specifically, the Kernel can be used to
- * identify the controller and fully reset all hardware and software parameters of the controller. See the class
- * enumerations for specific command codes.
+ * @note A single instance of this class should be created in the main.cpp file and used to manage the runtime. See
+ * example .cpp files included with the distribution of the library or
+ * the https://github.com/Sun-Lab-NBB/ataraxis-micro-controller repository for details.
  *
  * @section kern_developer_notes Developer Notes:
- * This class functions similar to major OS kernels, although it is considerably limited in scope. Specifically, it
- * manages all compatible Modules and handles communication with other Ataraxis systems. This class is very important
- * for the correct functioning of the library and, therefore, it should not be modified, if possible. Any modifications
- * to this class may require modifications to some or all other base (Core) classes of this library, as well as any
- * custom classes derived from the Core classes.
+ * This class functions similar to major OS kernels, although it is comparatively limited in scope. Specifically, it
+ * manages the runtime of all compatible modules and handles communication with the centralized PC interface. This
+ * class is strongly interconnected with the (base) Module class and the Communication class, so modification to one
+ * of these classes will likely require modifying other classes accordingly.
  *
  * @section kern_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
- * - elapsedMillis.h for millisecond and microsecond timers.
- * - communication.h for Communication class, which is used to bidirectionally communicate with other Ataraxis systems.
+ * - communication.h for Communication class, which is used to bidirectionally communicate with host PC.
  * - module.h for the shared Module class API access (allows interfacing with custom modules).
- * - shared_assets.h for globally shared static message byte-codes and parameter structures.
+ * - axmc_shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_KERNEL_H
@@ -51,22 +39,27 @@
 #include "module.h"
 
 /**
- * @brief Provides the central runtime loop and methods that control data reception, runtime flow (task scheduling),
- * setup and shutdown of the microcontroller's logic.
+ * @brief Provides the central runtime loop and methods that control data reception, task scheduling, setup and shutdown
+ * of the custom hardware module logic.
  *
- * @attention This class functions as the backbone of the Ataraxis microcontroller codebase by providing runtime flow
- * control functionality. Any modification to this class should be carried out with extreme caution and, ideally,
- * completely avoided by anyone other than the kernel developers of the project.
+ * After initialization, call the Setup() class method in the setup() function and RuntimeCycle() method in the loop()
+ * function of the main.cpp / main.ino file. These two methods carry out the steps typically executed during the runtime
+ * of these functions for all managed modules and the Kernel class itself.
  *
- * @note This class should be provided with an array of pre-initialized Module-derived classes upon instantiation.
- * The class will then manage the runtime of these modules via internal methods.
+ * @attention This class functions as the backbone of the library by providing runtime flow control functionality. Any
+ * modification to this class should be carried out with extreme caution and will likely require modifying other classes
+ * from this library.
+ *
+ * @note During initialization, this class should be provided with an array of pre-initialized hardware module classes
+ * that subclass the (base) Module class. After initialization, the Kernel instance will manage the runtime of these
+ * modules via internal methods.
  *
  * Example instantiation (as would found in main.cpp file):
  * @code
  * shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters; // Dynamic runtime parameters structure first
  * Communication axmc_communication(Serial);  // Communication class second
- * IOCommunication<1, 2> io_instance(1, 1, axmc_communication, DynamicRuntimeParameters);  // Example custom module
- * Module* modules[] = {&io_instance};  // Packages module(s) into an array to be provided to the Kernel class
+ * TestModule test_module(1, 1, axmc_communication, DynamicRuntimeParameters);  // Example custom module
+ * Module* modules[] = {&test_module};  // Packages module(s) into an array to be provided to the Kernel class
  *
  * // Kernel class should always be instantiated last
  * const uint8_t controller_id = 123;  // Example controller ID
@@ -78,68 +71,61 @@ class Kernel
     public:
         /**
          * @enum kKernelStatusCodes
-         * @brief Specifies the byte-codes for errors and states that can be encountered during Kernel class method
-         * execution.
+         * @brief Specifies the byte-codes for errors and states that can be encountered during Kernel class runtime.
          *
-         * The Kernel class uses these byte-codes to communicate the exact status of various Kernel runtimes between
-         * class methods and to send messages to the PC.
-         *
-         * @note Due to the overall message code hierarchy, this structure can use any byte-range values for status
-         * codes. Kernel status codes always take precedence over all other status codes for messages sent by the
-         * Kernel class (and, therefore, they will never directly clash with Communication or TransportLayer codes).
+         * The class uses these byte-codes to communicate the class runtime state to the PC.
          */
         enum class kKernelStatusCodes : uint8_t
         {
             kStandBy                = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
             kSetupComplete          = 1,   ///< Setup() method runtime succeeded.
             kModuleSetupError       = 2,   ///< Setup() method runtime failed due to a module setup error.
-            kDataReceptionError     = 3,   ///< ReceiveData() method failed due to a data reception error.
-            kDataSendingError       = 4,   ///< SendData() method failed due to a data sending error.
-            kStateSendingError      = 5,   ///< SendData() method failed due to a data sending error.
-            kServiceSendingError    = 6,   ///< Error sending a service message to the connected system.
-            kInvalidMessageProtocol = 7,   ///< Received message uses an unsupported (unknown) protocol.
-            kKernelParametersSet    = 8,   ///< Received and applied the parameters addressed to the Kernel class.
-            kModuleParametersSet    = 9,   ///< Received and applied the parameters addressed to a managed Module class.
-            kModuleParametersError  = 10,  ///< Unable to apply the received Module parameters.
-            kCommandNotRecognized   = 11,  ///< The Kernel has received an unknown command.
-            kTargetModuleNotFound   = 12   ///< No module with the requested type and id combination is found.
+            kReceptionError         = 3,   ///< Encountered a communication error when receiving the data from PC.
+            kTransmissionError      = 4,   ///< Encountered a communication error when sending the data to PC.
+            kServiceSendingError    = 5,   ///< Error sending a service message to the connected system.
+            kInvalidMessageProtocol = 6,   ///< Received message uses an unsupported (unknown) protocol.
+            kKernelParametersSet    = 7,   ///< Received and applied the parameters addressed to the Kernel class.
+            kModuleParametersSet    = 8,   ///< Received and applied the parameters addressed to a managed Module class.
+            kModuleParametersError  = 9,   ///< Unable to apply the received Module parameters.
+            kCommandNotRecognized   = 10,  ///< The Kernel has received an unknown command.
+            kTargetModuleNotFound   = 11   ///< No module with the requested type and id combination is found.
         };
 
         /**
          * @enum kKernelCommands
          * @brief Specifies the byte-codes for commands that can be executed during runtime.
          *
-         * The Kernel class uses these byte-codes to communicate what command was executed when it sends data messages
-         * to the connected system. Additionally, some of the listed commands are addressable by sending Kernel a
-         * Command message that uses the appropriate command code.
+         * The class uses these byte-codes during incoming and outgoing PC communication. Specifically, the PC can send
+         * addressable command codes to the microcontroller to trigger their execution by the Kernel. Conversely, the
+         * Kernel includes the active command code with outgoing messages to notify the PC about the command that
+         * produced the communicated Kernel state.
          */
         enum class kKernelCommands : uint8_t
         {
             kStandby            = 0,  ///< Standby code used during class initialization.
-            kReceiveData        = 1,  ///< Receive data command. Not externally addressable.
+            kReceiveData        = 1,  ///< Checks and, if possible, receives PC-sent data. Not externally addressable.
             kResetController    = 2,  ///< Resets the software and hardware state of all modules.
             kIdentifyController = 3,  ///< Transmits the ID of the controller back to caller.
+            kIdentifyModules    = 4   ///< Sequentially transmits the unique Type+ID 16-bit code of each managed module.
         };
 
-        /// Tracks the currently active Kernel command. This is used to send data and error messages to the connected
-        /// system.
+        /// Tracks the currently active Kernel command. This is used to send data and error messages to the PC.
         uint8_t kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
 
         /**
          * @brief Creates a new Kernel class instance.
          *
-         * @param controller_id The unique identifier code of the controller managed by this Kernel class instance. This
-         * ID has to be unique for all microcontrollers that are used at the same time to allow the managing PC to
-         * identify different controllers.
-         * @param communication A reference to the Communication class instance that will be used to bidirectionally
-         * communicate with the PC that manages the microcontrollers. Usually, a single Communication class instance is
-         * shared by all classes of the AXMC codebase during runtime.
-         * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure that stores
-         * PC-addressable global runtime parameters that broadly alter the behavior of all modules used by the
-         * controller. This structure is addressable through the Kernel class (by sending Parameters message addressed
-         * to the Kernel).
-         * @param module_array The array of pointers to custom Module classes (the children inheriting from the base
-         * Module class). The Kernel instance will manage the runtime of these modules.
+         * @param controller_id The unique identifier code of the microcontroller that runs this Kernel instance. This
+         * ID has to be unique for all microcontrollers that are used at the same time to allow the PC to reliably
+         * identify each controller.
+         * @param communication The reference to the Communication class instance used to bidirectionally communicate
+         * with the PCs. A single Communication class instance should be shared by all classes derived from this
+         * library
+         * @param dynamic_parameters The reference to the DynamicRuntimeParameters structure that stores PC-addressable
+         * global runtime parameters that broadly alter the behavior of all managed hardware modules. This structure is
+         * addressable through the MicroControllerInterface instance of the companion PC library.
+         * @param module_array The array of pointers to custom hardware module classes (the children inheriting from
+         * the base Module class). The Kernel instance will manage the runtime of these modules.
          */
         template <const size_t kModuleNumber>
         Kernel(
@@ -164,26 +150,22 @@ class Kernel
         }
 
         /**
-         * @brief Sets up the hardware and software structures for the Kernel class and all managed Modules.
+         * @brief Configures the hardware and software of the Kernel and all managed modules.
          *
-         * This method is an API wrapper around the setup sequence of each module managed by the Kernel class and the
-         * Kernel class itself. If this method is not called before calling RuntimeCycle() method, the controller will
-         * not function as expected and the controller LED will be used to show a blinking error signal. Similarly, if
-         * this method is called, but fails, the controller will not execute any command and will display a blinking
-         * LED signal to indicate SetUp error.
+         * This method is an API wrapper around the setup sequence of the Kernel and each managed custom hardware
+         * module. If this method is not called before calling RuntimeCycle() method, the microcontroller will
+         * not function as expected and its built-in LED will be used to show a blinking error signal. Similarly, if
+         * this method is called, but fails, the microcontroller will not execute any command and will display a
+         * blinking LED signal to indicate setup error. This method is used both during the initial setup and when
+         * resetting the microcontroller.
          *
-         * @warning This method is used both for initial setup and to reset the controller. As such, it has to be
-         * called from main.ccp setup() function and will also be called if the Kernel receives the Reset command.
+         * @warning THis method has to be called from the setup() function of the main.cpp / main.ino file.
          *
-         * @note This method sends success and error messages to the PC. It assumes it is always called after the
-         * Communication class has been initialized and Serial.begin() has been called.
-         *
-         * @attention This is the only Kernel method that inactivates the built-in LED of the controller board. Seeing
-         * the LED ON (HIGH) after this method's runtime means the controller experienced an error during its runtime
-         * when it tried sending data to the connected system. Seeing the LED blinking with ~2-second periodicity
-         * indicates one of the managed modules failed its setup sequence. If no error message reached the PC and the
-         * LED is ON or blinking, it is highly advised to debug the communication setup, as this indicates that the
-         * communication channel is not stable.
+         * @attention This is the only method that turns off the built-in LED of the controller board. Seeing
+         * the LED constantly ON (HIGH) after this method's runtime means the controller experienced a communication
+         * error when it tried sending data to the PC. Seeing the LED blinking with ~2-second periodicity indicates that
+         * the Kernel failed the setup sequence. If no error message reached the PC and the LED is ON or blinking, debug
+         * the communication interface to identify the problem continuing with the runtime.
          */
         void Setup()
         {
@@ -233,23 +215,23 @@ class Kernel
         }
 
         /**
-         * @brief Carries out one microcontroller runtime cycle.
+         * @brief Carries out a single runtime cycle.
          *
-         * Specifically, first receives and processes all messages queued up in the serial reception buffer. All
-         * messages other than Module-targeted commands are processed and handled immediately. For example, Kernel
-         * commands are executed as soon as they are received. Module-addressed commands are queued for execution and
-         * are executed after all available data is received and parsed.
+         * During each runtime cycle, the class first receives and processes all messages stored in the serial interface
+         * reception buffer. All messages other than Module-targeted commands are processed and handled immediately.
+         * For example, Kernel-addressed commands are executed as soon as they are received. Module-addressed commands
+         * are queued for execution and are executed after all available data is received and parsed.
          *
-         * Once all data is received, the method sequentially loops over all modules and, for each, resolves and runs a
-         * command, if possible. Depending on configuration (blocking vs. non-blocking), this can at most complete one
-         * command per cycle and, at least, one command stage per cycle.
+         * Once all data is received, the method loops over managed modules and attempts to execute one command stage
+         * for each module. This design pattern ensures that PC communication takes precedence over executing local
+         * commands.
          *
-         * @note This method has to be repeatedly called during the main.cpp loop() method runtime. It aggregates all
-         * necessary steps to support the microcontroller runtime.
+         * @warning This method has to be repeatedly called from the loop() function of the main.cpp / main.ino file.
+         * It aggregates all necessary steps to operate the microcontroller through the centralized PC interface.
          *
-         * @attention This method has to be called after calling the Setup() method. If it is called before the setup
-         * was carried out, instead of running as expected, the microcontroller will cycle LED HIGH/LOW signal to
-         * indicate setup error.
+         * @attention This method has to be called after calling the Setup() method. If it is called before the setup,
+         * the microcontroller will cycle LED HIGH/LOW signal to indicate setup error and will not respond to any
+         * further commands until it is reset via power cycling or firmware reupload.
          */
         void RuntimeCycle()
         {
@@ -257,27 +239,27 @@ class Kernel
             // fails setup, it bricks the controller until the firmware is reset.
             static bool once = true;
 
-            // If the Kernel was not set up, ensures the LED hardware is set to deliver the visual error signal.
+            // If the Setup method was not called, sets up the built-in LED control via Kernel-specific setup sequence
+            // known to not be fail-prone. This is only done once
             if (!_setup_complete && once)
             {
                 SetupKernel();
                 once = false;  // Sets the flag to indicate that the setup was completed.
             }
 
-            // If the Kernel was not set up, instead of the usual runtime cycle, this method blinks the LED to indicate
-            // setup error.
+            // If the method is called before the Setup() method, instead of normal runtime continuously blinks the
+            // LED to visually communicate SetUp error to the user.
             if (!_setup_complete)
             {
                 digitalWriteFast(LED_BUILTIN, HIGH);  // Turns the LED on
                 delay(2000);                          // Delays for 2 seconds
                 digitalWriteFast(LED_BUILTIN, LOW);   // Turns the LED off
                 delay(2000);                          // Delays for 2 seconds
-                return;                               // Ends early. A firmware reset is needed to get out of this loop.
+                return;                               // Ends cycle. A firmware reset is needed to get out of this loop.
             }
 
-            kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);  // Sets active command code
-
             // Continuously parses the data received from the PC until all data is processed.
+            kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);
             while (true)
             {
                 const uint8_t protocol = ReceiveData();  // Attempts to receive the data
@@ -299,8 +281,7 @@ class Kernel
                         return_code = _communication.kernel_parameters.return_code;
                         if (return_code) SendReceptionCode(return_code);
 
-                        // Since Kernel parameters are fully parsed during the message reception, replaces the content
-                        // of the _dynamic_parameters structure with the newly received data.
+                        // Replaces the content of the _dynamic_parameters structure with the newly received data.
                         _dynamic_parameters = _communication.kernel_parameters.dynamic_parameters;
                         SendData(static_cast<uint8_t>(kKernelStatusCodes::kKernelParametersSet));
                         break;
@@ -426,8 +407,8 @@ class Kernel
         }
 
     private:
-        /// An array that stores managed module classes. These are the classes derived from the base Module class that
-        /// encapsulate and expose the API to interface with specific hardware systems managed by the Microcontroller.
+        /// An array that stores managed custom hardware module classes. These are the classes derived from the base
+        /// Module class that encapsulate and expose the API to interface with specific hardware systems.
         Module** _modules;
 
         /// Stores the size of the _modules array. Since each module class is likely to be different in terms of its
@@ -436,16 +417,16 @@ class Kernel
         /// variable
         const size_t _module_count;
 
-        /// Stores the unique, user-defined ID of the managed microcontroller. This ID will be sent to the connected
-        /// system when it sends the Identification request. In turn, this allows identifying specific controllers
-        /// through the serial connection interface, which is especially helpful during the initial setup.
+        /// Stores the unique, user-defined ID of the managed microcontroller. This ID will be sent to the PC when it
+        /// sends the Identification request. In turn, this allows identifying specific controllers through the serial
+        /// connection interface, which is especially helpful during the initial setup.
         const uint8_t _controller_id;
 
-        /// A reference to the shared instance of the Communication class. This class is used to receive data from the
-        /// connected Ataraxis systems and to send feedback data to these systems.
+        /// A reference to the shared instance of the Communication class. This class is used to bidirectionally
+        /// communicate with the PC interface library.
         Communication& _communication;
 
-        /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
+        /// A reference to the shared instance of the DynamicRuntimeParameters structure. This structure stores
         /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
         axmc_shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
@@ -455,14 +436,14 @@ class Kernel
         bool _setup_complete = false;
 
         /**
-         * @brief Attempts to receive (parse) a message from the data contained in the circular reception buffer of the
-         * Communication class.
+         * @brief Attempts to receive (parse) a message from the data contained in the serial interface reception
+         * buffer.
          *
          * The RuntimeCycle method repeatedly calls this method until it returns an undefined protocol code (0).
          *
-         * @attention This method automatically attempts to send error messages if it runs into errors. As a side
-         * effect of these attempts, it may turn the built-in LED to visually communicate encountered runtime errors.
-         * Do not use the LED-connected pin in your code when using this class.
+         * @attention This method automatically attempts to send error messages to the PC if it runs into errors. It
+         * also activates the built-in LED to visually communicate encountered runtime errors. Do not use the
+         * LED-connected pin in your code when using this class.
          *
          * @returns The byte-code of the protocol used by the received message or 0 to indicate no valid message was
          * received.
@@ -484,7 +465,7 @@ class Kernel
                 // For legitimately failed runtimes, sends an error message to the PC.
                 _communication.SendCommunicationErrorMessage(
                     static_cast<uint8_t>(kKernelCommands::kReceiveData),
-                    static_cast<uint8_t>(kKernelStatusCodes::kDataReceptionError)
+                    static_cast<uint8_t>(kKernelStatusCodes::kReceptionError)
                 );
             }
 
@@ -532,7 +513,7 @@ class Kernel
             // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                static_cast<uint8_t>(kKernelStatusCodes::kDataSendingError)
+                static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
 
@@ -552,7 +533,7 @@ class Kernel
             // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                static_cast<uint8_t>(kKernelStatusCodes::kStateSendingError)
+                static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
 
@@ -562,8 +543,7 @@ class Kernel
         void SendControllerID() const
         {
             // Packages and sends the service message to the PC. If the message was sent, ends the runtime
-            if (_communication.SendServiceMessage(
-                    static_cast<uint8_t>(axmc_communication_assets::kProtocols::kIdentification),
+            if (_communication.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(
                     _controller_id
                 ))
                 return;
@@ -575,15 +555,36 @@ class Kernel
             );
         }
 
+        /// Loops over all managed modules and sends the combined type+id code of each managed module to the PC. Since
+        /// each type+id combination has to be unique for a correctly configured microcontroller, the PC uses this
+        /// information to ensure the MicroControllerInterface and the Microcontroller are configured appropriately.
+        /// If data sending fails, attempts sending a communication error and activates the LED indicator.
+        void SendModuleTypeIDs() const
+        {
+            for (size_t i = 0; i < _module_count; ++i)
+            {
+                // Packages and sends the service message to the PC.
+                if (!_communication.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(
+                        _modules[i]->GetModuleTypeID()
+                    ))
+                {
+                    // If sending one of the messages fails, attempts sending a communication error message before
+                    // ending the runtime.
+                    _communication.SendCommunicationErrorMessage(
+                        kernel_command,
+                        static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError)
+                    );
+                }
+            }
+        }
+
         /// Sends the input reception_code to the PC. This is used to acknowledge the reception of PC-sent Command and
         /// Parameter messages. If data sending fails, attempts sending a communication error and activates the
         /// LED indicator.
         void SendReceptionCode(const uint8_t reception_code) const
         {
             // Packages and sends the service message to the PC. If the message was sent, ends the runtime
-            if (_communication.SendServiceMessage(
-                    static_cast<uint8_t>(axmc_communication_assets::kProtocols::kReceptionCode),
-                    reception_code
+            if (_communication.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(reception_code
                 ))
                 return;
 
@@ -595,16 +596,16 @@ class Kernel
         }
 
         /**
-         * @brief Sets up the hardware and software parameters directly controlled by the Kernel class.
+         * @brief Sets up the hardware and software managed by the Kernel class.
          *
-         * Specifically, this configures and inactivates the built-in LED (by manipulating the board's LED-connected
-         * pin) and resets the shared DynamicRuntimeParameters structure fields.
+         * This method configures and inactivates the built-in LED (via the board's LED-connected pin) and resets the
+         * shared DynamicRuntimeParameters structure fields.
          */
         void SetupKernel() const
         {
             // Configures and deactivates the built-in LED. Currently, this is the only hardware system directly
             // managed by the Kernel.
-            pinMode(LED_BUILTIN, OUTPUT);
+            pinModeFast(LED_BUILTIN, OUTPUT);
             digitalWriteFast(LED_BUILTIN, LOW);
 
             // Resets the controller-wide runtime parameters to default values.
@@ -625,6 +626,8 @@ class Kernel
 
                 case kKernelCommands::kIdentifyController: SendControllerID(); return;
 
+                case kKernelCommands::kIdentifyModules: SendModuleTypeIDs(); return;
+
                 default:
                     // If the command code was not matched with any valid code, sends an error message.
                     SendData(static_cast<uint8_t>(kKernelStatusCodes::kCommandNotRecognized));
@@ -632,7 +635,8 @@ class Kernel
         }
 
         /**
-         * @brief Loops through the managed modules and attempts to find the module addressed by the input type and id.
+         * @brief Loops through the managed modules and attempts to find the module addressed by the input type and id
+         * codes.
          *
          * @param target_type: The type (family) of the addressed module.
          * @param target_id The ID of the specific module within the target_type family.
