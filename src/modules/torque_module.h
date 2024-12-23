@@ -143,7 +143,7 @@ class TorqueModule final : public Module
             // Evaluates the state of the pin. Averages the requested number of readouts to produce the final
             // analog signal value. Note, since we statically configure the controller to use 10-14 bit ADC resolution,
             // this value should not use the full range of the 16-bit unit variable.
-            const uint16_t signal = GetRawAnalogReadout(kPin, _custom_parameters.average_pool_size);
+            const uint16_t signal = AnalogRead(kPin, _custom_parameters.average_pool_size);
 
             // Calculates the absolute difference between the current signal and the previous readout. This is used
             // to ensure only significant signal changes are reported to the PC. Note, although we are casting both to

@@ -251,7 +251,7 @@ class TTLModule final : public Module
 
             // Evaluates the state of the pin. Averages the requested number of readouts to produce the final
             // state-value. To optimize communication, only sends data to the PC if the state has changed.
-            const bool current_state = GetRawDigitalReadout(kPin, _custom_parameters.average_pool_size);
+            const bool current_state = DigitalRead(kPin, _custom_parameters.average_pool_size);
             if (previous_input_status != current_state)
             {
                 // Updates the state tracker.

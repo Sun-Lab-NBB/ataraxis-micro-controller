@@ -4,13 +4,14 @@
 project = 'ataraxis-micro-controller'
 # noinspection PyShadowingBuiltins
 copyright = '2024, Ivan Kondratyev (Inkaros) & Sun Lab'
-author = 'Ivan Kondratyev (Inkaros)'
+authors = ['Ivan Kondratyev (Inkaros)', 'Jasmine Si']
 release = '1.0.0'
 
 # -- General configuration ---------------------------------------------------
 extensions = [
-    'breathe',           # To read doxygen-generated xml files (to parse C++ documentation).
-    'sphinx_rtd_theme',  # To format the documentation HTML using ReadTheDocs format.
+    'breathe',             # To read doxygen-generated xml files (to parse C++ documentation).
+    'sphinx_rtd_theme',    # To format the documentation HTML using ReadTheDocs format.
+    'sphinx_rtd_dark_mode' # Enables dark mode for RTD theme.
 ]
 
 templates_path = ['_templates']

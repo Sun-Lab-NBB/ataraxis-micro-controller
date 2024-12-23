@@ -1,59 +1,35 @@
 /**
  * @file
- * @brief The header file for the base Module class, which is used as a parent for all custom module classes.
+ * @brief The header file for the Module class, which provides the API used to integrate user-defined custom hardware
+ * modules with other library classes and the centralized communication interface running on the host-computer (PC).
  *
  * @section mod_description Description:
  *
- * @note Every custom module class should inherit from this class. This class serves two major purposes. First, it
- * provides a static interface used by Kernel and Communication classes. This enables Core classes from this library to
- * reliably interface with any custom module. Additionally, this class provides utility functions that abstract many
- * routine tasks in a way that is compatible with concurrent runtime enforced by the Kernel module.
+ * This class serves two major purposes. First, it provides a static interface used by Kernel and Communication classes
+ * to interact with any custom hardware module, regardless of its implementation and purpose. Seconds, this class
+ * provides utility functions that abstract routine tasks, such as changing pin states, in a way that is compatible with
+ * concurrent (non-blocking) runtime supported by the Kernel module.
  *
- * @attention It is highly advised to check one of the 'default' custom classes shipped with this library. These classes
- * showcase the principles of constructing custom classes using the available base Module class methods.
- *
- * The Module class available through this file is broadly divided into three sections:
- * - Utility methods. Provides utility functions that implement routinely used features, such as waiting for time or
- * sensor activation. Methods from this section will be inherited when subclassing this class and should be used when
- * writing custom class methods where appropriate.
- * - Core methods. These methods are also inherited from the parent class, but they should be used exclusively by
- * the Kernel and Communication classes. These methods form the static interface that natively integrates any custom
- * module with the Kernel and Communication classes.
- * - Virtual Methods. These methods serve the same purpose as the Core methods, but they provide an interface between
- * the custom logic of each module and the Kernel class. These methods are implemented as pure virtual methods and have
- * to be defined by developers for each custom module. Due to their consistent signature, the Kernel can use these
- * methods regardless of the specific implementation of each method.
+ * @attention Every custom hardware module class should inherit from the base Module class defined in this file.
  *
  * @section mod_developer_notes Developer Notes:
- * This is one of the key Core level classes that is critically important for the functioning of the whole AMC codebase.
- * Generally, only Kernel developers with a good grasp of the codebase should be modifying this base class. This is
- * especially relevant for class versions that modify existing functionality and, as such, are likely to be incompatible
- * with existent custom modules.
+ * This class is essential for the correct functioning of the modules using this library. It works together with other
+ * library classes to abstract most of the module-kernel-pc interaction away from the developers of custom hardware
+ * modules. An unfortunate side effect of this design pattern is that the class contains some code that is visible to
+ * users, but should never be accessed or used by them (because it is intended for the Kernel).
  *
- * There are two main ways of using this class to develop custom modules. The preferred way is to rely on the available
- * utility methods provided by this class to abstract all interactions with the inherited Core methods and variables.
- * Specifically, any class inheriting from this base class should use the methods in the utility sections inside all
- * custom commands and overridden virtual methods where appropriate. The current set of utility methods should be
- * sufficient to support most standard microcontroller use cases, while providing automatic compatibility with the rest
- * of the AMC codebase. As a bonus, this method is likely to improve code maintainability, as utility methods are
- * guaranteed to be supported and maintained even if certain Core elements in the class are modified by Kernel library
- * developers.
- *
- * The second way, which may be useful if specific required functionality is not available through the utility methods,
- * is to directly use the included core structures and variables, such as the ExecutionControlParameters structure.
- * This requires a good understanding of how the base class, and it's method function, as well as an understanding of
- * how Kernel works and interacts with Module-derived classes. With sufficient care, this method can provide more
- * control over the behavior of any custom module, at the expense of being harder to master and less safe.
- *
- * Regardless of the use method, any custom Module inheriting from the Module class has to implement ALL purely virtual
- * method to make the resultant class usable by the Kernel class.
+ * When implementing custom modules, it is imperative to override the three pure virtual methods declared in the base
+ * class: SetCustomParameters, RunActiveCommand and SetupModule. Moreover, all commands have to at the very least
+ * call the CompleteCommand method at the end of their runtime to notify the Kernel that the command has been completed.
+ * See examples (example_module.h) for more details on how to incorporate the Module API into your hardware module
+ * classes.
  *
  * @section mod_dependencies Dependencies:
  * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
  * - digitalWriteFast.h for fast digital pin manipulation methods.
  * - elapsedMillis.h for millisecond and microsecond timers.
+ * - axmc_shared_assets.h for globally shared static message byte-codes and parameter structures.
  * - communication.h for Communication class, which is used to send module runtime data to the connected system.
- * - shared_assets.h for globally shared static message byte-codes and parameter structures.
  */
 
 #ifndef AXMC_MODULE_H
@@ -66,38 +42,31 @@
 #include "communication.h"
 
 /**
- * @brief Serves as the parent for all custom module classes, providing methods for other Core classes to interface with
- * any custom module.
+ * @brief Provides the API used by other classes from this library to integrate any custom hardware module class with
+ * the main interface running on the companion host-computer (PC).
  *
  * This class serves as the shared (via inheritance) repository of utility and runtime-control methods that
- * automatically integrate any custom module into the existing AMC codebase. Specifically, by inheriting from this
- * class, any module gains an interface making it possible for the Kernel and Communication classes to work with the
- * module. This way, developers can focus on specific module logic, as Core classes handle runtime flow control and
- * communication.
+ * automatically integrate any custom hardware module with the rest of the library and the communication interface
+ * running on the companion host-computer (PC). Specifically, by inheriting from this class, any module gains the shared
+ * API used by the Kernel and Communication classes to work with the module. This way, developers can focus on
+ * implementing the logic of their hardware, while this library handles runtime flow control and communication with PC
+ * interface.
  *
- * @note This class offers a collection of utility methods that should be used when writing custom functions. These
- * methods abstract the interactions with Core module structures and enable functions such as concurrent (non-blocking)
- * command execution and error-handling.
+ * @note This class offers utility methods that should be used when implementing module commands. These methods abstract
+ * the interactions with shared API and optionally enable concurrent (non-blocking) command execution.
  *
- * @warning Every custom module class @b has to inherit from this base class to be compatible with the rest of the AMC
- * codebase. Moreover, the base class itself uses pure virtual methods and, as such, cannot be instantiated. Only a
- * child class that properly overrides all pure virtual methods of the base class can be instantiated.
+ * @warning Every custom module class @b has to inherit from this base class to be compatible with this library.
  */
 class Module
 {
     public:
         /**
          * @struct ExecutionControlParameters
-         * @brief Stores parameters that are used to dynamically queue, execute and control the execution flow of
-         * module commands.
+         * @brief Stores parameters that are used to dynamically queue, execute and control the runtime of hardware
+         * commands.
          *
          * All runtime control manipulations that involve changing the variables inside this structure
-         * should be carried out either by the Kernel class or via Core / Utility methods inherited from the base
-         * Module class.
-         *
-         * @attention Any modification to this structure or code that makes use of this structure should be reserved
-         * for developers with a good grasp of the existing codebase. If possible, modifying this structure should be
-         * avoided, especially deletions or refactoring of existing variables.
+         * should be carried out either by the Kernel class or via utility methods inherited from the base Module class.
          */
         struct ExecutionControlParameters
         {
@@ -115,11 +84,12 @@ class Module
 
         /**
          * @enum kCoreStatusCodes
-         * @brief Assigns meaningful names to status codes used by the module class.
+         * @brief Assigns meaningful names to status codes used to communicate the states and errors encountered during
+         * the shared API method runtimes.
          *
-         * These codes are used by the Core class methods (Methods expected to be accessed by the Kernel class).
+         * These codes are used by the shared API methods (methods expected to be accessed by the Kernel class).
          * Utility methods are not accessed by the Kernel class and, therefore, do not need a system for communicating
-         * nuanced runtime details to upstream callers.
+         * runtime states to the PC.
          *
          * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
          * Module class. All custom modules should use a separate enumeration to define status codes specific to the
@@ -140,21 +110,23 @@ class Module
         /**
          * @brief Instantiates a new Module class object.
          *
-         * @param module_type The ID that identifies the type (family) of the module. All instances of the same custom
-         * module class should share this ID. Has to use a value not reserved by other Module-derived classes. Note,
-         * valid values start with 1 and extend up to 255. 0 is NOT a valid value!
+         * This initializer should be called as part of the custom module's initialization sequence for each module that
+         * subclasses this base class.
+         *
+         * @param module_type The byte-code that identifies the type (family) of the module. All instances of the same
+         * custom module class should share this ID. Has to use a value not reserved by other Module-derived classes.
+         * Valid values start with 1 and extend up to 255. 0 is NOT a valid value!
          * @param module_id This ID is used to identify the specific instance of the module. It can use any non-zero
          * value supported by uint8_t range, as long as no other module in the type (family) uses the same value. As
          * with module_type, 0 is NOT a valid value!
          * @param communication A reference to the Communication class instance that will be used to send module runtime
-         * data to the connected system. A single Communication class instance is shared by the Kernel and all managed
-         * Modules.
+         * data to the PC. The same Communication class instance is shared by the Kernel and all managed modules.
          * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure that stores
          * PC-addressable global runtime parameters that broadly alter the behavior of all modules used by the
-         * controller. This structure is modified via the Kernel class, Modules only read the data from the structure.
+         * controller. This structure is modified via the Kernel class, modules only read the data from the structure.
          *
          * @attention Follow this instantiation order when writing the main .cpp / .ino file for the controller:
-         * Communication → Module(s) → Kernel. See the main.cpp included with the library for details.
+         * Communication → Module(s) → Kernel. See the /examples folder for details.
          */
         Module(
             const uint8_t module_type,
@@ -169,35 +141,26 @@ class Module
         {}
 
         // CORE METHODS.
-        // These methods are primarily designed to be used by the Kernel class should never be used by any Module logic
-        // (they are exclusively for Kernel to use). The Kernel uses these methods to control the microcontroller
-        // runtime and schedule the commands to be executed by the Module.
+        // These methods are primarily designed to be used by the Kernel class should never be used by any custom
+        // module logic. The Kernel uses these methods to schedule the commands to be executed by the module instance.
 
         /**
          * @brief Queues the input command to be executed by the Module.
          *
-         * This method queues the command code to be executed and sets the runtime parameters for the command. Once
-         * a command is queued, the Module will execute it as soon as it is done with any currently running command.
-         * The Kernel class uses this method to queue commands received from the PC for execution.
+         * This method queues the command to be executed when the module finished any currently running command by
+         * modifying the local execution_parameters structure. The Kernel class uses this method to queue commands
+         * received from the PC for execution.
          *
-         * @attention This method is explicitly designed to queue the commands that need to be run cyclically
-         * (recurrently)! There is an overloaded version of this method that does not accept the 'cycle_delay' argument
-         * and allows queueing non-cyclic commands.
+         * @attention This method is explicitly designed to queue the commands to run cyclically (recurrently)! There
+         * is an overloaded version of this method that does not accept the 'cycle_delay' argument and allows queueing
+         * non-cyclic commands.
          *
-         * @note This method is explicitly written in a way that allows replacing any already queued command. Since the
-         * Module buffer is designed to only hold 1 command a time, this allows replacing the queued command in response
-         * to external events.
-         *
-         * @warning This method does not check whether the input command code is valid. It only saves it to the
-         * appropriate field of the execution_parameters structure. The validity check should be carried out by the
-         * RunActiveCommand() method.
+         * @note If the module already has a queued command, this method will replace that command with the input
+         * command data. This behavior is intentional!
          *
          * @param command The byte-code of the command to execute.
          * @param noblock Determines whether the queued command will be executed in blocking or non-blocking mode.
-         * Non-blocking execution requires the command to make use of the protected Utility methods inherited from the
-         * base Module class that support non-blocking command execution delays.
-         * @param cycle_delay The number of microseconds to delay between command repetitions when it is executed
-         * cyclically (recurrently).
+         * @param cycle_delay The number of microseconds to delay before repeating (cycling) the command.
          */
         void QueueCommand(const uint8_t command, const bool noblock, const uint32_t cycle_delay)
         {
@@ -208,7 +171,7 @@ class Module
             execution_parameters.new_command     = true;
         }
 
-        /// Overloads the QueueCommand() method to allow queueing non-cyclic commands without unnecessary arguments.
+        /// Overloads the QueueCommand() method to allow queueing non-cyclic commands.
         void QueueCommand(const uint8_t command, const bool noblock)
         {
             execution_parameters.next_command    = command;
@@ -218,9 +181,10 @@ class Module
             execution_parameters.new_command     = true;
         }
 
-        /// The Kernel uses this method when it receives a Dequeue command for one of the modules. The Kernel then uses
-        /// this method to clear the variables used to queue and recurrently cycle commands. This means that the module
-        /// will remain idle until a new valid command is queued.
+        /// The Kernel uses this method when it receives a Dequeue command for one of the modules. The method clears
+        /// the execution_parameters structure variables used to queue and recurrently cycle commands. This allows the
+        /// module to finish an already running command, but will prevent it from executing any further commands until
+        /// it receives a new command from the PC.
         void ResetCommandQueue()
         {
             execution_parameters.next_command    = 0;
@@ -231,16 +195,16 @@ class Module
         }
 
         /**
-         * @brief If possible, ensures the module has an active command to run.
+         * @brief Ensures that the module has an active command to execute.
          *
-         * Specifically, uses the following order of preference to activate (execute) a command:
+         * Uses the following order of preference to activate (execute) a command:
          * finish already running commands > run new commands > repeat a previous cyclic command.
          * When repeating cyclic commands, the method ensures the recurrent timeout has expired before reactivating
          * the command.
          *
          * @note The Kernel uses this method to set up the command to be executed when RunActiveCommand() method is
-         * called. Additionally, as a form of runtime scheduler optimization, RunActiveCommand() is only called if
-         * this method returns true (activates a command). This ensures idle modules do not consume CPU time.
+         * called. RunActiveCommand() is only called if this method returns true (activates a command). This ensures
+         * idle modules do not unnecessarily consume CPU cycles.
          *
          * @attention Any queued command is considered new until this method activates that command.
          *
@@ -301,8 +265,8 @@ class Module
         /**
          * @brief Resets the class execution_parameters structure to default values.
          *
-         * This method is designed for Teensy boards that do not reset on UART / USB cycling. The Kernel uses this
-         * method to reset the Module between runtimes and when it receives the Reset command.
+         * This method is designed for Teensy microcontrollers that do not reset on USB connection cycling. The Kernel
+         * uses this method to reset the module memory between runtimes and when it receives the global reset command.
          */
         void ResetExecutionParameters()
         {
@@ -347,17 +311,13 @@ class Module
         }
 
         /**
-         * @brief Sends an error message to notify the PC that the module did not recognize an executed command.
+         * @brief Sends an error message to notify the PC that the module did not recognize the active command.
          *
-         * The Kernel uses this method to notify the PC when RunActiveCommand() API method returns 'false'. In turn,
-         * this means that the custom logic of the module did not accept the active command code as valid.
+         * The Kernel uses this method to notify the PC when RunActiveCommand() method returns 'false'. This
+         * outcome usually means that the custom logic of the module did not accept the active command code as valid.
          *
-         * @attention This way of handling 'core' Module errors is unique to command activation. Errors with Parameter
-         * and Setup virtual method runtimes are communicated through Kernel-sent messages. This is ultimately due to
-         * the severity of failing parameters and setup method calls being considerably higher than that of not
-         * executing a command. A module that does not recognize a command does nothing. A module which is not set (up)
-         * correctly or does not have proper parameters may execute a command in a way that damages the managed physical
-         * hardware.
+         * @attention This way of handling shared API errors is unique to command activation. Errors with Parameter
+         * and Setup virtual method runtimes are communicated through Kernel-sent messages.
          *
          * @note Experienced developers can replace the 'default' case of the RunActiveCommand() switch statement with
          * a call to this method and return 'true' to the Kernel. This may save some processing time.
@@ -469,30 +429,32 @@ class Module
         virtual ~Module() = default;
 
     protected:
-        /// Represents the type (family) of the module. All modules in the family share the same type code.
+        /// Stores the byte-code for the type (family) of the module. All modules in the family share the same type
+        /// code.
         const uint8_t _module_type;
 
-        /// The specific ID of the module. This code has to be unique within the module family, as it identifies
-        /// specific module instance.
+        /// Stores the ID byte-code of the specific module instance. This code has to be unique within the same module
+        /// family.
         const uint8_t _module_id;
 
         /// Combines type and id byte-codes into a single uint16 value that is expected to be unique for each module
-        /// instance active at the same time.
-        const uint16_t _module_type_id = (_module_type << 8) | _module_id;
+        /// instance active at the same time (across all module types).
+        const uint16_t _module_type_id = _module_type << 8 | _module_id;
 
-        /// A reference to the shared instance of the Communication class. This class is used to send runtime data to
-        /// the connected Ataraxis system.
+        /// A reference to the shared instance of the Communication class. This class is used to send module runtime
+        /// data to the PC.
         Communication& _communication;
 
-        /// A reference to the shared instance of the ControllerRuntimeParameters structure. This structure stores
-        /// dynamically addressable runtime parameters used to broadly alter controller behavior. For example, this
+        /// A reference to the shared instance of the DynamicRuntimeParameters structure. This structure stores
+        /// PC-addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
         const axmc_shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
 
         // UTILITY METHODS.
         // These methods are designed to help developers with writing custom module classes. They are not accessed by
-        // the Kernel class and, consequently, do not interface with the Module's runtime status tracker. It is highly
-        // recommended to only access inherited (base) Module properties and attributes through these utility methods.
+        // the Kernel class and are not required for integrating the custom module with the rest of the library. It is
+        // highly recommended to only access inherited (base) Module properties and attributes through these utility
+        // methods however, as it adds an extra layer of security.
 
         /**
          * @brief Returns the code of the currently active (running) command.
@@ -508,10 +470,9 @@ class Module
             return execution_parameters.command;
         }
 
-        /// This method completes the currently active command and ensures it will not run again if it is recurrent.
-        /// Use this method to abort the runtime of a command that runs into an error that is likely not recoverable.
-        /// Otherwise, if the command sends error messages to the PC, it may overwhelm the communication interface by
-        /// spamming the same error message.
+        /// This method terminates the currently active command and ensures it will not run again if it is recurrent.
+        /// Use this method to abort the runtime of a command that runs into an error that is likely not recoverable to
+        /// ensure the command does not run again.
         void AbortCommand()
         {
             // Ensures the failed command is cleared from the recurrent queue. If the new_command flag is true,
@@ -573,7 +534,7 @@ class Module
         }
 
         /**
-         * @brief Terminates (ends) the currently active (running) command execution.
+         * @brief Completes (ends) the currently active (running) command execution.
          *
          * This method should only be called when the command method completes everything it sets out to do. For noblock
          * commands, the microcontroller may need to loop through the command method multiple times before it reaches
@@ -611,17 +572,14 @@ class Module
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified analog pin.
          *
-         * @note This method will use the global analog readout resolution set during the main.cpp setup() method
-         * runtime.
-         *
          * @param pin The number (id) of the analog pin to read.
          * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
          * disable averaging.
          *
-         * @returns uint16_t value of the analog sensor. Currently, uses 16-bit resolution as the maximum supported by
-         * analog pin hardware.
+         * @returns uint16_t value of the analog sensor. The actual resolution of the returned signal value depends on
+         * teh microcontroller's ADC resolution parameter.
          */
-        static uint16_t GetRawAnalogReadout(const uint8_t pin, const uint16_t pool_size = 0)
+        static uint16_t AnalogRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
             uint16_t average_readout;  // Pre-declares the final output readout
 
@@ -662,7 +620,7 @@ class Module
          *
          * @returns the value of the pin as @b true (HIGH) or @b false (LOW).
          */
-        static bool GetRawDigitalReadout(const uint8_t pin, const uint16_t pool_size = 0)
+        static bool DigitalRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
             bool digital_readout;  // Pre-declares the final output readout
 
@@ -694,10 +652,11 @@ class Module
         }
 
         /**
-         * @brief Checks if the delay_duration of microseconds has passed since the module's delay_timer has been reset.
+         * @brief Checks if the input duration of microseconds has passed since the module's delay_timer has been reset.
          *
          * Depending on execution configuration, the method can block in-place until the escape duration has passed or
-         * function as a check for whether the required duration of microseconds has passed (for noblock runtimes).
+         * function as a non-blocking check for whether the required duration of microseconds has passed
+         * (for noblock runtimes).
          *
          * @note The delay_timer can be reset by calling ResetStageTimer() method. The timer is also reset whenever
          * AdvanceCommandStage() method is called. Overall, the delay is intended to be relative to the onset of the
@@ -818,7 +777,7 @@ class Module
          * @param event_code The byte-code specifying the event that triggered the data message.
          * @param prototype The prototype byte-code specifying the structure of the data object. Currently, all data
          * objects have to use one of the supported prototype structures. If you need to add additional prototypes,
-         * modify the kPrototypes enumeration available from the communication_assets namespace.
+         * modify the kPrototypes enumeration available from the axmc_communication_assets namespace.
          * @param object Additional data object to be sent along with the message. The structure of the object has to
          * match the object structure declared by the prototype code for the PC to deserialize the object.
          */

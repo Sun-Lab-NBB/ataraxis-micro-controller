@@ -1,7 +1,7 @@
 /**
  * @file
- * @brief The header file for the Kernel class, which is used to interface and manage the runtime of custom hardware
- * modules.
+ * @brief The header file for the Kernel class, which is used to manage the runtime of custom hardware modules and
+ * integrate them with the communication interface running on a companion host-computer (PC).
  *
  * @section kern_description Description:
  *
