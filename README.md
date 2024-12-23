@@ -12,14 +12,11 @@ ___
 ## Detailed Description
 
 This library is designed to simplify the integration of custom hardware, managed by Arduino or Teensy microcontrollers,
-with existing project Ataraxis libraries and infrastructure running on the host-computer (PC). To do so, it exposes 
+with existing project Ataraxis libraries and infrastructure running on host-computers (PCs). To do so, it exposes 
 classes that abstract microcontroller-PC communication and microcontroller runtime management (task scheduling, error 
-handling, etc.). This library allows the developers to focus on implementing their custom hardware logic, instead of 
-worrying about cross-platform communication and multi-module runtime flow control.
-
-This library is designed as a companion for the host-computer (PC) 
-[interface library](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface) written in Python. To enable the 
-interface to control any custom hardware module, this library defines a shared API that can be integrated into 
+handling, etc.). Jointly, these classes bind custom hardware to the Python PC
+[interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface), enabling the 
+centralized control of many hardware modules. To do so, the library defines a shared API that can be integrated into 
 user-defined modules by subclassing the (base) Module class. It also provides the Kernel class that manages task 
 scheduling during runtime, and the Communication class, which allows custom modules to communicate to Python clients
 (via a specialized binding of the [TransportLayer class](https://github.com/Sun-Lab-NBB/ataraxis-transport-layer-mc)).
