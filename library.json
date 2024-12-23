@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "ataraxis-micro-controller",
+  "version": "1.0.0",
+  "description": "A C++ library for Arduino and Teensy microcontrollers that integrates user-defined hardware modules with the centralized communication interface client running on the host-computer (PC).",
+  "keywords": "arduino, teensy, ataraxis, communication, serial, integration, hardware modules",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sun-Lab-NBB/ataraxis-micro-controller"
+  },
+  "homepage": "https://ataraxis-micro-controller-api-docs.netlify.app/",
+  "authors":
+  [
+    {
+      "name": "Ivan Kondratyev",
+      "url": "https://github.com/Inkaros",
+      "email" : "ik278@cornell.edu",
+      "maintainer": true
+    },
+    {
+      "name": "Jasmine Si"
+    }
+  ],
+  "license": "LGPL-3.0-or-later",
+  "frameworks": ["arduino"],
+  "platforms": ["atmelavr", "atmelsam", "teensy"],
+  "headers": ["kernel.h", "communication.h", "module.h", "axmc_shared_assets.h"],
+  "dependencies":
+  [
+    {
+      "owner": "pfeerick",
+      "name": "elapsedMillis",
+      "version": "^1.0.6",
+      "platforms": ["atmelsam", "atmelavr"]
+    },
+    {
+      "owner": "arminjo",
+      "name": "digitalWriteFast",
+      "version": "^1.2.0",
+      "platforms": ["atmelsam", "atmelavr"]
+    },
+    {
+      "owner": "inkaros",
+      "name": "ataraxis-transport-layer-mc",
+      "version": "^1.0.3",
+      "platforms": ["atmelsam", "atmelavr", "teensy"]
+    }
+  ],
+  "export": {
+    "include":
+    [
+      "./examples/*",
+      "./src/*"
+    ],
+    "exclude":
+    [
+      "./src/main.cpp"
+    ]
+  },
+  "build": {
+    "flags": "-std=c++17"
+  }
+}

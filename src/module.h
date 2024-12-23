@@ -330,72 +330,82 @@ class Module
         }
 
         // VIRTUAL METHODS.
-        // Like Core methods, the Virtual methods provide the Kernel class with the API to interface with the Module
-        // class instance. Unlike Core methods, these methods are specifically designed to encapsulate the custom
-        // logic of each module subclass. Therefore, these methods need to be implemented separately for each class
-        // derived from the base Module class. Correctly writing these methods is essential for making your custom
-        // module work with the Kernel and, by extension, the whole Ataraxis project.
+        // These methods link custom logic of each hardware module with the rest of the library API. Like Core methods,
+        // these methods are designed to be called by the Kernel class and allow it to manage the runtime behavior of
+        // the module. However, the implementation of these methods relies on the user (custom module developer) as it
+        // has to be specific to each custom hardware module.
 
         /**
-         * @brief Overwrites the object used to store custom parameters of the class instance with the data received
-         * from the PC.
+         * @brief Overwrites the memory of the object used to store class instance runtime parameters with the data
+         * received from the PC.
          *
-         * Kernel class calls this method when it receives a ModuleParameters message addressed to this module instance.
-         * This method is expected to call the ExtractModuleParameters() method of the bound Communication class
-         * ('_communication' attribute) to parse the received data into the Module's custom parameters object. Commonly,
-         * the parameter object is a Structure, but it can also be any other valid C++ data object.
+         * Kernel calls this method when it receives a ModuleParameters message addressed to a module instance with the
+         * same type-code as the class that overloads this method. This method has to call the ExtractModuleParameters()
+         * method of the shared Communication class ('_communication' attribute) to unpack the received data into the
+         * Module's custom parameters object. Commonly, the parameter object is a Structure, but it can also be any
+         * other valid C++ data object.
+         *
+         * Essentially, the purpose of this method is to tell the Kernel where the custom PC-addressable runtime
+         * parameters of te module instance are stored.
          *
          * @returns bool @b true if new parameters were parsed successfully and @b false otherwise.
          *
          * This is an example of how to implement this method (what to put in the method's body):
          * @code
          * uint8_t custom_parameters_object[3] = {0, 0, 0}; // Assume this object was created at class instantiation.
-         * bool status = _communication.ExtractModuleParameters(custom_parameters_object);  // Reads data.
+         * bool status = _communication.ExtractModuleParameters(custom_parameters_object);  // Reads the data.
          * return status;  // Kernel class resolves both error and success outcomes.
          * @endcode
          */
         virtual bool SetCustomParameters() = 0;
 
         /**
-         * @brief Calls the specific method associated with the currently active command code.
+         * @brief Calls the class method associated with the currently active command code.
          *
-         * Kernel class uses this method to access the custom command-associated logic of each Module instance. This
-         * method is expected to contain conditional switch-based logic to call the appropriate custom class method,
+         * Kernel class uses this method to access and run the custom module's logic associated with each command code.
+         * This method should contain conditional switch-based logic to call the appropriate custom class method(s),
          * based on the active command code (retrieved using inherited GetActiveCommand() method).
          *
-         * @returns bool @b true if active command was matched to a specific custom method and @b false otherwise.
-         * Note, this method should NOT evaluate whether the command ran successfully, only that the active command code
-         * was matched to specific custom method. The called custom command method should use SendData() method to
-         * report command success / failure status to the PC.
+         * @returns bool @b true if the currently active module command was matched to a specific custom method and @b
+         * false otherwise. Note, this method should NOT evaluate whether the command ran successfully, only that the
+         * active command code was matched to specific custom method. The called custom command method should use
+         * SendData() method to report command success / failure status to the PC.
          *
          * This is an example of how to implement this method (what to put in the method's body):
          * @code
          * uint8_t active_command = GetActiveCommand();  // Returns the code of the currently active command.
          * switch (active_command) {
          *  case 5:
-         *      // If command 5 runs into an error, it should use the SendData() method to send the error message to the
-         *      // connected system. All commands are expected to have 'void' return type.
+         *      // If command 5 runs into an error during execution, it should use the SendData() method to send the
+         *      // error message to the connected system.
          *      command_5();
-         *      return true; // The 'true' here means that the command was matched to method, not that it succeeded!
+         *      return true; // This returns value means the command was recognized, not that it succeeded!
          *  case 9:
-         *      // All commands should not take any arguments. Any static or dynamic runtime parameters should be
-         *      // accessible through the custom 'parameters' object of the class.
-         *      command_9();
-         *      return true;
+         *      // While it is expected that class PC-addressable runtime parameters are stored in class attributes,
+         *      // you are free to write commands however you want. This includes passing data as arguments and
+         *      // receiving data as outputs. You can even run multiple commands in one go. Note, however, that the PC
+         *      // will treat all sub-commands as a single unified command with the same code (in this case, command 9).
+         *      bool success = command_9(11);
+         *      if (success) command_11();
+         *      return true;  // Note, true / false returns HAVE to be strictly determined by command recognition.
          *  default:
          *      // If this method does not recognize the active command code, it should return false. The Kernel class
          *      // will then handle this as an error case.
          *      return false;
+         *
+         *      // Alternatively, you can also implement a more efficient 'default' case instead of using the Kernel:
+         *      SendCommandActivationError();  // This is what the Kernel calls when this method returns 'false'
+         *      return true; // Although the command was not recognized, the error was handled above, so returns 'true'.
          * }
          * @endcode
          */
         virtual bool RunActiveCommand() = 0;
 
         /**
-         * @brief Sets up the software and hardware assets used by the module.
+         * @brief Sets up the hardware and software assets used by the module.
          *
-         * Kernel class calls this method after receiving the reset command and during initial controller Setup()
-         * function runtime. Use this method to reset both hardware (e.g.: pin modes) and software (e.g.: custom
+         * Kernel class calls this method during initial controller setup() function runtime and when it receives the
+         * global reset command. Use this method to reset hardware (e.g.: pin modes) and software (e.g.: custom
          * parameter structures and class trackers).
          *
          * @attention Ideally, this method should not contain any logic that can fail or block. Many core dependencies,
@@ -419,13 +429,7 @@ class Module
          */
         virtual bool SetupModule() = 0;
 
-        /**
-         * @brief A pure virtual destructor method to ensure proper cleanup.
-         *
-         * Currently, there are no extra cleanup steps other than class deletion itself, which also does not happen,
-         * as everything in the codebase so far is allocated statically and collected at runtime termination. Generally
-         * safe to reimplement without additional logic.
-         */
+        ///A pure virtual destructor method to ensure proper cleanup.
         virtual ~Module() = default;
 
     protected:

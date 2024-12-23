@@ -10,7 +10,7 @@ OUTPUT_LANGUAGE        = English
 INPUT                  = src/axmc_shared_assets.h \
                          src/module.h \
                          src/kernel.h \
-                         src/communication.h \
+                         src/communication.h
 GENERATE_XML           = YES
 XML_OUTPUT             = xml
 ENABLE_PREPROCESSING   = YES
