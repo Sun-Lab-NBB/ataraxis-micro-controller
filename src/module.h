@@ -352,9 +352,10 @@ class Module
          *
          * This is an example of how to implement this method (what to put in the method's body):
          * @code
-         * uint8_t custom_parameters_object[3] = {0, 0, 0}; // Assume this object was created at class instantiation.
-         * bool status = _communication.ExtractModuleParameters(custom_parameters_object);  // Reads the data.
-         * return status;  // Kernel class resolves both error and success outcomes.
+         * uint8_t custom_parameters_object[3] = {}; // Assume this object was created at class instantiation.
+         *
+         * // Reads the data and returns the operation status to the caller (Kernel).
+         * return = ExtractParameters(custom_parameters_object);
          * @endcode
          */
         virtual bool SetCustomParameters() = 0;
@@ -840,6 +841,21 @@ class Module
                 execution_parameters.command,
                 static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
             );
+        }
+
+        /**
+         * @brief Updates the memory of the provided object with the new PC-addressable runtime parameter data
+         * received from the PC.
+         *
+         * @tparam ObjectType The type of the storage_object. This is inferred automatically by the template
+         * constructor.
+         * @param storage_object The object used to store PC-addressable custom runtime parameters.
+         * @return @bool True if the parameters were successfully extracted, false otherwise.
+         */
+        template <typename ObjectType>
+        bool ExtractParameters(ObjectType& storage_object)
+        {
+          return _communication.ExtractModuleParameters(storage_object);
         }
 };
 

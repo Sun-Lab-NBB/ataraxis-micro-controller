@@ -27,11 +27,11 @@ Communication axmc_communication(Serial);
 
 // Creates two instances of the TestModule class. The library can support multiple instances of different module
 // families, but for this example we use the same family (type) and only create two instances. Note, the first argument
-// is the module type (family), which is teh same (1) for both, the second argument is the module ID (instance), which
+// is the module type (family), which is the same (1) for both, the second argument is the module ID (instance), which
 // is different. Both type-codes and id-codes are assigned by the user at instantiation.
 TestModule<5> test_module_1(1, 1, axmc_communication, DynamicRuntimeParameters);
 
-// Also uses the template to override the digital pin controlled by the module instance from teh default (5) to 6.
+// Also uses the template to override the digital pin controlled by the module instance from the default (5) to 6.
 TestModule<6> test_module_2(1, 2, axmc_communication, DynamicRuntimeParameters);
 
 // Packages all module instances into an array to be managed by the Kernel class.

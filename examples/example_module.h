@@ -89,7 +89,7 @@ class TestModule final : public Module
         bool SetCustomParameters() override
         {
             // This overwrites the memory of the 'parameters' structure with new data, received from the PC.
-            return _communication.ExtractModuleParameters(parameters);
+            return ExtractParameters(parameters);
         }
 
         // This method is used to execute specific module commands (methods), depending on the command code received
@@ -101,7 +101,7 @@ class TestModule final : public Module
             // command(s).
             switch (static_cast<kCommands>(GetActiveCommand()))  // Casts the command code to the enumeration type.
             {
-                // Emits a square pulse via teh managed digital pin.
+                // Emits a square pulse via the managed digital pin.
                 case kCommands::kPulse:
                     Pulse();
                     return true;  // This means the method has recognized the command, NOT that the command succeeded.
@@ -125,6 +125,7 @@ class TestModule final : public Module
             // Note, there is 1000 microseconds in one millisecond and 1000000 microseconds in one second.
             parameters.on_duration  = 2000000;  // The HIGH phase of the pin is 2 seconds by default.
             parameters.off_duration = 2000000;  // Ensures the LOW phase of the pin is also at least 2 seconds.
+            parameters.echo_value   = 123;      // Sets the default echo value.
 
             return true;  // Has to return True to notify the Kernel setup was complete.
         }
@@ -221,7 +222,7 @@ class TestModule final : public Module
         {
             // Data objects transmitted to the PC might match one of the supported 'prototypes'. The PC has to know
             // how to read the serialized object data, and making it always match one of the prototypes ensures the PC
-            // can deserialize the data. While the number of supported prototypes is limited, teh available range
+            // can deserialize the data. While the number of supported prototypes is limited, the available range
             // should cover most uses cases. If you need to add custom prototypes, modify the kPrototypes enumeration
             // in the axmc_communication_assets namespace (axmc_shared_assets.h source file).
             SendData(
