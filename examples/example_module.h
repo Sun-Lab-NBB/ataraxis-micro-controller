@@ -220,9 +220,9 @@ class TestModule final : public Module
         // SendData specialization for sending data objects alongside communicating module states to the PC interface.
         void Echo()
         {
-            // Data objects transmitted to the PC might match one of the supported 'prototypes'. The PC has to know
-            // how to read the serialized object data, and making it always match one of the prototypes ensures the PC
-            // can deserialize the data. While the number of supported prototypes is limited, the available range
+            // Data objects transmitted to the PC have to match one of the supported prototype objects. The PC has to
+            // know how to read the serialized object data, and making it always match one of the prototypes ensures
+            // the PC can deserialize the data. While the number of supported prototypes is limited, the available range
             // should cover most uses cases. If you need to add custom prototypes, modify the kPrototypes enumeration
             // in the axmc_communication_assets namespace (axmc_shared_assets.h source file).
             SendData(

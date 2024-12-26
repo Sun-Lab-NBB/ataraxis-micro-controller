@@ -14,8 +14,8 @@ ___
 This library is designed to simplify the integration of custom hardware, managed by Arduino or Teensy microcontrollers,
 with existing project Ataraxis libraries and infrastructure running on host-computers (PCs). To do so, it exposes 
 classes that abstract microcontroller-PC communication and microcontroller runtime management (task scheduling, error 
-handling, etc.). Jointly, these classes bind custom hardware to the PC
-[interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface), written in Python enabling the 
+handling, etc.). Jointly, these classes bind custom hardware to the Python PC
+[interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface), enabling the 
 centralized control of many hardware modules. To do so, the library defines a shared API that can be integrated into 
 user-defined modules by subclassing the (base) Module class. It also provides the Kernel class that manages task 
 scheduling during runtime, and the Communication class, which allows custom modules to communicate to Python clients
@@ -100,7 +100,7 @@ This section demonstrates how to use custom hardware modules compatible with thi
 [this section](#implementing-custom-hardware-modules) for instructions on how to implement your own hardware modules. 
 Note, the example below should be run together with the 
 [companion python interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface#quickstart) example. See 
-the [module_integration.cpp](./examples/module_integration.cpp) for this example's .cpp file.
+the [module_integration.cpp](./examples/module_integration.cpp) for this example’s .cpp file.
 ```
 // This example demonstrates how to write the main.cpp file that uses the library to integrate custom hardware modules
 // with the communication interface running on the companion host-computer (PC). This example uses the TestModule
@@ -180,7 +180,7 @@ The PC and the Microcontroller have to have the **same** interpretation for thes
    both at the same time. This code is set by the **first** argument of the Kernel class constructor.
 
 - `Module Type` for each module. This is a byte-code from 1 to 255 that identifies the family of each module. For 
-   example, all Solenoid valves may use the type-code '1,' while all voltage sensors may use type-code '2.' The type 
+   example, all solenoid valves may use the type-code '1,' while all voltage sensors may use type-code '2.' The type 
    codes do not have an inherent meaning, they are assigned by the user separately for each use case. Therefore, the
    same collection of custom module classes may have vastly different type-codes for two different projects. This 
    design pattern is intentional and allows developers to implement modules without worrying about clashing with 
@@ -195,14 +195,15 @@ The PC and the Microcontroller have to have the **same** interpretation for thes
 For this library, any external hardware that communicates with Arduino or Teensy microcontroller pins is a hardware 
 module. For example, a 3d-party voltage sensor that emits an analog signal detected by Arduino microcontroller is a 
 module. A rotary encoder that sends digital interrupt signals to 3 digital pins of a Teensy 4.1 microcontroller is a 
-module. A solenoid valve gated by HIGH signal sent from an Arduino microcontroller's digital pin is a module.
+module. A solenoid valve gated by HIGH signal sent from an Arduino microcontroller’s digital pin is a module.
 
 Additionally, the library expects that the logic that governs how the microcontroller interacts with these modules is 
 provided by a C++ class, the 'software' portion of the hardware module. Typically, this would be a class that contains 
 the methods for manipulating the hardware module or collecting the data from the hardware module. The central purpose 
 of this library is to enable the PC communication interface to use the software of different hardware modules via a 
-standardized and centralized process. To achieve this, all custom hardware modules have to be based on the base Module 
-class, provided by this library. See the section below for details on how to implement compatible hardware modules.
+standardized and centralized process. To achieve this, all custom hardware modules have to be based on the 
+[Module](/src/module.h) class, provided by this library. See the section below for details on how to implement 
+compatible hardware modules.
 
 ### Implementing Custom Hardware Modules
 All modules intended to be accessible through this library have to follow the implementation guidelines described in the
@@ -226,7 +227,7 @@ One major feature of the library is that it allows maximizing the microcontrolle
 execution of commands from multiple modules under certain conditions. This feature is specifically aimed at higher-end 
 microcontrollers, such as Teensy 4.0+, which operate at ~600Mhz by default and boost to ~1Ghz. These 
 microcontrollers can execute many instructions during a typical multi-millisecond delay interval used
-by many hardware implementations. Therefore, having the ability to run other modules' command logic while executing
+by many hardware implementations. Therefore, having the ability to run other modules’ command logic while executing
 millisecond+ delays improves the overall command throughput of a higher-end microcontroller.
 
 To enable this functionality, the library is explicitly designed to support stage-based command execution. During 
@@ -234,7 +235,7 @@ each cycle of the main `loop` function of Arduino and Teensy microcontrollers, t
 each managed module instance to execute its active command. Typically, the module would run through the command, 
 delaying execution as necessary, and resulting in the microcontroller doing nothing during the delay. However, with 
 this library, commands can use `WaitForMicros` utility method together with the design pattern showcased by the 
-[TestModule's Pulse command](./examples/example_module.h) to end command method runtime early, allowing other modules to
+[TestModule’s Pulse command](./examples/example_module.h) to end command method runtime early, allowing other modules to
 run their commands while the module waits for the delay to expire. High-end microcontrollers may be able to run 
 many `loop` cycles while the delaying module waits for the delay to expire, greatly increasing the overall throughput.
 
@@ -256,7 +257,7 @@ class and allow it to manage the runtime behavior of the module, regardless of t
 module. This is what makes the library work with any hardware module design.
 
 #### SetCustomParameters
-This method enables the Kernel to unpack and save the module's runtime parameters, when new values for these parameters
+This method enables the Kernel to unpack and save the module’s runtime parameters, when new values for these parameters
 are received from the PC.
 
 Usually, this method can be implemented with 1 line of code:
@@ -272,10 +273,10 @@ from the PC and uses it to overwrite the memory of the provided object. Essentia
 method is to tell the Kernel where to unpack the parameter data.
 
 ### RunActiveCommand
-This method allows the Kernel to execute the managed module's logic in response to receiving module-addressed commands 
+This method allows the Kernel to execute the managed module’s logic in response to receiving module-addressed commands 
 from the PC. Specifically, the Kernel receives and queues the commands to be executed and then calls this method for 
 each managed module. The method has to retrieve the code of the currently active command, match it to custom command 
-logic and call the necessary function(s).
+logic, and call the necessary function(s).
 
 There are many ways for implementing this method, but we use a simple switch statement for this demonstration:
 ```
@@ -294,7 +295,7 @@ switch (static_cast<kCommands>(GetActiveCommand()))
 }
 ```
 The switch uses `GetActiveCommand` method, inherited from the base Module class, to retrieve the code of the currently 
-active command. This command is assigned to the module by the Kernel for each runtime loop cycle. To simplify code 
+active command. The Kernel assigns this command to the module for each runtime loop cycle. To simplify code 
 maintenance, we assume that all valid command codes are stored in an enumeration, in this case the `kCommands`. The 
 switch statement matches the command code to one of the valid commands, calls the function associated with each command
 and returns `true`. Note, the method ***has*** to returns `true` if it recognized the command and return `false` if it
@@ -337,7 +338,7 @@ further abstracts the inner workings of the class, allowing the module developer
 black box.
 
 Note, the list below only provides the names and brief descriptions for each utility method. Use the
-[API documentation](https://ataraxis-micro-controller-api-docs.netlify.app/) to obtain more information about each of 
+[API documentation](https://ataraxis-micro-controller-api-docs.netlify.app/) to get more information about each of 
 these methods.
 
 #### GetActiveCommand 
@@ -387,7 +388,7 @@ Delays further command execution for the requested number of microseconds. This 
 The non-blocking mode works by checking whether the requested delay has passed since the last command stage timer 
 reset, which is done through `AdvanceCommandStage` or `ResetStageTimer` methods. If the delay has passed, the 
 method returns `true` and, if not, `false`. This method should be used to delay code execution in noblock-compatible 
-module commands to allow the Kernel to execute other modules' commands while delaying. See 
+module commands to allow the Kernel to execute other modules’ commands while delaying. See 
 [TestModule](./examples/example_module.h) for an example of using this utility method to enable non-blocking execution.
 
 #### AnalogWrite
@@ -408,8 +409,8 @@ first version only takes the 8-bit `state code` and is specialized for communica
 **also** takes in an 8-bit `prototype code` and a `data object` specified by that prototype. 
 
 Currently, we support sending scalars and arrays of up to 15 elements, made up of all supported scalar types: bool, 
-uint8-64, int8-64, float32-64. Generally, this range of supported objects should be sufficient for most conceivable 
-use cases. Note, not all of the supported prototypes may be available on lower-end microcontrollers, as they may be too
+uint8-64, int8-64, float32-64. Generally, this range of supported objects should be enough for most conceivable 
+use cases. Note, not all supported prototypes may be available on lower-end microcontrollers, as they may be too
 large to fit inside the serial buffer of the microcontroller.
 
 See [TestModule](./examples/example_module.h) for the demonstration on how to use both versions.
