@@ -77,18 +77,17 @@ class Kernel
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandBy                = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
-            kSetupComplete          = 1,   ///< Setup() method runtime succeeded.
-            kModuleSetupError       = 2,   ///< Setup() method runtime failed due to a module setup error.
-            kReceptionError         = 3,   ///< Encountered a communication error when receiving the data from PC.
-            kTransmissionError      = 4,   ///< Encountered a communication error when sending the data to PC.
-            kServiceSendingError    = 5,   ///< Error sending a service message to the connected system.
-            kInvalidMessageProtocol = 6,   ///< Received message uses an unsupported (unknown) protocol.
-            kKernelParametersSet    = 7,   ///< Received and applied the parameters addressed to the Kernel class.
-            kModuleParametersSet    = 8,   ///< Received and applied the parameters addressed to a managed Module class.
-            kModuleParametersError  = 9,   ///< Unable to apply the received Module parameters.
-            kCommandNotRecognized   = 10,  ///< The Kernel has received an unknown command.
-            kTargetModuleNotFound   = 11   ///< No module with the requested type and id combination is found.
+            kStandBy                = 0,  ///< Currently not used. Statically reserves 0 to NOT be a valid code.
+            kSetupComplete          = 1,  ///< Setup() method runtime succeeded.
+            kModuleSetupError       = 2,  ///< Setup() method runtime failed due to a module setup error.
+            kReceptionError         = 3,  ///< Encountered a communication error when receiving the data from PC.
+            kTransmissionError      = 4,  ///< Encountered a communication error when sending the data to PC.
+            kInvalidMessageProtocol = 5,  ///< Received message uses an unsupported (unknown) protocol.
+            kKernelParametersSet    = 6,  ///< Received and applied the parameters addressed to the Kernel class.
+            kModuleParametersSet    = 7,  ///< Received and applied the parameters addressed to a managed Module class.
+            kModuleParametersError  = 8,  ///< Unable to apply the received Module parameters.
+            kCommandNotRecognized   = 9,  ///< The Kernel has received an unknown command.
+            kTargetModuleNotFound   = 10  ///< No module with the requested type and id combination is found.
         };
 
         /**
@@ -551,7 +550,7 @@ class Kernel
             // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError)
+                static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
 
@@ -572,7 +571,7 @@ class Kernel
                     // ending the runtime.
                     _communication.SendCommunicationErrorMessage(
                         kernel_command,
-                        static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError)
+                        static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
                     );
                 }
             }
@@ -591,7 +590,7 @@ class Kernel
             // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
                 kernel_command,
-                static_cast<uint8_t>(kKernelStatusCodes::kServiceSendingError)
+                static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
 

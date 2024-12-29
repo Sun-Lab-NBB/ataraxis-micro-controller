@@ -305,7 +305,7 @@ class Module
          * @brief Returns the combined type and id value of the Module instance.
          */
         [[nodiscard]]
-        uint8_t GetModuleTypeID() const
+        uint16_t GetModuleTypeID() const
         {
             return _module_type_id;
         }
@@ -855,7 +855,7 @@ class Module
         template <typename ObjectType>
         bool ExtractParameters(ObjectType& storage_object)
         {
-          return _communication.ExtractModuleParameters(storage_object);
+            return _communication.ExtractModuleParameters(storage_object);
         }
 };
 
