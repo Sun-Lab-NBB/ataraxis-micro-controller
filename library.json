@@ -37,7 +37,7 @@
       "owner": "arminjo",
       "name": "digitalWriteFast",
       "version": "^1.2.0",
-      "platforms": ["atmelsam", "atmelavr"]
+      "platforms": ["atmelsam", "atmelavr", "teensy"]
     },
     {
       "owner": "inkaros",
