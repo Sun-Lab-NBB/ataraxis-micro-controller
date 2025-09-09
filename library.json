@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
   "name": "ataraxis-micro-controller",
-  "version": "1.0.0",
+  "version": "1.1.0-rc.1",
   "description": "A C++ library for Arduino and Teensy microcontrollers that integrates user-defined hardware modules with the centralized communication interface client running on the host-computer (PC).",
   "keywords": "arduino, teensy, ataraxis, communication, serial, integration, hardware modules",
   "repository": {
