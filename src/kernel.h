@@ -77,17 +77,18 @@ class Kernel
          */
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandBy                = 0,  ///< Currently not used. Statically reserves 0 to NOT be a valid code.
-            kSetupComplete          = 1,  ///< Setup() method runtime succeeded.
-            kModuleSetupError       = 2,  ///< Setup() method runtime failed due to a module setup error.
-            kReceptionError         = 3,  ///< Encountered a communication error when receiving the data from PC.
-            kTransmissionError      = 4,  ///< Encountered a communication error when sending the data to PC.
-            kInvalidMessageProtocol = 5,  ///< Received message uses an unsupported (unknown) protocol.
-            kKernelParametersSet    = 6,  ///< Received and applied the parameters addressed to the Kernel class.
-            kModuleParametersSet    = 7,  ///< Received and applied the parameters addressed to a managed Module class.
-            kModuleParametersError  = 8,  ///< Unable to apply the received Module parameters.
-            kCommandNotRecognized   = 9,  ///< The Kernel has received an unknown command.
-            kTargetModuleNotFound   = 10  ///< No module with the requested type and id combination is found.
+            kStandBy                = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
+            kSetupComplete          = 1,   ///< Setup() method runtime succeeded.
+            kModuleSetupError       = 2,   ///< Setup() method runtime failed due to a module setup error.
+            kReceptionError         = 3,   ///< Encountered a communication error when receiving the data from PC.
+            kTransmissionError      = 4,   ///< Encountered a communication error when sending the data to PC.
+            kInvalidMessageProtocol = 5,   ///< Received message uses an unsupported (unknown) protocol.
+            kKernelParametersSet    = 6,   ///< Received and applied the parameters addressed to the Kernel class.
+            kModuleParametersSet    = 7,   ///< Received and applied the parameters addressed to a managed Module class.
+            kModuleParametersError  = 8,   ///< Unable to apply the received Module parameters.
+            kCommandNotRecognized   = 9,   ///< The Kernel has received an unknown command.
+            kTargetModuleNotFound   = 10,  ///< No module with the requested type and id combination is found.
+            kKeepAliveTimeout       = 11   ///< The Kernel did not receive a keepalive message within the expected time.
         };
 
         /**
@@ -105,7 +106,8 @@ class Kernel
             kReceiveData        = 1,  ///< Checks and, if possible, receives PC-sent data. Not externally addressable.
             kResetController    = 2,  ///< Resets the software and hardware state of all modules.
             kIdentifyController = 3,  ///< Transmits the ID of the controller back to caller.
-            kIdentifyModules    = 4   ///< Sequentially transmits the unique Type+ID 16-bit code of each managed module.
+            kIdentifyModules    = 4,  ///< Sequentially transmits the unique Type+ID 16-bit code of each managed module.
+            kKeepAlive          = 5,  ///< Resets the keepalive watchdog timer, starting a new keepalive cycle.
         };
 
         /// Tracks the currently active Kernel command. This is used to send data and error messages to the PC.
@@ -125,17 +127,23 @@ class Kernel
          * addressable through the MicroControllerInterface instance of the companion PC library.
          * @param module_array The array of pointers to custom hardware module classes (the children inheriting from
          * the base Module class). The Kernel instance will manage the runtime of these modules.
+         * @param keepalive_interval The interval in milliseconds within which the Kernel must receive a keepalive
+         * command from the PC. If the Kernel does not receive the command within this interval, it conducts an
+         * emergency reset procedure and assumes that communication with the PC has been lost. Setting this parameter to
+         * 0 disables the keepalive mechanism.
          */
         template <const size_t kModuleNumber>
         Kernel(
             const uint8_t controller_id,
             Communication& communication,
             axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters,
-            Module* (&module_array)[kModuleNumber]
+            Module* (&module_array)[kModuleNumber],
+            const uint32_t keepalive_interval = 0
         ) :
             _modules(module_array),
             _module_count(kModuleNumber),
             _controller_id(controller_id),
+            _keepalive_interval(keepalive_interval),
             _communication(communication),
             _dynamic_parameters(dynamic_parameters)
         {
@@ -403,6 +411,22 @@ class Kernel
             // Once the loop above escapes due to running out of data to receive or a reception error, triggers a method
             // that sequentially executes Module commands in the blocking or non-blocking manner.
             RunModuleCommands();
+
+            // Keepalive status resolution. If the Kernel is configured to require keepalive messages, and it does not
+            // receive a keepalive message within the configured interval, sends an error message to the PC and triggers
+            // an emergency reset
+            if (_keepalive_enabled && (_since_previous_keepalive > _keepalive_interval))
+            {
+                // Sends an error message to the PC
+                SendData(
+                    static_cast<uint8_t>(kKernelStatusCodes::kKeepAliveTimeout),
+                    axmc_communication_assets::kPrototypes::kOneUint32,
+                    _keepalive_interval
+                );
+
+                // Resets the microcontroller runtime to default parameters.
+                Setup();
+            }
         }
 
     private:
@@ -420,6 +444,21 @@ class Kernel
         /// sends the Identification request. In turn, this allows identifying specific controllers through the serial
         /// connection interface, which is especially helpful during the initial setup.
         const uint8_t _controller_id;
+
+        /// Stores the maximum period of time, in milliseconds, that can separate two consecutive keepalive messages
+        /// sent from the PC to the microcontroller. During runtime, if the Kernel does not receive a keepalive message
+        /// within this interval, it engages an emergency microcontroller reset.
+        const uint32_t _keepalive_interval;
+
+        /// Stores the elapsedMillis instance that tracks the time elapsed since receiving the last keepalive message.
+        /// This is used together with the _keepalive_interval to determine if the microcontroller-PC communication
+        /// functions as expected.
+        elapsedMillis _since_previous_keepalive;
+
+        /// Determines whether the keepalive tracking is enabled. This boolean tracker is used to delay the beginning
+        /// of the keepalive cycling until the PC and the microcontroller finish the initial communication setup
+        /// and verification procedure.
+        bool _keepalive_enabled = false;
 
         /// A reference to the shared instance of the Communication class. This class is used to bidirectionally
         /// communicate with the PC interface library.
@@ -600,7 +639,7 @@ class Kernel
          * This method configures and inactivates the built-in LED (via the board's LED-connected pin) and resets the
          * shared DynamicRuntimeParameters structure fields.
          */
-        void SetupKernel() const
+        void SetupKernel()
         {
             // Configures and deactivates the built-in LED. Currently, this is the only hardware system directly
             // managed by the Kernel.
@@ -610,6 +649,9 @@ class Kernel
             // Resets the controller-wide runtime parameters to default values.
             _dynamic_parameters.action_lock = true;
             _dynamic_parameters.ttl_lock    = true;
+
+            // Disables the keepalive tracking.
+            _keepalive_enabled = false;
         }
 
         /**
@@ -626,6 +668,13 @@ class Kernel
                 case kKernelCommands::kIdentifyController: SendControllerID(); return;
 
                 case kKernelCommands::kIdentifyModules: SendModuleTypeIDs(); return;
+
+                case kKernelCommands::kKeepAlive:
+                    // Prevents enabling the keepalive tracking if the interval is set to 0
+                    if (!_keepalive_enabled && _keepalive_interval > 0) _keepalive_enabled = true;
+                    // Resets the keepalive interval tracker in-place
+                    _since_previous_keepalive = 0;
+                    return;
 
                 default:
                     // If the command code was not matched with any valid code, sends an error message.

@@ -330,10 +330,10 @@ class Module
         }
 
         // VIRTUAL METHODS.
-        // These methods link custom logic of each hardware module with the rest of the library API. Like Core methods,
-        // these methods are designed to be called by the Kernel class and allow it to manage the runtime behavior of
-        // the module. However, the implementation of these methods relies on the user (custom module developer) as it
-        // has to be specific to each custom hardware module.
+        // These methods link the custom logic of each hardware module with the rest of the library API. Like Core
+        // methods, these methods are designed to be called by the Kernel class and allow it to manage the runtime
+        // behavior of the module. However, the implementation of these methods relies on the user (custom module
+        // developer) as it has to be specific to each custom hardware module.
 
         /**
          * @brief Overwrites the memory of the object used to store class instance runtime parameters with the data
@@ -369,7 +369,7 @@ class Module
          *
          * @returns bool @b true if the currently active module command was matched to a specific custom method and @b
          * false otherwise. Note, this method should NOT evaluate whether the command ran successfully, only that the
-         * active command code was matched to specific custom method. The called custom command method should use
+         * active command code was matched to a specific custom method. The called custom command method should use
          * SendData() method to report command success / failure status to the PC.
          *
          * This is an example of how to implement this method (what to put in the method's body):

@@ -542,7 +542,7 @@ class Communication
          * finalize message parsing. This method DOES NOT extract Module parameter data from the serial buffer.
          *
          * @returns True if a message was successfully received and parsed, false otherwise. If this method returns
-         * false, this does not necessarily indicate runtime error. Use 'communication_status' class attribute to
+         * false, this does not necessarily indicate a runtime error. Use 'communication_status' class attribute to
          * determine the cause of the failure. kNoBytesToReceive status code from
          * axmc_shared_assets::kCommunicationCodes indicates a non-error failure.
          *

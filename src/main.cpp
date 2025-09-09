@@ -18,7 +18,8 @@
 
 // Pre-initializes global assets
 axmc_shared_assets::DynamicRuntimeParameters DynamicRuntimeParameters;  // Shared controller-wide runtime parameters
-constexpr uint8_t kControllerID = 222;                                  // Unique ID for the test microcontroller
+constexpr uint8_t kControllerID       = 222;                            // Unique ID for the test microcontroller
+constexpr uint32_t kKeepAliveInterval = 1000;                           // Set to 0 to disable keepalive mechanism.
 
 // Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
 // outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
@@ -38,7 +39,7 @@ TestModule<6> test_module_2(1, 2, axmc_communication, DynamicRuntimeParameters);
 Module* modules[] = {&test_module_1, &test_module_2};
 
 // Instantiates the Kernel class. The Kernel has to be instantiated last.
-Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules);
+Kernel axmc_kernel(kControllerID, axmc_communication, DynamicRuntimeParameters, modules, kKeepAliveInterval);
 
 // This function is only executed once. Since Kernel manages the setup for each module, there is no need to set up each
 // module's hardware individually.
