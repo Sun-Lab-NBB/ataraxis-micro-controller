@@ -1,12 +1,13 @@
 # ataraxis-micro-controller
 
-A C++ library for Arduino and Teensy microcontrollers that integrates user-defined hardware modules with the centralized
-communication interface client running on the host-computer (PC).
+A C++ library for Arduino and Teensy microcontrollers that provides the framework for integrating custom hardware 
+modules with a centralized PC control interface.
 
-[![PlatformIO Registry](https://badges.registry.platformio.org/packages/inkaros/library/ataraxis-micro-controller.svg)](https://registry.platformio.org/libraries/inkaros/ataraxis-micro-controller)
+[![PlatformIO Registry](https://tinyurl.com/bdhdc2d8)](https://tinyurl.com/mrj7h9an)
 ![c++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=C%2B%2B&logoColor=white)
 ![arduino](https://img.shields.io/badge/Arduino-00878F?logo=arduino&logoColor=fff&style=plastic)
 ![license](https://img.shields.io/badge/license-GPLv3-blue)
+
 ___
 
 ## Detailed Description

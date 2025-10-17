@@ -294,15 +294,15 @@ class Kernel
                         break;
 
                     case axmc_communication_assets::kProtocols::kModuleParameters:
-                        return_code = _communication.module_parameter.return_code;
+                        return_code = _communication.module_parameters_header.return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         // For module-addressed commands, attempts to resolve (discover) the addressed module. If this
                         // method succeeds, it returns an index (>=0) of the target module class inside the _modules
                         // array
                         target_module = ResolveTargetModule(
-                            _communication.module_parameter.module_type,
-                            _communication.module_parameter.module_id
+                            _communication.module_parameters_header.module_type,
+                            _communication.module_parameters_header.module_id
                         );
 
                         // Aborts early if the target module is not found, as indicated by the returned code being
@@ -498,7 +498,7 @@ class Kernel
             // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
             // an error and should be handled as a valid 'no need to do anything' case.
             if (_communication.communication_status !=
-                static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kNoBytesToReceive))
+                static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kNoBytesToReceive))
             {
                 // For legitimately failed runtimes, sends an error message to the PC.
                 _communication.SendCommunicationErrorMessage(

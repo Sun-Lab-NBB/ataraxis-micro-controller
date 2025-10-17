@@ -1,22 +1,6 @@
 /**
  * @file
- * @brief The header-only file that stores all assets intended to be shared between library classes.
- *
- * @section axmc_sa_description Description:
- *
- * This file contains:
- * - axmc_shared_assets namespace that stores general-purpose assets shared between library classes.
- * - communication_assets namespace that stores structures and enumerations used by the Communication, Kernel and
- * (base) Module classes to support bidirectional communication with the PC.
- *
- * @section axmc_sa_developer_notes Developer Notes:
- *
- * The primary reason for having this file is to store shared byte-code enumerations and structures in the same place.
- * Many of the codes available through this file have to be unique across the library and / or Ataraxis project as
- * a whole.
- *
- * @section axmc_sa_dependencies Dependencies:
- * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
+ * @brief This file provides the assets shared between all library components.
  */
 
 #ifndef AXMC_SHARED_ASSETS_H
@@ -24,173 +8,123 @@
 
 // Dependencies
 #include <Arduino.h>
-
-/**
- * @brief A structure with packed memory layout.
- *
- * Uses packed attribute to ensure the structure can be properly serialized during data transmission. This specification
- * should be used by all structures whose data is sent to the PC or received from the PC.
- */
-#if defined(__GNUC__) || defined(__clang__)
-#define PACKED_STRUCT __attribute__((packed))
-#else
-#define PACKED_STRUCT
-#endif
+#include "axtlmc_shared_assets.h"
 
 /**
  * @namespace axmc_shared_assets
- * @brief Provides all assets (structures, enumerations, functions) that are intended to be shared between the classes
- * of the library.
- *
- * The shared assets are primarily used to simplify library development by storing co-dependent assets in the same
- * place. Additionally, it simplifies using these assets with template classes from the library.
+ * @brief Provides all assets (structures, enumerations, functions) that are intended to be shared between library
+ * components.
  */
 namespace axmc_shared_assets
 {
     /**
-     * @enum kCommunicationCodes
-     * @brief Assigns meaningful names to all status codes used by the Communication class.
-     *
-     * @note Due to the unified approach to error-code handling in this library, this enumeration should only use code
-     * values in the range of 151 through 200. Codes below 150 are reserved for the ataraxis-transport-layer-mc
-     * library.
+     * @enum kCommunicationStatusCodes
+     * @brief Defines the codes used by the Communication class to indicate the status of all supported data
+     * manipulations.
      */
-    enum class kCommunicationCodes : uint8_t
+    enum class kCommunicationStatusCodes : uint8_t
     {
-        kStandby             = 151,  ///< The default value used to initialize the communication_status variable.
-        kReceptionError      = 152,  ///< Communication class ran into an error when receiving a message.
-        kParsingError        = 153,  ///< Communication class ran into an error when parsing (reading) a message.
-        kPackingError        = 154,  ///< Communication class ran into an error when writing a message to payload.
-        kTransmissionError   = 155,  ///< Communication class ran into an error when transmitting a message.
-        kMessageSent         = 156,  ///< Communication class successfully transmitted a message.
-        kMessageReceived     = 157,  ///< Communication class successfully received a message.
-        kInvalidProtocol     = 158,  ///< The message protocol code is not valid for the type of operation (Rx or Tx).
-        kNoBytesToReceive    = 159,  ///< Communication class did not receive enough bytes to process the message.
-        kParameterMismatch   = 160,  ///< The size of the received parameters structure does not match expectation.
-        kParametersExtracted = 161,  ///< Parameter data has been successfully extracted.
-        kExtractionForbidden = 162,  ///< Attempted to extract parameters from message other than ModuleParameters.
+        kStandby             = 51,  ///< The default value used to initialize the communication_status variable.
+        kReceptionError      = 52,  ///< Communication class ran into an error when receiving a message.
+        kParsingError        = 53,  ///< Communication class ran into an error when parsing (reading) a message.
+        kPackingError        = 54,  ///< Communication class ran into an error when writing a message to payload.
+        kMessageReceived     = 57,  ///< Communication class successfully received a message.
+        kInvalidProtocol     = 58,  ///< The message protocol code is not valid for the type of operation (Rx or Tx).
+        kNoBytesToReceive    = 59,  ///< Communication class did not receive enough bytes to process the message.
+        kParameterMismatch   = 60,  ///< The size of the received parameters structure does not match expectation.
+        kParametersExtracted = 61,  ///< Parameter data has been successfully extracted.
+        kExtractionForbidden = 62,  ///< Attempted to extract parameters from the message other than ModuleParameters.
     };
 
     /**
      * @struct DynamicRuntimeParameters
-     * @brief Stores global runtime parameters shared by all library classes and addressable through the Kernel class.
+     * @brief Stores global runtime parameters shared by all library assets and addressable through the Kernel instance.
      *
-     * These parameters broadly affect the runtime of all classes derived from the base Module class. They are
-     * addressable through the Kernel class using the Communication interface.
+     * These parameters broadly affect the runtime behavior of all Module-derived instances. These parameters are
+     * dynamically configured using the data transmitted from the PC.
      *
-     * @warning The @b only class allowed to modify this structure is the Kernel class. Each (base) Module-derived
-     * class requires an instance of this structure to properly support runtime behavior, but they should not modify the
-     * instance.
+     * @warning The @b only class allowed to modify this structure is the Kernel. End users should never modify the
+     * elements of this structure from any custom classes.
      */
     struct DynamicRuntimeParameters
     {
-            /// Enables running the controller logic without physically issuing commands. This is helpful for testing
-            /// and debugging Microcontroller code. Specifically, blocks @b action pins from writing. Sensor and TTL
-            /// pins are unaffected by this variable's state. Note, this only works for digital and analog writing
-            /// methods inherited from the base Module class.
+            /// Determines whether the library is allowed to change the output state of the hardware pins that control
+            /// the 'actor' hardware modules.
             bool action_lock = true;
 
-            /// Same as action_lock, but specifically locks or unlocks output TTL pin activity. Same as action_lock,
-            /// this only works for digital and analog writing methods inherited from the base Module class.
+            /// Determines whether the library is allowed to change the output state of the hardware pins that control
+            /// the 'ttl' (communication) hardware modules.
             bool ttl_lock = true;
     } PACKED_STRUCT;
 }  // namespace axmc_shared_assets
 
 /**
  * @namespace axmc_communication_assets
- * @brief Provides all assets (structures, enumerations, variables) necessary to interface with and support the
- * runtime of the Communication class.
+ * @brief Provides all assets (structures, enumerations, variables) used to support bidirectional communication with the
+ * host-computer (PC).
  *
- * @attention These assets are designed to be used exclusively by the core classes: Communication, Kernel and (base)
- * Module. Do not modify or access these assets from any class derived from the base Module class or any other custom
- * class.
+ * @warning These assets are designed to be used internally by the core library classes. End users should not modify
+ * any assets from this namespace.
  */
 namespace axmc_communication_assets
 {
     /**
      * @enum kProtocols
-     * @brief Stores protocol codes used by the Communication class to specify incoming and outgoing message layouts.
-     *
-     * The Protocol byte-code instructs message parsers on how to process the incoming message. Each message has a
-     * unique payload structure which cannot be parsed unless the underlying protocol is known.
-     *
-     * @attention The protocol code, derived from this enumeration, should be the first 'payload' byte of each message.
+     * @brief Defines the protocol codes used by the Communication class to specify incoming and outgoing message
+     * layouts.
      */
     enum class kProtocols : uint8_t
     {
-        /// Not a valid protocol code. This is used to initialize the Communication class.
+        /// Not a valid protocol code. Used to initialize the Communication class.
         kUndefined = 0,
 
-        /// Protocol for receiving Module-addressed commands that should be repeated (executed recurrently).
+        /// Used by Module-addressed commands that should be repeated (executed recurrently).
         KRepeatedModuleCommand = 1,
 
-        /// Protocol for receiving Module-addressed commands that should not be repeated (executed only once).
+        /// Used by Module-addressed commands that should not be repeated (executed only once).
         kOneOffModuleCommand = 2,
 
-        /// Protocol for receiving Module-addressed commands that remove all queued commands
-        /// (including recurrent commands). This command is actually fulfilled by the Kernel that directly manipulates
-        /// the local queue of the targeted Module.
+        /// Used by Module-addressed commands that remove all queued commands, including recurrent commands.
         kDequeueModuleCommand = 3,
 
-        /// Protocol for receiving Kernel-addressed commands. All Kernel commands are always non-repeatable (one-shot).
+        /// Used by Kernel-addressed commands. All Kernel commands are always non-repeatable (one-shot).
         kKernelCommand = 4,
 
-        /// Protocol for receiving Module-addressed parameters. This relies on transmitting arbitrary sized parameter
-        /// objects and requires each module to define a function for handling these parameters.
+        /// Used by Module-addressed parameter messages.
         kModuleParameters = 5,
 
-        /// Protocol for receiving Kernel-addressed parameters. The parameters transmitted via these messages will be
-        /// used to overwrite the fields of the global DynamicRuntimeParameters structure shared by all Modules.
+        /// Used by Kernel-addressed parameter messages.
         kKernelParameters = 6,
 
-        /// Protocol for sending Module data or error messages that include an arbitrary data object in addition to
-        /// event state-code.
+        /// Used by Module data or error messages that include an arbitrary data object in addition to the event
+        /// state-code.
         kModuleData = 7,
 
-        /// Protocol for sending Kernel data or error messages that include an arbitrary data object in addition to
-        /// event state-code.
+        /// Used by Kernel data or error messages that include an arbitrary data object in addition to event state-code.
         kKernelData = 8,
 
-        /// Protocol for sending Module data or error messages that do not include additional data objects. These
-        /// messages are optimized for delivering single event state-codes.
+        /// Used by Module data or error messages that only include the state-code.
         kModuleState = 9,
 
-        /// Protocol for sending Kernel data or error messages that do not include additional data objects. These
-        /// messages are optimized for delivering single event state-codes.
+        /// Used by Kernel data or error messages that only include the state-code.
         kKernelState = 10,
 
-        /// Protocol used to acknowledge the reception of command and parameter messages. This is a minimalistic
-        /// service protocol used to notify the PC that the controller received the message.
+        /// Used to acknowledge the reception of command and parameter messages.
         kReceptionCode = 11,
 
-        /// Protocol used to identify the controller to the PC. This is a service message protocol that transmits the
-        /// unique ID of the controller to the PC. This is primarily used to determine the USB ports used by specific
-        /// controllers.
+        /// Used to identify the host-microcontroller to the PC.
         kControllerIdentification = 12,
 
-        /// Protocol used by the Kernel to identify all managed modules to the PC. This protocol transmits unit16 values
-        /// produced by combining the type and ID code of each managed module. This is used to ensure that the PC and
-        /// the controller are configured with the same number, types and ID-codes of hardware modules.
+        /// Used to identify the hardware module instances managed by a Kernel instance to the PC.
         kModuleIdentification = 13,
     };
 
     /**
      * @enum kPrototypes
-     * @brief Stores prototype codes used by the Communication class to specify the layout of additional data objects
-     * transmitted with DataMessages (Kernel and Module).
+     * @brief Defines the prototype codes used by the Communication class to specify the layout of additional data
+     * objects transmitted by KernelData and ModuleData messages.
      *
-     * Since most transmitted data can be packaged into a small predefined set of objects, this enumeration is used
-     * to map all currently supported data objects to a unique prototype code. In turn, this allows optimizing data
-     * reception and logging on the PC side, as it can use the prototype code to precisely decode the data object of
-     * every DataMessage. This in contrast to how ModuleParameter messages are processed, where the arbitrary data
-     * portion of the message cannot be resolved with a single parsing cycle.
-     *
-     * @note While this approach essentially limits the number of valid prototype codes to 255 (256 if 0 is made a valid
-     * code), realistically, this is more than enough to cover a very wide range of runtime cases. Currently, we provide
-     * 165 unique prototype codes that can package up to 15 consecutive scalars, each being up to 64-bit (8-byte) in
-     * size.
-     *
-     * @attention The prototypes in this enumeration are arranged in the ascending order of their memory footprint.
+     * @warning The data messages can only transmit the objects whose prototypes are defined in this enumeration.
      */
     enum class kPrototypes : uint8_t
     {
@@ -440,239 +374,202 @@ namespace axmc_communication_assets
 
     /**
      * @struct RepeatedModuleCommand
-     * @brief Instructs the addressed Module to run the specified command repeatedly (recurrently).
+     * @brief Instructs the addressed Module instance to run the specified command repeatedly (recurrently).
      */
     struct RepeatedModuleCommand
     {
             /// The type (family) code of the module to which the command is addressed.
             uint8_t module_type = 0;
 
-            /// The specific module ID within the broader module family specified by module_type.
+            /// The ID of the specific module instance within the broader module family.
             uint8_t module_id = 0;
 
-            /// When this field is set to a value other than 0, the Communication class will send this code back to the
-            /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact. Setting this field to 0 disables delivery receipts.
+            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
 
-            /// The module-type-specific code of the command to execute.
+            /// The code of the command to execute.
             uint8_t command = 0;
 
-            /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
-            /// runtime will block in-place for any time-waiting loops during command execution. Otherwise,
-            /// the controller will run other commands while waiting for the block to complete.
+            /// Determines whether to allow concurrent execution of other commands while waiting for the requested
+            /// command to complete.
             bool noblock = false;
 
-            /// The period of time, in microseconds, to delay before repeating (cycling) the command.
+            /// The delay, in microseconds, before repeating (cycling) the command.
             uint32_t cycle_delay = 0;
     } PACKED_STRUCT;
 
     /**
      * @struct OneOffModuleCommand
-     * @brief Instructs the addressed Module to run the specified command exactly once (non-recurrently).
+     * @brief Instructs the addressed Module instance to run the specified command exactly once (non-recurrently).
      */
     struct OneOffModuleCommand
     {
             /// The type (family) code of the module to which the command is addressed.
             uint8_t module_type = 0;
 
-            /// The specific module ID within the broader module family specified by module_type.
+            /// The ID of the specific module instance within the broader module family.
             uint8_t module_id = 0;
 
-            /// When this field is set to a value other than 0, the Communication class will send this code back to the
-            /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact. Setting this field to 0 disables delivery receipts.
+            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
 
-            /// The module-type-specific code of the command to execute.
+            /// The code of the command to execute.
             uint8_t command = 0;
 
-            /// Determines whether the command runs in blocking or non-blocking mode. If set to false, the controller
-            /// runtime will block in-place for any sensor- or time-waiting loops during command execution. Otherwise,
-            /// the controller will run other commands while waiting for the block to complete.
+            /// Determines whether to allow concurrent execution of other commands while waiting for the requested
+            /// command to complete.
             bool noblock = false;
     } PACKED_STRUCT;
 
     /**
      * @struct DequeueModuleCommand
-     * @brief Instructs the addressed Module to clear (empty) its command queue.
+     * @brief Instructs the addressed Module instance to clear (empty) its command queue.
      */
     struct DequeueModuleCommand
     {
             /// The type (family) code of the module to which the command is addressed.
             uint8_t module_type = 0;
 
-            /// The specific module ID within the broader module family specified by module_type.
+            /// The ID of the specific module instance within the broader module family.
             uint8_t module_id = 0;
 
-            /// When this field is set to a value other than 0, the Communication class will send this code back to the
-            /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact. Setting this field to 0 disables delivery receipts.
+            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
     } PACKED_STRUCT;
 
     /**
      * @struct KernelCommand
      * @brief Instructs the Kernel to run the specified command exactly once.
-     *
-     * Currently, the Kernel only supports blocking non-repeated (one-off) commands.
      */
     struct KernelCommand
     {
-            /// When this field is set to a value other than 0, the Communication class will send this code back to the
-            /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact. Setting this field to 0 disables delivery receipts.
+            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
 
-            /// The Kernel-specific code of the command to execute.
+            /// The code of the command to execute.
             uint8_t command = 0;
     } PACKED_STRUCT;
 
     /**
      * @struct ModuleParameters
-     * @brief Instructs the addressed Module to overwrite its custom parameters object with the included object data.
-     *
-     * @warning Module parameters are stored in a module-family-specific structure, whose layout will not be known by
-     * the parser at message reception. The Kernel class will use the included module type and id information from
-     * the message to call the addressed Module's public API method that will extract the parameters directly from the
-     * reception buffer.
+     * @brief Instructs the addressed Module instance to update its parameters with the included data.
      */
     struct ModuleParameters
     {
             /// The type (family) code of the module to which the parameter configuration is addressed.
             uint8_t module_type = 0;
 
-            /// The specific module ID within the broader module family specified by module_type.
+            /// The ID of the specific module instance within the broader module family.
             uint8_t module_id = 0;
 
-            /// When this field is set to a value other than 0, the Communication class will send this code back to the
-            /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact. Setting this field to 0 disables delivery receipts.
+            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
     } PACKED_STRUCT;
 
     /**
      * @struct KernelParameters
-     * @brief Instructs the Kernel to update the shared DynamicRuntimeParameters object with included data.
-     *
-     * @note Since the target data structure for this method is static and known at compile-time, the parser
-     * will be able to resolve the target structure in-place.
+     * @brief Instructs the Kernel to update the shared DynamicRuntimeParameters object with the included data.
      */
     struct KernelParameters
     {
-            /// When this field is set to a value other than 0, the Communication class will send this code back to the
-            /// sender upon successfully processing the received command. This is to notify the sender that the command
-            /// was received intact. Setting this field to 0 disables delivery receipts.
+            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
 
-            /// Since Kernel parameter structure is known at compile-time, this message structure automatically formats
-            /// the parameter data to match the format used by the Kernel.
+            /// The DynamicRuntimeParameters structure that stored the updated parameters.
             axmc_shared_assets::DynamicRuntimeParameters dynamic_parameters;
     } PACKED_STRUCT;
 
     /**
      * @struct ModuleData
-     * @brief Communicates the event state-code of the sender Module and includes an additional data object.
+     * @brief Communicates that the Module has encountered a notable event and includes an additional data object.
      *
-     * @note For messages that only need to transmit an event state-code, use ModuleStateMessage structure for better
-     * efficiency.
-     *
-     * @warning Remember to add the data object matching the included prototype code to the message payload before
-     * sending the message.
+     * @note Use the ModuleState structure for messages that only need to transmit an event state-code.
      */
     struct ModuleData
     {
-            /// The code of the message protocol used by this structure.
+            /// The message protocol used by this structure.
             uint8_t protocol;
 
-            /// The type (family) code of the module which sent the data message.
+            /// The type (family) code of the module that sent the data message.
             uint8_t module_type;
 
-            /// The specific module ID within the broader module family specified by module_type.
+            /// The ID of the specific module instance within the broader module family.
             uint8_t module_id;
 
-            /// The module-type-specific code of the command the module was executing when it sent the data message.
+            /// The command the Module was executing when it sent the data message.
             uint8_t command;
 
-            /// The module-type-specific code of the event within the command runtime that prompted the data
-            /// transmission.
+            /// The event that prompted the data transmission.
             uint8_t event;
 
-            /// The byte-code of the prototype object that can be used to decode the object data included with this
-            /// message. The PC will read the object data into the prototype object specified by this code.
+            /// The code that specifies the type of the data object transmitted with the message.
             uint8_t prototype;
 
     } PACKED_STRUCT;
 
     /**
      * @struct KernelData
-     * @brief Communicates the event state-code of the Kernel and includes an additional data object.
+     * @brief Communicates that the Kernel has encountered a notable event and includes an additional data object.
      *
-     * @attention For messages that only need to transmit an event state-code, use KernelState structure for better
-     * efficiency.
-     *
-     * @warning Remember to add the data object matching the included prototype code to the message payload before
-     * sending the message.
+     * @note Use the KernelState structure for messages that only need to transmit an event state-code.
      * */
     struct KernelData
     {
-            /// The code of the message protocol used by this structure.
+            /// The message protocol used by this structure.
             uint8_t protocol;
 
-            /// The Kernel-specific code of the command the kernel was executing when it sent the data message.
+            /// The command the Kernel was executing when it sent the data message.
             uint8_t command;
 
-            /// The Kernel-specific code of the event within the command runtime that prompted the data transmission.
+            /// The event that prompted the data transmission.
             uint8_t event;
 
-            /// The byte-code of the prototype object that can be used to decode the object data included with this
-            /// message. The PC will read the object data into the prototype object specified by this code.
+            /// The code that specifies the type of the data object transmitted with the message.
             uint8_t prototype;
 
     } PACKED_STRUCT;
 
     /**
      * @struct ModuleState
-     * @brief Communicates the event state-code of the sender Module.
+     * @brief Communicates that the Module has encountered a notable event.
      *
-     * @attention For messages that need to transmit a data object in addition to the state event-code, use
-     * ModuleData structure.
+     * @note Use the ModuleData structure for messages that need to transmit a data object in addition to the state
+     * event-code.
      */
     struct ModuleState
     {
-            /// The code of the message protocol used by this structure.
+            /// The message protocol used by this structure.
             uint8_t protocol;
 
-            /// The type (family) code of the module which sent the data message.
+            /// The type (family) code of the module that sent the data message.
             uint8_t module_type;
 
-            /// The specific module ID within the broader module family specified by module_type.
+            /// The ID of the specific module instance within the broader module family.
             uint8_t module_id;
 
-            /// The module-type-specific code of the command the module was executing when it sent the data message.
+            /// The command the Module was executing when it sent the data message.
             uint8_t command;
 
-            /// The module-type-specific code of the event within the command runtime that prompted the data
-            /// transmission.
+            /// The event that prompted the data transmission.
             uint8_t event;
     } PACKED_STRUCT;
 
     /**
      * @struct KernelState
-     * @brief Communicates the event state-code of the Kernel.
+     * @brief Communicates that the Kernel has encountered a notable event.
      *
-     * @attention For messages that need to transmit a data object in addition to the state event-code, use
-     * KernelData structure.
+     * @note Use the KernelData structure for messages that need to transmit a data object in addition to the state
+     * event-code.
      */
     struct KernelState
     {
-            /// The code of the message protocol used by this structure.
+            /// The message protocol used by this structure.
             uint8_t protocol;
 
-            /// The Kernel-specific code of the command the Kernel was executing when it sent the data message.
+            /// The command the Kernel was executing when it sent the data message.
             uint8_t command;
 
-            /// The Kernel-specific code of the event within the command runtime that prompted the data transmission.
+            /// The event that prompted the data transmission.
             uint8_t event;
     } PACKED_STRUCT;
 
