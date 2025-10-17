@@ -28,6 +28,7 @@ namespace axmc_shared_assets
         kReceptionError      = 52,  ///< Communication class ran into an error when receiving a message.
         kParsingError        = 53,  ///< Communication class ran into an error when parsing (reading) a message.
         kPackingError        = 54,  ///< Communication class ran into an error when writing a message to payload.
+        kMessageSent         = 55,  ///< Communication class successfully sent a message.
         kMessageReceived     = 57,  ///< Communication class successfully received a message.
         kInvalidProtocol     = 58,  ///< The message protocol code is not valid for the type of operation (Rx or Tx).
         kNoBytesToReceive    = 59,  ///< Communication class did not receive enough bytes to process the message.

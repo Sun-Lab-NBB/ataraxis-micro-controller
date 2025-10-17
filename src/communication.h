@@ -95,43 +95,34 @@ class Communication
         }
 
         /**
-         * @brief Packages the input data into the ModuleData structure and sends it to the connected PC.
+         * @brief Sends the input event code and data object to the PC.
          *
-         * This method is used for sending both data and error messages. This library treats errors as generic event
-         * instances, same as data or success-state messages.
+         * @warning Use the SendStateMessage() method to communicate the event-code without any additional data for
+         * faster transmission.
          *
-         * @note This method is specialized to send Module messages. There is an overloaded version of this method that
-         * does not take module_type and module_id arguments, which allows sending data messages from the Kernel class.
+         * @tparam ObjectType The type of the data object to be sent along with the message.
+         * @param module_type The type of the module that sent the message.
+         * @param module_id The ID of the specific module instance that sent the message.
+         * @param command The command executed by the module that sent the message.
+         * @param event_code The event that triggered the message.
+         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
+         * enumeration members.
+         * @param object The data object to be sent along with the message.
          *
-         * @warning If you only need to communicate the state event-code without any additional data, use
-         * SendStateMessage() method for more optimal transmission protocol!
-         *
-         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
-         * automatically by the template constructor.
-         * @param module_type The byte-code specifying the type of the module that sent the data message.
-         * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * sent the data.
-         * @param command The byte-code specifying the command executed by the module that sent the data message.
-         * @param event_code The byte-code specifying the event that triggered the data message.
-         * @param prototype The byte-code specifying the prototype object that can be used to deserialize the included
-         * object data. All valid prototype codes are stored in the kPrototypes
-         * enumeration.
-         * @param object Additional data object to be sent along with the message. Currently, only one object is
-         * supported per each Data message.
-         *
-         * @returns True if the message was successfully sent, false otherwise.
+         * @returns True if the message is sent, false otherwise.
          *
          * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * const uint8_t module_type = 112  // Example module type
-         * const uint8_t module_id = 12;    // Example module ID
-         * const uint8_t command = 88;      // Example command code
-         * const uint8_t event_code = 221;  // Example event code
-         * auto prototype = kPrototypes::kOneUint8;  // Prototype code.
-         * const uint8_t placeholder_object = 255;  // Has to be a single unsigned integer!
+         * // Sends the example data message.
+         * const uint8_t module_type = 112
+         * const uint8_t module_id = 12;
+         * const uint8_t command = 88;
+         * const uint8_t event_code = 221;
+         * auto prototype = kPrototypes::kOneUint8;
+         * const uint8_t placeholder_object = 255;
          * comm_class.SendDataMessage(module_type, module_id, command, event_code, prototype, placeholder_object);
          * @endcode
          */
@@ -149,7 +140,7 @@ class Communication
             static_assert(
                 sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(ModuleData),
                 "The provided object is too large to fit inside the message payload buffer. This check accounts for "
-                "the size of the ModuleData header be sent with the object."
+                "the size of the ModuleData header sent with the object."
             );
 
             // Constructs the message header
@@ -162,11 +153,9 @@ class Communication
                 static_cast<uint8_t>(prototype)
             };
 
-            // Writes the message into the payload buffer
+            // Writes the message to the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(message)) success = false;
-
-            // Writes the data object if the message header was successfully written to the buffer
             if (success && !_transport_layer.WriteData(object)) success = false;
 
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
@@ -176,13 +165,13 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC. Currently, this step cannot fail.
+            // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
+            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
-        /// Overloads SendDataMessage to use it for Kernel class. The function works the same as the module-oriented
-        /// SendDataMessage, but does not accept module_type and module_id.
+        /// Overloads SendDataMessage to support sending Kernel data messages.
         template <typename ObjectType>
         bool SendDataMessage(
             const uint8_t command,
@@ -191,12 +180,11 @@ class Communication
             const ObjectType& object
         )
         {
-            // Ensures that the input fits inside the message payload buffer. Since this statement is evaluated at
-            // compile time, it does not impact runtime speed.
+            // Ensures that the input fits inside the message payload buffer.
             static_assert(
                 sizeof(ObjectType) <= kMaximumPayloadSize - sizeof(KernelData),
                 "The provided object is too large to fit inside the message payload buffer. This check accounts for "
-                "the size of the KernelData header that will be sent with the object."
+                "the size of the KernelData header sent with the object."
             );
 
             // Constructs the message header
@@ -207,60 +195,46 @@ class Communication
                 static_cast<uint8_t>(prototype)
             };
 
-            // Writes the message into the payload buffer
-            uint16_t next_index = _transport_layer.WriteData(message);
+            // Writes the message to the transmission buffer.
+            bool success = true;
+            if (!_transport_layer.WriteData(message)) success = false;
+            if (success && !_transport_layer.WriteData(object)) success = false;
 
-            // Writes the data object if the message header was successfully written to the buffer, as indicated by a
-            // non-zero next_index value
-            if (next_index != 0) next_index = _transport_layer.WriteData(object, next_index);
-
-            // If any writing attempt from above fails, breaks the runtime with an error status.
-            if (next_index == 0)
+            // If serializing the message and the data payload fails, breaks the runtime with an error status.
+            if (!success)
             {
                 communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC
-            if (!_transport_layer.SendData())
-            {
-                // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
-                return false;
-            }
-
-            // Returns with a success code
+            // If the data was written to the buffer, sends it to the PC.
+            _transport_layer.SendData();
             communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
         /**
-         * @brief Packages the input data into the ModuleState structure and sends it to the connected PC.
+         * @brief Sends the input event code to the PC.
          *
-         * This method is very similar to SendDataMessage, but is optimized to not use additional data objects. It
-         * will execute slightly faster, and the payloads transmitted by this method may be significantly smaller than
-         * those transmitted by SendDataMessage.
+         * @note Use the SendDataMessage() method to send a message with an additional arbitrary data object.
          *
-         * @note This method is specialized to send Module messages. There is an overloaded version of this method that
-         * only takes command and event_code arguments, which allows sending data messages from the Kernel class.
+         * @param module_type The type of the module that sent the message.
+         * @param module_id The ID of the specific module instance that sent the message.
+         * @param command The command executed by the module that sent the message.
+         * @param event_code The event that triggered the message.
          *
-         * @param module_type The byte-code specifying the type of the module that sent the state message.
-         * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * sent the state message.
-         * @param command The byte-code specifying the command executed by the module that sent the state message.
-         * @param event_code The byte-code specifying the event that triggered the state message.
-         *
-         * @returns True if the message was successfully sent, false otherwise.
+         * @returns True if the message is sent, false otherwise.
          *
          * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * const uint8_t module_type = 112        // Example module type
-         * const uint8_t module_id = 12;          // Example module ID
-         * const uint8_t command = 88;            // Example command code
-         * const uint8_t event_code = 221;        // Example event code
+         * // Sends the example state message.
+         * const uint8_t module_type = 112;
+         * const uint8_t module_id = 12;
+         * const uint8_t command = 88;
+         * const uint8_t event_code = 221;
          * comm_class.SendStateMessage(module_type, module_id, command, event_code);
          * @endcode
          */
@@ -271,35 +245,27 @@ class Communication
             const uint8_t event_code
         )
         {
-            // Constructs the message header
+            // Constructs the message header.
             const ModuleState
                 message {static_cast<uint8_t>(kProtocols::kModuleState), module_type, module_id, command, event_code};
 
-            //Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
+            // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
                 communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC
-            if (!_transport_layer.SendData())
-            {
-                // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
-                return false;
-            }
-
-            // Returns with a success code
+            // If the data was written to the buffer, sends it to the PC.
+            _transport_layer.SendData();
             communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
-        /// Overloads SendStateMessage to use it for Kernel class. The function works the same as the module-oriented
-        /// SendStateMessage, but does not accept module_type and module_id.
+        /// Overloads SendDataMessage to support sending Kernel state messages.
         bool SendStateMessage(const uint8_t command, const uint8_t event_code)
         {
-            // Constructs the message header
+            // Constructs the message header.
             const KernelState message {static_cast<uint8_t>(kProtocols::kKernelState), command, event_code};
 
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
@@ -309,42 +275,22 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC
-            if (!_transport_layer.SendData())
-            {
-                // If data sending fails, returns with an error status
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
-                return false;
-            }
-
-            // Returns with a success code
+            // If the data was written to the buffer, sends it to the PC.
+            _transport_layer.SendData();
             communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
         /**
-         * @brief Sends a communication error message to the connected PC and activates the built-in LED to indicate
-         * the error.
+         * @brief Sends the communication error message to the PC and activates the built-in LED.
          *
-         * @warning This method should be used exclusively for communication errors. Use regular SendDataMessage or
-         * SendStateMessage to send all other types of errors.
+         * @warning This method is reserved for Communication class errors. Use SendDataMessage and SendStateMessage
+         * methods for all other errors.
          *
-         * This method is an extension of the SendDataMessage method that is specialized to send communication errors to
-         * the PC. The primary reason for making this method distinct is to aggregate unique aspects of handling
-         * communication (versus other types of errors), such as setting the LED. This special treatment is due to the
-         * fact that if communication works as expected, all other errors will reach the PC and will be handled there.
-         * If communication fails, however, no information will ever reach the PC.
-         *
-         * @note This method is specialized to send Module messages. There is an overloaded version of this method that
-         * only takes command and error_code arguments, which allows sending communication error messages from the
-         * Kernel class.
-         *
-         * @param module_type The byte-code specifying the type of the module that encountered the error.
-         * @param module_id The ID byte-code of the specific module within the broader module_type family that
-         * encountered the error.
-         * @param command The byte-code specifying the command executed by the module that encountered the error.
-         * @param error_code The byte-code specifying the specific module-level error code for this type of
-         * communication error.
+         * @param module_type The type of the module that sent the message.
+         * @param module_id The ID of the specific module instance that sent the message.
+         * @param command The command executed by the module that sent the message.
+         * @param error_code The encountered communication error.
          */
         void SendCommunicationErrorMessage(
             const uint8_t module_type,
@@ -353,9 +299,9 @@ class Communication
             const uint8_t error_code
         )
         {
-            // Combines the latest status of the Communication class (likely an error code) and the TransportLayer
-            // status code into a 2-byte array. Jointly, this information should be enough to diagnose the error.
-            const uint8_t errors[2] = {communication_status, _transport_layer.transfer_status};
+            // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.
+            // Jointly, this information should be enough to diagnose the error.
+            const uint8_t errors[2] = {communication_status, _transport_layer.runtime_status};
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
@@ -367,13 +313,12 @@ class Communication
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
-        /// Overloads SendCommunicationErrorMessage to use it for Kernel class. The function works the same as the
-        /// module-oriented SendCommunicationErrorMessage, but does not accept module_type and module_id.
+        /// Overloads SendCommunicationErrorMessage to support sending Kernel communication error messages.
         void SendCommunicationErrorMessage(const uint8_t command, const uint8_t error_code)
         {
-            // Combines the latest status of the Communication class (likely an error code) and the TransportLayer
-            // status code into a 2-byte array. Jointly, this information should be enough to diagnose the error.
-            const uint8_t errors[2] = {communication_status, _transport_layer.transfer_status};
+            // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.
+            // Jointly, this information should be enough to diagnose the error.
+            const uint8_t errors[2] = {communication_status, _transport_layer.runtime_status};
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
@@ -386,27 +331,21 @@ class Communication
         }
 
         /**
-         * @brief Uses the requested protocol to send the input service_code to the PC.
+         * @brief Uses the specified service message protocol to send the input service code to the PC.
          *
-         * This method is used to transmit all Service messages. All service messages contain a protocol code and a
-         * single scalar 'code' value. However, the bit-width and the meaning of each service code depends on the
-         * particular protocol code value.
+         * @tparam protocol The protocol to use for the transmitted message. Has to be one of the following kProtocols
+         * enumeration members: kReceptionCode, kControllerIdentification or kModuleIdentification.
+         * @tparam ObjectType The data type of the service code value.
+         * @param service_code The service code to be transmitted to the PC.
          *
-         * @tparam protocol The byte-code specifying the protocol to use for the transmitted message. Has to be either
-         * kProtocols::kReceptionCode,
-         * kProtocols::kControllerIdentification or
-         * kProtocols::kModuleIdentification.
-         * @tparam ObjectType The type of the service code. Has to be either uint8_t, uint16_t or uint32_t.
-         * @param service_code The scalar service code to be transmitted to the PC.
-         *
-         * @returns True if the message was successfully sent, false otherwise.
+         * @returns True if the message is sent, false otherwise.
          *
          * Example usage:
          * @code
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * // Protocol is given as template, service code as an uint8_t argument
+         * // Protocol is given as template, service code as an uint8_t argument.
          * comm_class.SendServiceMessage<kProtocols::kReceptionCode>(112);
          * @endcode
          */
@@ -418,7 +357,7 @@ class Communication
                 protocol == kProtocols::kReceptionCode || protocol == kProtocols::kControllerIdentification ||
                     protocol == kProtocols::kModuleIdentification,
                 "Encountered an invalid ServiceMessage protocol code. Use one of the supported Service protocols from "
-                "the kProtocols enumerations."
+                "the kProtocols enumeration."
             );
 
             // Ensures that the provide service_code is of the correct type.
@@ -426,30 +365,17 @@ class Communication
                 axtlmc_shared_assets::is_same_v<ObjectType, uint8_t> ||
                     axtlmc_shared_assets::is_same_v<ObjectType, uint16_t> ||
                     axtlmc_shared_assets::is_same_v<ObjectType, uint32_t>,
-                "Encountered an invalid ServiceMessage service code type. Currently, only scalar uint8_t, uint16_t or "
+                "Encountered an invalid ServiceMessage service code type. Currently, only uint8_t, uint16_t or "
                 "uint32_t service codes are supported."
             );
 
-            // Packages hte input protocol code and the service code into the transmission buffer
-            uint16_t next_index = _transport_layer.WriteData(static_cast<uint8_t>(protocol));
-            if (next_index != 0) next_index = _transport_layer.WriteData(service_code, next_index);
+            // Packages hte input protocol code and the service code into the transmission buffer.
+            bool success = true;
+            if (!_transport_layer.WriteData(static_cast<uint8_t>(protocol))) success = false;
+            if (success && !_transport_layer.WriteData(service_code)) success = false;
 
-            // If writing the data to transmission buffer, breaks the runtime with an error status.
-            if (next_index == 0)
-            {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
-                return false;
-            }
-
-            // Sends the data to the PC
-            if (!_transport_layer.SendData())
-            {
-                // If send operation fails, returns with an error status
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
-                return false;
-            }
-
-            // Returns with a success code
+            // If the data was written to the buffer, sends it to the PC.
+            _transport_layer.SendData();
             communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
@@ -636,9 +562,6 @@ class Communication
         /// kSerialBufferSize constant defined inside transport_layer.h to determine the serial buffer size of the
         /// host microcontroller.
         static constexpr uint8_t kMaximumPayloadSize = min(kSerialBufferSize - 6, 254);
-
-        /// The start index of the parameter object data in the incoming ModuleParameters message payloads.
-        static constexpr uint8_t kModuleParameterObjectIndex = sizeof(ModuleParameters) + 1;
 
         /// The TransportLayer instance that handles the bidirectional communication with the PC.
         TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize> _transport_layer;
