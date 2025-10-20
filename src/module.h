@@ -1,35 +1,17 @@
 /**
  * @file
- * @brief The header file for the Module class, which provides the API used to integrate user-defined custom hardware
- * modules with other library classes and the centralized communication interface running on the host-computer (PC).
+ * @brief Provides the Module class that exposes the API for integrating user-defined custom hardware
+ * modules with other library components and the interface running on the host-computer (PC).
  *
  * @section mod_description Description:
  *
- * This class serves two major purposes. First, it provides a static interface used by Kernel and Communication classes
- * to interact with any custom hardware module, regardless of its implementation and purpose. Seconds, this class
- * provides utility functions that abstract routine tasks, such as changing pin states, in a way that is compatible with
- * concurrent (non-blocking) runtime supported by the Kernel module.
+ * This class defines the API interface used by Kernel and Communication classes to interact with any custom hardware
+ * module instance that inherits from the base Module class. Additionally, the class provides the utility functions
+ * for routine tasks, such as changing pin states, that support the concurrent (non-blocking) runtime of multiple
+ * module-derived instances.
  *
- * @attention Every custom hardware module class should inherit from the base Module class defined in this file.
- *
- * @section mod_developer_notes Developer Notes:
- * This class is essential for the correct functioning of the modules using this library. It works together with other
- * library classes to abstract most of the module-kernel-pc interaction away from the developers of custom hardware
- * modules. An unfortunate side effect of this design pattern is that the class contains some code that is visible to
- * users, but should never be accessed or used by them (because it is intended for the Kernel).
- *
- * When implementing custom modules, it is imperative to override the three pure virtual methods declared in the base
- * class: SetCustomParameters, RunActiveCommand and SetupModule. Moreover, all commands have to at the very least
- * call the CompleteCommand method at the end of their runtime to notify the Kernel that the command has been completed.
- * See examples (example_module.h) for more details on how to incorporate the Module API into your hardware module
- * classes.
- *
- * @section mod_dependencies Dependencies:
- * - Arduino.h for Arduino platform functions and macros and cross-compatibility with Arduino IDE (to an extent).
- * - digitalWriteFast.h for fast digital pin manipulation methods.
- * - elapsedMillis.h for millisecond and microsecond timers.
- * - axmc_shared_assets.h for globally shared static message byte-codes and parameter structures.
- * - communication.h for Communication class, which is used to send module runtime data to the connected system.
+ * @attention Every custom hardware module class should inherit from the base Module class defined in this file and
+ * override the pure virtual methods of the parent class with instance-specific implementations.
  */
 
 #ifndef AXMC_MODULE_H
@@ -42,97 +24,86 @@
 #include "communication.h"
 
 /**
- * @brief Provides the API used by other classes from this library to integrate any custom hardware module class with
- * the main interface running on the companion host-computer (PC).
+ * @brief Provides the API used by other library components to integrate any custom hardware module class with
+ * the interface running on the companion host-computer (PC).
  *
- * This class serves as the shared (via inheritance) repository of utility and runtime-control methods that
- * automatically integrate any custom hardware module with the rest of the library and the communication interface
- * running on the companion host-computer (PC). Specifically, by inheriting from this class, any module gains the shared
- * API used by the Kernel and Communication classes to work with the module. This way, developers can focus on
- * implementing the logic of their hardware, while this library handles runtime flow control and communication with PC
- * interface.
+ * Any class that inherits from this base class gains the API used by the Kernel and Communication classes to enable
+ * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC)
  *
- * @note This class offers utility methods that should be used when implementing module commands. These methods abstract
- * the interactions with shared API and optionally enable concurrent (non-blocking) command execution.
+ * @note Use the utility methods inherited from the base Module class to ensure that the custom module implementation
+ * is compatible with non-blocking runtime mode. See the ReadMe for more information about non-blocking runtime support.
  *
- * @warning Every custom module class @b has to inherit from this base class to be compatible with this library.
+ * @warning Every custom module class @b has to inherit from this base class. Follow this instantiation order when
+ * writing the main .cpp / .ino file for the controller: Communication → Module(s) → Kernel. See the /examples folder
+ * for details.
  */
 class Module
 {
     public:
         /**
          * @struct ExecutionControlParameters
-         * @brief Stores parameters that are used to dynamically queue, execute and control the runtime of hardware
-         * commands.
+         * @brief This structure stores the data that supports executing module-addressed commands sent from the PC
+         * interface.
          *
-         * All runtime control manipulations that involve changing the variables inside this structure
-         * should be carried out either by the Kernel class or via utility methods inherited from the base Module class.
+         * @warning End users should not modify any elements of this structure directly. This structure is modified by
+         * the Kernel and certain utility methods inherited from the base Module class.
          */
         struct ExecutionControlParameters
         {
-                uint8_t command      = 0;      ///< Currently executed (in-progress) command.
-                uint8_t stage        = 0;      ///< Stage of the currently executed command.
-                bool noblock         = false;  ///< Specifies if the currently executed command is blocking.
-                uint8_t next_command = 0;      ///< A buffer that allows queuing the next command to be executed.
-                bool next_noblock    = false;  ///< A buffer that stores the noblock flag for the queued command.
-                bool new_command     = false;  ///< Tracks whether next_command is a new or recurrent command.
-                bool run_recurrently = false;  ///< Specifies whether the queued command runs once and clears or recurs.
-                uint32_t recurrent_delay = 0;  ///< The minimum number of microseconds between recurrent command calls.
-                elapsedMicros recurrent_timer;  ///< A timer class instance to time recurrent command activation delays.
-                elapsedMicros delay_timer;  ///< A timer class instance to time delays between active command stages.
-        } execution_parameters;             ///< Stores module-specific runtime flow control parameters.
+                uint8_t command          = 0;      ///< Currently executed (in-progress) command.
+                uint8_t stage            = 0;      ///< The stage of the currently executed command.
+                bool noblock             = false;  ///< Determines whether the currently executed command is blocking.
+                uint8_t next_command     = 0;      ///< Stores the next command to be executed.
+                bool next_noblock        = false;  ///< Stores the noblock flag for the next command.
+                bool new_command         = false;  ///< Tracks whether next_command is a new or recurrent command.
+                bool run_recurrently     = false;  ///< Tracks whether next_command is recurrent (cyclic).
+                uint32_t recurrent_delay = 0;      ///< The delay, in microseconds, between command repetitions.
+                elapsedMicros recurrent_timer;     ///< Measures recurrent command activation delays.
+                elapsedMicros delay_timer;         ///< Measures delays between command stages.
+        } execution_parameters;                    ///< Stores instance-specific runtime flow control parameters.
 
         /**
          * @enum kCoreStatusCodes
-         * @brief Assigns meaningful names to status codes used to communicate the states and errors encountered during
-         * the shared API method runtimes.
-         *
-         * These codes are used by the shared API methods (methods expected to be accessed by the Kernel class).
-         * Utility methods are not accessed by the Kernel class and, therefore, do not need a system for communicating
-         * runtime states to the PC.
+         * @brief Stores the status codes used to communicate the states and errors encountered during the shared API
+         * method runtimes.
          *
          * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
-         * Module class. All custom modules should use a separate enumeration to define status codes specific to the
-         * custom logic of the module.
+         * Module class. These status codes are considered 'system-reserved' and are handled implicitly by the
+         * PC-side companion library.
          *
-         * @note To support unified status code reporting, this enumeration reserves values 0 through 50. All custom
-         * status codes should use values from 51 through 250. This way, status codes derived from this enumeration
-         * will never clash with 'custom' status codes.
+         * @note To support consistent status code reporting, this enumeration reserves values 0 through 50. All custom
+         * status codes should use values 51 through 250. This prevents the status codes derived from this enumeration
+         * from clashing with custom status codes.
          */
         enum class kCoreStatusCodes : uint8_t
         {
             kStandBy              = 0,  ///< The code used to initialize the module_status variable.
-            kTransmissionError    = 1,  ///< Encountered a communication error wen sending data to the PC.
-            kCommandCompleted     = 2,  ///< Currently active command has been completed and will not be cycled again.
-            kCommandNotRecognized = 3,  ///< The RunActiveCommand() method was unable to recognize the command.
+            kTransmissionError    = 1,  ///< Encountered an error when sending data to the PC.
+            kCommandCompleted     = 2,  ///< The last active command has been completed and removed from the queue.
+            kCommandNotRecognized = 3,  ///< The RunActiveCommand() method did not recognize the requested command.
         };
 
         /**
-         * @brief Instantiates a new Module class object.
+         * @brief Initializes all shared assets used to integrate the module with the rest of the library components.
          *
-         * This initializer should be called as part of the custom module's initialization sequence for each module that
-         * subclasses this base class.
+         * @warning This initializer must be called as part of the custom module's initialization sequence for each
+         * module that subclasses this base class.
          *
-         * @param module_type The byte-code that identifies the type (family) of the module. All instances of the same
-         * custom module class should share this ID. Has to use a value not reserved by other Module-derived classes.
-         * Valid values start with 1 and extend up to 255. 0 is NOT a valid value!
-         * @param module_id This ID is used to identify the specific instance of the module. It can use any non-zero
-         * value supported by uint8_t range, as long as no other module in the type (family) uses the same value. As
-         * with module_type, 0 is NOT a valid value!
-         * @param communication A reference to the Communication class instance that will be used to send module runtime
-         * data to the PC. The same Communication class instance is shared by the Kernel and all managed modules.
-         * @param dynamic_parameters A reference to the DynamicRuntimeParameters structure that stores
-         * PC-addressable global runtime parameters that broadly alter the behavior of all modules used by the
-         * controller. This structure is modified via the Kernel class, modules only read the data from the structure.
+         * @param module_type The code that identifies the type (family) of the module. All instances of the same
+         * custom module class should share this ID code.
+         * @param module_id The code that identifies the specific module instance. This code must be unique for
+         * each instance of the same module family (class) used as part of the same runtime.
+         * @param communication The shared Communication instance used to bidirectionally communicate with the PC
+         * during runtime.
+         * @param dynamic_parameters The shared DynamicRuntimeParameters structure that stores the global runtime
+         * parameters shared by all library assets.
          *
-         * @attention Follow this instantiation order when writing the main .cpp / .ino file for the controller:
-         * Communication → Module(s) → Kernel. See the /examples folder for details.
          */
         Module(
             const uint8_t module_type,
             const uint8_t module_id,
             Communication& communication,
-            const axmc_shared_assets::DynamicRuntimeParameters& dynamic_parameters
+            const DynamicRuntimeParameters& dynamic_parameters
         ) :
             _module_type(module_type),
             _module_id(module_id),
@@ -141,50 +112,44 @@ class Module
         {}
 
         // CORE METHODS.
-        // These methods are primarily designed to be used by the Kernel class should never be used by any custom
-        // module logic. The Kernel uses these methods to schedule the commands to be executed by the module instance.
+        // These methods are used by the Kernel class to manage the runtime of the custom hardware module instances that
+        // inherit from this base class.
 
         /**
-         * @brief Queues the input command to be executed by the Module.
+         * @brief Queues the input command to be executed by the Module during the next runtime cycle iteration.
          *
-         * This method queues the command to be executed when the module finished any currently running command by
-         * modifying the local execution_parameters structure. The Kernel class uses this method to queue commands
-         * received from the PC for execution.
+         * @warning If the module already has a queued command, this method replaces that command with the input
+         * command data.
          *
-         * @attention This method is explicitly designed to queue the commands to run cyclically (recurrently)! There
-         * is an overloaded version of this method that does not accept the 'cycle_delay' argument and allows queueing
-         * non-cyclic commands.
-         *
-         * @note If the module already has a queued command, this method will replace that command with the input
-         * command data. This behavior is intentional!
-         *
-         * @param command The byte-code of the command to execute.
-         * @param noblock Determines whether the queued command will be executed in blocking or non-blocking mode.
-         * @param cycle_delay The number of microseconds to delay before repeating (cycling) the command.
+         * @param command The command to execute.
+         * @param noblock Determines whether the queued command should run in blocking or non-blocking mode.
+         * @param cycle_delay The delay, in microseconds, before repeating (cycling) the command. Only provide this
+         * argument when queueing a recurrent command.
          */
         void QueueCommand(const uint8_t command, const bool noblock, const uint32_t cycle_delay)
         {
             execution_parameters.next_command    = command;
             execution_parameters.next_noblock    = noblock;
-            execution_parameters.run_recurrently = true;  // This method explicitly queues recurrent commands.
+            execution_parameters.run_recurrently = true;
             execution_parameters.recurrent_delay = cycle_delay;
             execution_parameters.new_command     = true;
         }
 
-        /// Overloads the QueueCommand() method to allow queueing non-cyclic commands.
+        /// Overloads the QueueCommand() method for queueing non-cyclic commands.
         void QueueCommand(const uint8_t command, const bool noblock)
         {
             execution_parameters.next_command    = command;
             execution_parameters.next_noblock    = noblock;
-            execution_parameters.run_recurrently = false;  // This method explicitly queues non-recurrent commands.
+            execution_parameters.run_recurrently = false;
             execution_parameters.recurrent_delay = 0;
             execution_parameters.new_command     = true;
         }
 
-        /// The Kernel uses this method when it receives a Dequeue command for one of the modules. The method clears
-        /// the execution_parameters structure variables used to queue and recurrently cycle commands. This allows the
-        /// module to finish an already running command, but will prevent it from executing any further commands until
-        /// it receives a new command from the PC.
+        /**
+         * @brief Resets the module's command queue.
+         *
+         * @note Calling this method does not abort already running commands: they are allowed to finish gracefully.
+         */
         void ResetCommandQueue()
         {
             execution_parameters.next_command    = 0;
@@ -195,20 +160,14 @@ class Module
         }
 
         /**
-         * @brief Ensures that the module has an active command to execute.
+         * @brief If possible, ensures that the module has an active command to execute.
          *
-         * Uses the following order of preference to activate (execute) a command:
-         * finish already running commands > run new commands > repeat a previous cyclic command.
-         * When repeating cyclic commands, the method ensures the recurrent timeout has expired before reactivating
+         * @note Uses the following order of preference to activate (execute) a command:
+         * finish already running commands > run new commands > repeat a previously executed recurrent command.
+         * When repeating recurrent commands, the method ensures the recurrent timeout has expired before reactivating
          * the command.
          *
-         * @note The Kernel uses this method to set up the command to be executed when RunActiveCommand() method is
-         * called. RunActiveCommand() is only called if this method returns true (activates a command). This ensures
-         * idle modules do not unnecessarily consume CPU cycles.
-         *
-         * @attention Any queued command is considered new until this method activates that command.
-         *
-         * @returns bool @b true if there is a command to run. @b false otherwise.
+         * @returns bool @b true if the module has a command to execute and @b false otherwise.
          */
         bool ResolveActiveCommand()
         {
@@ -220,7 +179,7 @@ class Module
             // not have any new or recurrent commands to execute.
             if (execution_parameters.next_command == 0) return false;
 
-            // If there is a next command to queue and the new_command flag is set to true, activates the queued
+            // If there is a next command in the queue and the new_command flag is set to true, activates the queued
             // command without any further condition.
             if (execution_parameters.new_command)
             {
@@ -234,10 +193,6 @@ class Module
 
                 // Removes the new_command flag to indicate that the new command has been consumed.
                 execution_parameters.new_command = false;
-
-                // Note, when a new command is queued, its 'cycle' flag automatically overrides the flag of any
-                // currently running command. In other words, a new command, cyclic or not, will always replace any
-                // currently running command, cyclic or not.
 
                 return true;  // Returns true to indicate there is a command to run.
             }
@@ -263,10 +218,7 @@ class Module
         }
 
         /**
-         * @brief Resets the class execution_parameters structure to default values.
-         *
-         * This method is designed for Teensy microcontrollers that do not reset on USB connection cycling. The Kernel
-         * uses this method to reset the module memory between runtimes and when it receives the global reset command.
+         * @brief Resets the module's command queue and aborts any currently running commands.
          */
         void ResetExecutionParameters()
         {
@@ -284,7 +236,7 @@ class Module
         }
 
         /**
-         * @brief Returns the ID of the Module instance.
+         * @brief Returns the ID of the instance.
          */
         [[nodiscard]]
         uint8_t GetModuleID() const
@@ -293,7 +245,7 @@ class Module
         }
 
         /**
-         * @brief Returns the type (family ID) of the Module instance.
+         * @brief Returns the type (family ID) of the instance.
          */
         [[nodiscard]]
         uint8_t GetModuleType() const
@@ -302,7 +254,7 @@ class Module
         }
 
         /**
-         * @brief Returns the combined type and id value of the Module instance.
+         * @brief Returns the combined type and id value of the instance.
          */
         [[nodiscard]]
         uint16_t GetModuleTypeID() const
@@ -311,110 +263,88 @@ class Module
         }
 
         /**
-         * @brief Sends an error message to notify the PC that the module did not recognize the active command.
-         *
-         * The Kernel uses this method to notify the PC when RunActiveCommand() method returns 'false'. This
-         * outcome usually means that the custom logic of the module did not accept the active command code as valid.
-         *
-         * @attention This way of handling shared API errors is unique to command activation. Errors with Parameter
-         * and Setup virtual method runtimes are communicated through Kernel-sent messages.
-         *
-         * @note Experienced developers can replace the 'default' case of the RunActiveCommand() switch statement with
-         * a call to this method and return 'true' to the Kernel. This may save some processing time.
+         * @brief Sends an error message to notify the PC that the instance did not recognize the active command.
          */
         void SendCommandActivationError() const
         {
             // Sends an error message that uses the unrecognized command code as 'command' and a 'not recognized' error
-            // code as event.
+            // code as the event.
             SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
         }
 
         // VIRTUAL METHODS.
-        // These methods link the custom logic of each hardware module with the rest of the library API. Like Core
-        // methods, these methods are designed to be called by the Kernel class and allow it to manage the runtime
-        // behavior of the module. However, the implementation of these methods relies on the user (custom module
-        // developer) as it has to be specific to each custom hardware module.
+        // These methods allow the Kernel class to interface with the custom logic of each custom hardware module
+        // instance, integrating them with the rest of the library components. The implementation of these methods
+        // relies on the end user as it has to be specific to each custom hardware module.
 
         /**
-         * @brief Overwrites the memory of the object used to store class instance runtime parameters with the data
+         * @brief Overwrites the memory of the object used to store the instance's runtime parameters with the data
          * received from the PC.
          *
-         * Kernel calls this method when it receives a ModuleParameters message addressed to a module instance with the
-         * same type-code as the class that overloads this method. This method has to call the ExtractModuleParameters()
-         * method of the shared Communication class ('_communication' attribute) to unpack the received data into the
-         * Module's custom parameters object. Commonly, the parameter object is a Structure, but it can also be any
-         * other valid C++ data object.
-         *
-         * Essentially, the purpose of this method is to tell the Kernel where the custom PC-addressable runtime
-         * parameters of te module instance are stored.
+         * @note This method should call the ExtractParameters() method inherited from the base
+         * Module class to unpack the received custom parameters message into the structure (object) used to store the
+         * instance's custom runtime parameters.
          *
          * @returns bool @b true if new parameters were parsed successfully and @b false otherwise.
          *
-         * This is an example of how to implement this method (what to put in the method's body):
+         * Example method implementation:
          * @code
          * uint8_t custom_parameters_object[3] = {}; // Assume this object was created at class instantiation.
          *
          * // Reads the data and returns the operation status to the caller (Kernel).
-         * return = ExtractParameters(custom_parameters_object);
+         * return ExtractParameters(custom_parameters_object);
          * @endcode
          */
         virtual bool SetCustomParameters() = 0;
 
         /**
-         * @brief Calls the class method associated with the currently active command code.
+         * @brief Executes the instance method associated with the currently active command.
          *
-         * Kernel class uses this method to access and run the custom module's logic associated with each command code.
-         * This method should contain conditional switch-based logic to call the appropriate custom class method(s),
-         * based on the active command code (retrieved using inherited GetActiveCommand() method).
+         * @note This method should translate the currently active command returned by the GetActiveCommand()
+         * method inherited from the base Module class into the call to the command-specific method that executes the
+         * command's logic.
+         *
+         * @warning This method should not evaluate whether the command ran successfully, only whether the command
+         * was recognized and matched to the appropriate method call. The called method should use the inherited
+         * SendData() method to report command runtime status to the PC.
          *
          * @returns bool @b true if the currently active module command was matched to a specific custom method and @b
-         * false otherwise. Note, this method should NOT evaluate whether the command ran successfully, only that the
-         * active command code was matched to a specific custom method. The called custom command method should use
-         * SendData() method to report command success / failure status to the PC.
+         * false otherwise.
          *
-         * This is an example of how to implement this method (what to put in the method's body):
+         * Example method implementation:
          * @code
          * uint8_t active_command = GetActiveCommand();  // Returns the code of the currently active command.
-         * switch (active_command) {
-         *  case 5:
-         *      // If command 5 runs into an error during execution, it should use the SendData() method to send the
-         *      // error message to the connected system.
-         *      command_5();
-         *      return true; // This returns value means the command was recognized, not that it succeeded!
-         *  case 9:
-         *      // While it is expected that class PC-addressable runtime parameters are stored in class attributes,
-         *      // you are free to write commands however you want. This includes passing data as arguments and
-         *      // receiving data as outputs. You can even run multiple commands in one go. Note, however, that the PC
-         *      // will treat all sub-commands as a single unified command with the same code (in this case, command 9).
-         *      bool success = command_9(11);
-         *      if (success) command_11();
-         *      return true;  // Note, true / false returns HAVE to be strictly determined by command recognition.
-         *  default:
-         *      // If this method does not recognize the active command code, it should return false. The Kernel class
-         *      // will then handle this as an error case.
-         *      return false;
          *
-         *      // Alternatively, you can also implement a more efficient 'default' case instead of using the Kernel:
-         *      SendCommandActivationError();  // This is what the Kernel calls when this method returns 'false'
-         *      return true; // Although the command was not recognized, the error was handled above, so returns 'true'.
+         * // Matches the active command to the appropriate method call.
+         * switch (active_command) {
+         *  case 1:
+         *      command_1();
+         *      return true; // This returns value means the command was recognized, not that it succeeded!
+         *  case 2:
+         *      bool success = command_2(11);
+         *      if (success) command_3();
+         *      return true;
+         *  default:
+         *      // The only case for returning 'false' should be not recognizing the command code.
+         *      return false;
          * }
          * @endcode
          */
         virtual bool RunActiveCommand() = 0;
 
         /**
-         * @brief Sets up the hardware and software assets used by the module.
+         * @brief Sets up the instance's hardware and software assets.
          *
-         * Kernel class calls this method during initial controller setup() function runtime and when it receives the
-         * global reset command. Use this method to reset hardware (e.g.: pin modes) and software (e.g.: custom
-         * parameter structures and class trackers).
+         * @note This method should set the initial (default) state of the instance's custom parameter structures and
+         * hardware (pins, timers, etc.).
          *
-         * @attention Ideally, this method should not contain any logic that can fail or block. Many core dependencies,
-         * such as USB / UART communication, are initialized during setup, which may interfere with handling setup
-         * errors.
+         * @attention Ideally, this method should not contain any logic that can fail or block, as this method is called
+         * as part of the initial library runtime setup procedure, before the communication interface is fully
+         * initialized.
          *
          * @returns bool @b true if the setup method ran successfully and @b false otherwise.
          *
+         * Example method implementation:
          * @code
          * // Resets custom software assets:
          * uint8_t custom_parameters_object[3] = {5, 5, 5}; // Assume this object was created at class instantiation.
@@ -430,7 +360,7 @@ class Module
          */
         virtual bool SetupModule() = 0;
 
-        ///A pure virtual destructor method to ensure proper cleanup.
+        /// Destroys the instance during cleanup.
         virtual ~Module() = default;
 
     protected:
@@ -453,7 +383,7 @@ class Module
         /// A reference to the shared instance of the DynamicRuntimeParameters structure. This structure stores
         /// PC-addressable runtime parameters used to broadly alter controller behavior. For example, this
         /// structure dynamically enables or disables output pin activity.
-        const axmc_shared_assets::DynamicRuntimeParameters& _dynamic_parameters;
+        const DynamicRuntimeParameters& _dynamic_parameters;
 
         // UTILITY METHODS.
         // These methods are designed to help developers with writing custom module classes. They are not accessed by

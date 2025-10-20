@@ -1,12 +1,3 @@
-// This test suit only covers the Communication class. Kernel and Modules are tested with a fully functional
-// communication interface using Python bindings. The idea behind this design pattern is that this test suit, together
-// with TransportLayer tests, ensures that the microcontroller can talk to the PC. The PC then takes over the testing.
-
-// Due to certain issues with reconnecting to Teensy boards when running separate test suits, this test suit acts as a
-// single centralized hub for running all available tests for the Communication class. Declare all required tests using
-// separate functions (as needed) and then add the tests to be evaluated to the RunUnityTests function at the bottom of
-// this file.
-
 // Dependencies
 #include <Arduino.h>             // For Arduino functions
 #include <unity.h>               // This is the C testing framework, no connection to the Unity game engine
@@ -24,10 +15,7 @@ void setUp()
 void tearDown()
 {}
 
-// Tests the functioning of the Communication class SendDataMessage() method. This test checks both the Module-targeted
-// version and the overloaded Kernel-targeted version. Since under the current configuration failing to send a Data
-// message is essentially impossible without deliberately modifying the source code, this possibility is not
-// evaluated here.
+// Tests the functioning of the Communication's SendDataMessage() method.
 void TestSendDataMessage()
 {
     StreamMock<60> mock_port;
@@ -50,7 +38,7 @@ void TestSendDataMessage()
     comm_class.SendDataMessage(command, event_code, prototype, test_object);
     constexpr uint16_t expected_kernel[6] = {kernel_protocol, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 6; ++i)
@@ -66,7 +54,7 @@ void TestSendDataMessage()
     constexpr uint16_t expected_module[8] =
         {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 8; ++i)
@@ -75,10 +63,7 @@ void TestSendDataMessage()
     }
 }
 
-// Tests the functioning of the Communication class SendStateMessage() method. This test checks both the Module-targeted
-// version and the overloaded Kernel-targeted version. Since under the current configuration failing to send a State
-// message is essentially impossible without deliberately modifying the source code, this possibility is not
-// evaluated here.
+// Tests the functioning of the Communication's SendStateMessage() method.
 void TestSendStateMessage()
 {
     StreamMock<60> mock_port;
@@ -94,7 +79,7 @@ void TestSendStateMessage()
     comm_class.SendStateMessage(command, event_code);
     constexpr uint16_t expected_kernel[4] = {kernel_protocol, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 4; ++i)
@@ -109,7 +94,7 @@ void TestSendStateMessage()
     comm_class.SendStateMessage(module_type, module_id, command, event_code);
     constexpr uint16_t expected_module[6] = {module_protocol, module_type, module_id, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 6; ++i)
@@ -118,8 +103,7 @@ void TestSendStateMessage()
     }
 }
 
-// Tests the functioning of the Communication class SendCommunicationErrorMessage() method. This test checks both the
-// Module-targeted version and the overloaded Kernel-targeted version.
+// Tests the functioning of the Communication's SendCommunicationErrorMessage() method.
 void SendCommunicationErrorMessage()
 {
     StreamMock<60> mock_port;
@@ -143,7 +127,7 @@ void SendCommunicationErrorMessage()
     comm_class.SendCommunicationErrorMessage(command, error_code);
     const uint16_t expected_kernel[7] = {kernel_protocol, 3, 4, prototype_code, 189, tl_status, 0};
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 7; ++i)
@@ -160,7 +144,7 @@ void SendCommunicationErrorMessage()
     comm_class.SendCommunicationErrorMessage(module_type, module_id, command, error_code);
     const uint16_t expected_module[9] = {module_protocol, 1, 2, 3, 4, prototype_code, 65, tl_status, 0};
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 9; ++i)
@@ -169,7 +153,7 @@ void SendCommunicationErrorMessage()
     }
 }
 
-// Tests the functioning of the Communication class SendServiceMessage() method for all valid protocols.
+// Tests the functioning of the Communication's SendServiceMessage() method for all valid protocols.
 void TestSendServiceMessage()
 {
     StreamMock<60> mock_port;
@@ -184,7 +168,7 @@ void TestSendServiceMessage()
     };
     comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 2; ++i)
@@ -201,7 +185,7 @@ void TestSendServiceMessage()
     };
     comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(service_code);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 2; ++i)
@@ -220,7 +204,7 @@ void TestSendServiceMessage()
     };
     comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(module_type_id);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageSent),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.communication_status
     );
     for (int i = 0; i < 3; ++i)
@@ -232,20 +216,18 @@ void TestSendServiceMessage()
     }
 }
 
-// Tests the functioning of the Communication class ReceiveMessage() method. This function tests the reception of all
-// valid incoming message structures. For ModuleParameters message, the method only verifies the parsing of the header.
-// A different function tests module parameter extraction.
+// Tests the functioning of the Communication's ReceiveMessage() method.
 void TestReceiveMessage()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    COBSProcessor cobs_class;
 
-    // Verifies correct non-error no-success scenario, where the buffer does not contain any bytes to receive.
+    // Verifies the correct non-error no-success scenario, where the buffer does not contain any bytes to receive.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kNoBytesToReceive),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kNoBytesToReceive),
         comm_class.communication_status
     );
 
@@ -255,9 +237,8 @@ void TestReceiveMessage()
     uint8_t test_buffer_1[16] = {129, 10, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_1, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_1, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_1);
+    crc_class.CalculateChecksum<false>(test_buffer_1);
     for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
@@ -266,7 +247,7 @@ void TestReceiveMessage()
     // Receives and verifies the message data.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);   // Check module_type
@@ -282,9 +263,8 @@ void TestReceiveMessage()
     uint8_t test_buffer_2[12] = {129, 6, 0, 2, 0, 1, 2, 3, 1, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_2, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_2, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_2);
+    crc_class.CalculateChecksum<false>(test_buffer_2);
     for (size_t i = 0; i < sizeof(test_buffer_2); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_2[i]);
@@ -293,7 +273,7 @@ void TestReceiveMessage()
     // Receives and verifies the message data.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(0, comm_class.one_off_module_command.module_type);  // Check module_type
@@ -308,9 +288,8 @@ void TestReceiveMessage()
     uint8_t test_buffer_3[10] = {129, 4, 0, 3, 1, 2, 3, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_3, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_3, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_3, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_3);
+    crc_class.CalculateChecksum<false>(test_buffer_3);
     for (size_t i = 0; i < sizeof(test_buffer_3); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_3[i]);
@@ -319,7 +298,7 @@ void TestReceiveMessage()
     // Receives and verifies the message data.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_dequeue.module_type);  // Check module_type
@@ -332,9 +311,8 @@ void TestReceiveMessage()
     uint8_t test_buffer_4[9] = {129, 3, 0, 4, 1, 2, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_4, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_4, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_4, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_4);
+    crc_class.CalculateChecksum<false>(test_buffer_4);
     for (size_t i = 0; i < sizeof(test_buffer_4); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_4[i]);
@@ -343,7 +321,7 @@ void TestReceiveMessage()
     // Receives and verifies the message data.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_command.return_code);  // Check return_code
@@ -356,9 +334,8 @@ void TestReceiveMessage()
     uint8_t test_buffer_5[11] = {129, 4, 0, 5, 1, 2, 3, 4, 0, 0, 0};  // 4 simulates parameter object data
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_5, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_5, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_5, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_5);
+    crc_class.CalculateChecksum<false>(test_buffer_5);
     for (size_t i = 0; i < sizeof(test_buffer_5); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_5[i]);
@@ -367,12 +344,12 @@ void TestReceiveMessage()
     // Receives and verifies the message data.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         comm_class.communication_status
     );
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_parameter.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_parameter.module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_parameter.return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_parameters_header.module_type);  // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_parameters_header.module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_parameters_header.return_code);  // Check return_code
 
     mock_port.reset();  // Resets the mock port
 
@@ -380,9 +357,8 @@ void TestReceiveMessage()
     uint8_t test_buffer_6[10] = {129, 4, 0, 6, 1, 0, 1, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_6, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_6, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_6, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_6);
+    crc_class.CalculateChecksum<false>(test_buffer_6);
     for (size_t i = 0; i < sizeof(test_buffer_6); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_6[i]);
@@ -391,7 +367,7 @@ void TestReceiveMessage()
     // Receives and verifies message data.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kMessageReceived),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_parameters.return_code);            // Check return_code
@@ -399,13 +375,13 @@ void TestReceiveMessage()
     TEST_ASSERT_TRUE(comm_class.kernel_parameters.dynamic_parameters.ttl_lock);      // Check ttl_lock
 }
 
-// Tests the error-handling behavior of the Communication class ReceiveMessage() method.
+// Tests the error-handling behavior of the Communication's ReceiveMessage() method.
 void TestReceiveMessageErrors()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    COBSProcessor cobs_class;
 
     // Verifies that failing one of the reception steps, such as COBS decoding or CRC verification, correctly raises
     // kReceptionError.
@@ -420,7 +396,7 @@ void TestReceiveMessageErrors()
     // Triggers and verifies the error.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kReceptionError),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kReceptionError),
         comm_class.communication_status
     );
 
@@ -432,9 +408,8 @@ void TestReceiveMessageErrors()
     uint8_t test_buffer_2[16]       = {129, 10, 0, invalid_protocol, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_2, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_2, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_2);
+    crc_class.CalculateChecksum<false>(test_buffer_2);
     for (size_t i = 0; i < sizeof(test_buffer_2); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_2[i]);
@@ -443,7 +418,7 @@ void TestReceiveMessageErrors()
     // Triggers and verifies the error.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kInvalidProtocol),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kInvalidProtocol),
         comm_class.communication_status
     );
 
@@ -454,9 +429,8 @@ void TestReceiveMessageErrors()
     uint8_t test_buffer_3[16] = {129, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_3, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_3, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_3, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_3);
+    crc_class.CalculateChecksum<false>(test_buffer_3);
     for (size_t i = 0; i < sizeof(test_buffer_3); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_3[i]);
@@ -465,40 +439,38 @@ void TestReceiveMessageErrors()
     // Triggers and verifies the error.
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParsingError),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParsingError),
         comm_class.communication_status
     );
 }
 
-// Tests the functioning of the Communication class ExtractModuleParameters() method. Tests two likely parameter storage
-// formats: structure and array.
+// Tests the functioning of the Communication's ExtractModuleParameters() method.
 void TestExtractModuleParameters()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    COBSProcessor cobs_class;
 
     // Verifies that extracting parameters into an array works as expected
     uint8_t test_buffer_1[16] = {129, 10, 0, 5, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_1, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_1, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_1);
+    crc_class.CalculateChecksum<false>(test_buffer_1);
     for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
     }
 
-    // Defines the test array which serves as parameter extraction target.
+    // Defines the test array which serves as a parameter extraction target.
     uint8_t extract_data[6] = {};
 
     // Receives the message, extracts and verifies parameter data.
     comm_class.ReceiveMessage();
     comm_class.ExtractModuleParameters(extract_data);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
         comm_class.communication_status
     );
     const uint8_t expected_data[6] = {
@@ -517,15 +489,14 @@ void TestExtractModuleParameters()
     uint8_t test_buffer_2[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    packet_size  = cobs_class.EncodePayload(test_buffer_2, 0);
-    crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_2, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_2, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_2);
+    crc_class.CalculateChecksum<false>(test_buffer_2);
     for (size_t i = 0; i < sizeof(test_buffer_2); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_2[i]);
     }
 
-    // Defines the test structure which serves as parameter extraction target.
+    // Defines the test structure which serves as a parameter extraction target.
     struct TestStructure
     {
             uint8_t id      = 1;
@@ -536,7 +507,7 @@ void TestExtractModuleParameters()
     comm_class.ReceiveMessage();
     comm_class.ExtractModuleParameters(test_structure);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParametersExtracted),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
         comm_class.communication_status
     );
     TEST_ASSERT_EQUAL_UINT8(9, test_structure.id);
@@ -550,25 +521,22 @@ void TestExtractModuleParameters()
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data_2, test_structure.data, sizeof(expected_data_2));
 }
 
-// Tests the error-handling behavior of the Communication class ExtractModuleParameters() method. Note, this function
-// does not test ParsingError, as it is currently impossible to trigger this condition without modifying the class
-// source code.
+// Tests the error-handling behavior of the Communication's ExtractModuleParameters() method.
 void TestExtractModuleParametersErrors()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
-    COBSProcessor<> cobs_class;
+    COBSProcessor cobs_class;
 
     // Verifies that calling ExtractParameters() after receiving a message with a protocol code other than
-    // kModuleParameters raises ExtractionForbidden error.
+    // kModuleParameters raises the ExtractionForbidden error.
     constexpr auto protocol_code = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kUndefined);
     uint8_t test_buffer_1[16]    = {129, 10, 0, protocol_code, 2, 3, 4, 5, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
-    uint16_t packet_size  = cobs_class.EncodePayload(test_buffer_1, 0);
-    uint16_t crc_checksum = crc_class.CalculatePacketCRCChecksum(test_buffer_1, 2, packet_size);
-    crc_class.AddCRCChecksumToBuffer(test_buffer_1, packet_size + 2, crc_checksum);
+    cobs_class.EncodePayload(test_buffer_1);
+    crc_class.CalculateChecksum<false>(test_buffer_1);
     for (size_t i = 0; i < sizeof(test_buffer_1); ++i)
     {
         mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_1[i]);
@@ -579,13 +547,13 @@ void TestExtractModuleParametersErrors()
     uint8_t extract_into[6] = {};
     comm_class.ExtractModuleParameters(extract_into);
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kExtractionForbidden),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kExtractionForbidden),
         comm_class.communication_status
     );
 
     mock_port.reset();  // Resets the mock port
 
-    // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of parameters
+    // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of the parameters
     // block inside the serial buffer raises a kParameterMismatch error.
     comm_class.protocol_code = 5;  // Manually sets the protocol code to kModuleParameters
 
@@ -593,14 +561,12 @@ void TestExtractModuleParametersErrors()
     uint8_t invalid_prototype_2[12] = {};  // Prototype is smaller than stored data size
     TEST_ASSERT_FALSE(comm_class.ExtractModuleParameters(invalid_prototype_2));
     TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationCodes::kParameterMismatch),
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParameterMismatch),
         comm_class.communication_status
     );
 }
 
-// Specifies the test functions to be executed and controls their runtime. Use this function to determine which tests
-// are run during test runtime and in what order. Note, each test function is encapsulated and will run even if it
-// depends on other test functions ran before it which fail the tests.
+// Specifies the test functions executed at runtime.
 int RunUnityTests()
 {
     UNITY_BEGIN();
@@ -628,9 +594,7 @@ int RunUnityTests()
     return UNITY_END();
 }
 
-// Defines the baud rates for different boards. Note, this list is far from complete and was designed for the boards
-// the author happened to have at hand at the time of writing these tests. When testing on an architecture not
-// explicitly covered below, it may be beneficial to provide the baudrate optimized for the tested platform.
+// Defines the baud rates for different boards.
 
 // For Arduino Due, the maximum non-doubled stable rate is 5.25 Mbps at 84 MHz cpu clock.
 #if defined(ARDUINO_SAM_DUE)
@@ -638,27 +602,25 @@ int RunUnityTests()
 
 // For Uno, Mega, and other 16 MHz AVR boards, the maximum stable non-doubled rate is 1 Mbps.
 #elif defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_MEGA) ||  \
-    defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
-    defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__) ||  \
-    defined(__AVR_ATmega32U4__)
+defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
+defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__) ||  \
+defined(__AVR_ATmega32U4__)
 #define SERIAL_BAUD_RATE 1000000
 
-// For all other boards the default 9600 rate is used. Note, this is a very slow rate, and it is very likely your board
-// supports a faster rate. Select the most appropriate rate based on the CPU clock of your board, as it directly affects
-// the error rate at any given baudrate. Boards that use a USB port (e.g., Teensy) ignore the baudrate value and
-// instead default to the fastest speed supported by their USB interface (480 Mbps for most modern ports).
+// For all other boards the default 9600 rate is used.
 #else
 #define SERIAL_BAUD_RATE 9600
 #endif
 
 // This is necessary for the Arduino framework testing to work as expected, which includes teensy. All tests are
-// run inside setup function as they are intended to be one-shot tests
+// run inside the setup function as they are intended to be one-shot tests
 void setup()
 {
     // Starts the serial connection.
     Serial.begin(SERIAL_BAUD_RATE);
 
-    // Waits ~2 seconds before the Unity test runner establishes connection with a board Serial interface.
+    // Waits ~2 seconds before the Unity test runner establishes connection with a board Serial interface. For teensy,
+    // this is less important, since it uses a USB interface which does not reset the board on connection.
     delay(2000);
 
     // Runs the required tests
@@ -668,6 +630,6 @@ void setup()
     Serial.end();
 }
 
-// Nothing here as all tests are done in a one-shot fashion using 'setup' function above
+// Nothing here as all tests are done in a one-shot fashion using the 'setup' function above
 void loop()
 {}
