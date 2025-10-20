@@ -29,12 +29,12 @@ namespace axmc_shared_assets
         kParsingError        = 53,  ///< Communication class ran into an error when parsing (reading) a message.
         kPackingError        = 54,  ///< Communication class ran into an error when writing a message to payload.
         kMessageSent         = 55,  ///< Communication class successfully sent a message.
-        kMessageReceived     = 57,  ///< Communication class successfully received a message.
-        kInvalidProtocol     = 58,  ///< The message protocol code is not valid for the type of operation (Rx or Tx).
-        kNoBytesToReceive    = 59,  ///< Communication class did not receive enough bytes to process the message.
-        kParameterMismatch   = 60,  ///< The size of the received parameters structure does not match expectation.
-        kParametersExtracted = 61,  ///< Parameter data has been successfully extracted.
-        kExtractionForbidden = 62,  ///< Attempted to extract parameters from the message other than ModuleParameters.
+        kMessageReceived     = 56,  ///< Communication class successfully received a message.
+        kInvalidProtocol     = 57,  ///< The message protocol code is not valid for the type of operation (Rx or Tx).
+        kNoBytesToReceive    = 58,  ///< Communication class did not receive enough bytes to process the message.
+        kParameterMismatch   = 59,  ///< The size of the received parameters structure does not match expectation.
+        kParametersExtracted = 60,  ///< Parameter data has been successfully extracted.
+        kExtractionForbidden = 61,  ///< Attempted to extract parameters from the message other than ModuleParameters.
     };
 
     /**

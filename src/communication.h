@@ -345,7 +345,7 @@ class Communication
          * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
          *
-         * // Protocol is given as template, service code as an uint8_t argument.
+         * // Protocol is given as a template, service code as an uint8_t argument.
          * comm_class.SendServiceMessage<kProtocols::kReceptionCode>(112);
          * @endcode
          */
@@ -381,27 +381,23 @@ class Communication
         }
 
         /**
-         * @brief Parses the next available PC-sent message stored inside the serial port reception buffer.
+         * @brief If a message is currently stored in the serial interface's reception buffer, moves it into the
+         * instance's reception buffer.
          *
-         * This method will only attempt message reception (parsing) if the serial interface buffer, managed by the
-         * TransportLayer class, has the minimum number of bytes required to represent the smallest valid message.
+         * Depending on the protocol used by the received message, the message header data is read into the appropriate
+         * instance's attribute structure.
          *
-         * @note If this method returns true, it uses the 'protocol_code' to store the protocol of the received message.
-         * In turn, that determines which of the class attributes stores the parsed message data.
+         * @attention If the received message is a ModuleParameters message, call the ExtractModuleParameters() method
+         * to extract the data payload. This method DOES NOT extract Module parameter data from the serial buffer.
          *
-         * @attention If the received message is a ModuleParameters message, call ExtractModuleParameters() method to
-         * finalize message parsing. This method DOES NOT extract Module parameter data from the serial buffer.
-         *
-         * @returns True if a message was successfully received and parsed, false otherwise. If this method returns
-         * false, this does not necessarily indicate a runtime error. Use 'communication_status' class attribute to
-         * determine the cause of the failure. kNoBytesToReceive status code from
-         * kCommunicationCodes indicates a non-error failure.
+         * @returns True if a message was successfully received, false otherwise. If this method returns false, this
+         * does not by itself indicate a runtime error. Use the 'communication_status' instance property
+         * to determine if the method encountered a runtime error.
          *
          * Example usage:
          * @code
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
-         *
+         * Communication comm_class(Serial);  // Instantiates the Communication class.
          * bool success = comm_class.ReceiveMessage();  // Attempts to receive the message
          * @endcode
          */
@@ -411,60 +407,51 @@ class Communication
             if (!_transport_layer.ReceiveData())
             {
                 // The reception protocol can 'fail' gracefully if the reception buffer does not have enough bytes to
-                // attempt message reception. In this case, the TransportLayer status is set to the
-                // kNoBytesToParseFromBuffer constant. If message reception failed with any other code, returns with
-                // error status.
-                if (_transport_layer.transfer_status != static_cast<uint8_t>(kTransportStatusCodes::kNoBytesToParse))
+                // attempt message reception.
+                if (_transport_layer.runtime_status == static_cast<uint8_t>(kTransportStatusCodes::kNoBytesToParse))
                 {
-                    communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kReceptionError);
+                    communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive);
                     return false;
                 }
 
-                // Otherwise, returns with a status that indicates non-error failure.
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive);
+                // Otherwise, returns with a status that indicates runtime failure.
+                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kReceptionError);
                 return false;
             }
 
-            // If the message is received and decoded, extracts the protocol code of the received message and uses it to
-            // parse the rest of the message
-            const uint16_t next_index = _transport_layer.ReadData(protocol_code);
-            if (next_index != 0)
+            // If the message is received and decoded, extracts the protocol code of the received message and uses
+            // it to parse the rest of the message
+            if (_transport_layer.ReadData(protocol_code))
             {
-                // Pre-sets the status to the success code, assuming the switch below will resolve the message.
-                // The status will be overridden as necessary if the switch statement fails for any reason.
                 communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageReceived);
-
-                // Uses efficient switch logic to resolve and handle the data based on the protocol code
+                // Unpacks the message header into the appropriate attribute structure.
                 switch (static_cast<kProtocols>(protocol_code))
                 {
                     case kProtocols::KRepeatedModuleCommand:
-                        // The 'if' checks for the implicit 'next_index' returned by the ReadData() method to not be 0.
-                        // 0 indicates that the data was not read successfully. Any other number indicates successful
-                        // read operation. Inlining everything makes the code more readable.
-                        if (_transport_layer.ReadData(repeated_module_command, next_index)) return true;
+                        if (_transport_layer.ReadData(repeated_module_command)) return true;
                         break;
 
                     case kProtocols::kOneOffModuleCommand:
-                        if (_transport_layer.ReadData(one_off_module_command, next_index)) return true;
+                        if (_transport_layer.ReadData(one_off_module_command)) return true;
                         break;
 
                     case kProtocols::kDequeueModuleCommand:
-                        if (_transport_layer.ReadData(module_dequeue, next_index)) return true;
+                        if (_transport_layer.ReadData(module_dequeue)) return true;
                         break;
 
                     case kProtocols::kKernelCommand:
-                        if (_transport_layer.ReadData(kernel_command, next_index)) return true;
+                        if (_transport_layer.ReadData(kernel_command)) return true;
                         break;
 
                     case kProtocols::kModuleParameters:
-                        // Reads the HEADER of the message into the storage structure. This gives Kernel class enough
-                        // information to address the message, but this is NOT the whole message. To retrieve parameter
-                        // data bundled with the message, use ExtractModuleParameters() method.
-                        if (_transport_layer.ReadData(module_parameters_header, next_index)) return true;
+                        // Reads the HEADER of the message into the storage structure. This gives the Kernel class
+                        // enough information to address the message, but this is NOT the whole message. To retrieve
+                        // the parameter data bundled with the message, use the ExtractModuleParameters() method.
+                        if (_transport_layer.ReadData(module_parameters_header)) return true;
                         break;
 
                     case kProtocols::kKernelParameters:
-                        if (_transport_layer.ReadData(kernel_parameters, next_index)) return true;
+                        if (_transport_layer.ReadData(kernel_parameters)) return true;
                         break;
 
                     default:
@@ -474,56 +461,48 @@ class Communication
                 }
             }
 
-            // If any of the data reading method calls failed (returned a next_index == 0), returns with error status
+            // If any of the data reading calls above fail, returns with an error status.
             communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParsingError);
             return false;
         }
 
         /**
-         * @brief Extracts the parameter data transmitted with the ModuleParameters message and uses it to overwrite the
-         * memory of the input 'prototype' object.
+         * @brief Extracts the parameter data payload transmitted with the last received ModuleParameters message into
+         * the destination object's memory.
          *
-         * This method executes the second step of the ModuleParameter message reception process. It extracts the
-         * necessary number of bytes to overwrite the input structure's memory with incoming message data. Kernel
-         * class uses this method to set the target Module's parameter structure to use the new data.
+         * @warning This method is intended to be called by end users as part of the SetCustomParameters() virtual
+         * method implementation. Do not call this method from any other context.
          *
-         * @warning This method will fail if it is called for any other message type, including KernelParameters
-         * message.
+         * @tparam ObjectType The type of the destination object.
+         * @tparam object_size The size of the destination object, in bytes.
+         * @param destination The object where to unpack the received parameters. Typically, this is a packed structure.
          *
-         * @tparam ObjectType The type of the input structure object. This is resolved automatically and allows using
-         * this method with most valid objet structures.
-         * @tparam bytes_to_read The number of bytes that make up the prototype. This is used as an extra safety check
-         * to ensure the parameter data extracted from the message (whose size is known) matches the size expected by
-         * the structure.
-         * @param prototype The object whose memory needs to be overwritten with received data.
-         *
-         * @returns True if the parameter data was successfully extracted and set, false otherwise.
+         * @returns True if the parameter data was successfully extracted into the destination object and false
+         * otherwise.
          *
          * Example usage:
          * @code
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
          * Serial.begin(9600);  // Initializes serial interface.
+         * Communication comm_class(Serial);  // Instantiates the Communication class.
          *
-         * // Initializes a test structure
+         * // Initializes a test structure.
          * struct DataMessage
          * {
          *     uint8_t id = 1;
          *     uint8_t data = 10;
          * } data_message;
          *
-         * bool success = comm_class.ExtractParameters(data_message);  // Attempts to receive the message
+         * bool success = comm_class.ExtractParameters(data_message);  // Attempts to extract the parameters.
          * @endcode
          */
-        template <typename ObjectType, const size_t bytes_to_read = sizeof(ObjectType)>
-        bool ExtractModuleParameters(ObjectType& prototype)
+        template <typename ObjectType, const size_t object_size = sizeof(ObjectType)>
+        bool ExtractModuleParameters(ObjectType& destination)
         {
-            // This guards against invalid calls at compile time
+            // Ensures that the prototype compiles with the limitations of the transport layer.
             static_assert(
-                bytes_to_read > 0 && bytes_to_read <= 250,
-                "Unable to extract received module parameters as the method has received an invalid 'prototype' input. "
-                "Since a single received message payload exceed 254 bytes and ModuleParameters message header data "
-                "reserves 4 bytes, a valid prototype object cannot exceed 250 bytes in size. Also, since sending empty"
-                "parameter messages is not allowed, the prototype has to be greater than 0."
+                object_size > 0 && object_size <= 250,
+                "Unable to extract the target module's parameters as the method has received an invalid "
+                "'destination' input. A valid destination object must have a size between 1 and 250 bytes."
             );
 
             // Ensures this method cannot be called (successfully) unless the message currently stored in the reception
@@ -537,16 +516,16 @@ class Communication
             // Verifies that the size of the prototype structure exactly matches the number of object bytes received
             // with the message. The '-1' accounts for the protocol code (first variable of each message) that precedes
             // the message structure.
-            if (static_cast<uint8_t>(bytes_to_read) !=
-                _transport_layer.get_rx_payload_size() - sizeof(ModuleParameters) - 1)
+            if (static_cast<uint8_t>(object_size) !=
+                _transport_layer.get_bytes_in_reception_buffer() - sizeof(ModuleParameters) - 1)
             {
                 communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParameterMismatch);
                 return false;
             }
 
             // If both checks above are passed, extracts the parameter data from the incoming message into the provided
-            // structure (by reference). If ReadData() returns 0 (false), the extraction has failed.
-            if (!_transport_layer.ReadData(prototype, kModuleParameterObjectIndex))
+            // structure (by reference).
+            if (!_transport_layer.ReadData(destination))
             {
                 communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParsingError);
                 return false;
