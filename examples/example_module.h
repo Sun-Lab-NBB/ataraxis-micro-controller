@@ -146,9 +146,11 @@ class TestModule final : public Module
             // command haa to implement the 'stage-based' design pattern and use the methods inherited from the base
             // Module class to transition between stages.
 
+            const uint8_t stage = GetCommandStage();
+
             // Stage 1: Activates the pin.
             // Note, stages automatically start with 1 and are incremented with each call to AdvanceCommandStage().
-            if (GetCommandStage() == 1)  // GetCommandStage(0 returns the current command stage.
+            if (stage == 1)  // GetCommandStage(0 returns the current command stage.
             {
                 // Sets the pin to deliver a HIGH signal. DigitalWrite is a utility method inherited from the base
                 // Module class. Internally, it uses the efficient digitalWriteFase library to maximize the speed of
@@ -177,19 +179,14 @@ class TestModule final : public Module
                 }
             }
 
-            // Stage 2: delays while the pin emits the HIGH signal.
-            if (GetCommandStage() == 2)
-            {
-                // WaitForMicros is another utility method inherited from the base Module class. The method
-                // automatically determines whether the command runs in a blocking or non-blocking mode. If the mode is
-                // non-blocking, the microcontroller will execute other modules' commands while delaying this command.
-                if (!WaitForMicros(parameters.on_duration)) return;  // Return is essential for non-blocking mode.
-                AdvanceCommandStage();
-            }
+            // DelayStage is another utility method inherited from the base Module class. The method
+            // automatically determines whether the command runs in a blocking or non-blocking mode. If the mode is
+            // non-blocking, the microcontroller will execute other modules' commands while delaying this command.
+            DelayStage(parameters.on_duration);
 
             // Stage 3: disables the pin.
             // This is essentially the inverse of stage 1.
-            if (GetCommandStage() == 3)
+            if (stage == 3)
             {
                 if (DigitalWrite(LED_BUILTIN, LOW, false))
                 {

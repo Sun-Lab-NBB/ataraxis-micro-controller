@@ -59,9 +59,6 @@ class Communication
         /// Stores the last received Module-addressed parameters message header data.
         ModuleParameters module_parameters_header;
 
-        /// Stores the last received Kernel-addressed parameters message data.
-        KernelParameters kernel_parameters;
-
         /**
          * @brief Instantiates a specialized TransportLayer instance to handle the microcontroller-PC communication.
          *
@@ -448,10 +445,6 @@ class Communication
                         // enough information to address the message, but this is NOT the whole message. To retrieve
                         // the parameter data bundled with the message, use the ExtractModuleParameters() method.
                         if (_transport_layer.ReadData(module_parameters_header)) return true;
-                        break;
-
-                    case kProtocols::kKernelParameters:
-                        if (_transport_layer.ReadData(kernel_parameters)) return true;
                         break;
 
                     default:

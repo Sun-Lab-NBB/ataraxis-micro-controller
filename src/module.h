@@ -95,20 +95,10 @@ class Module
          * each instance of the same module family (class) used as part of the same runtime.
          * @param communication The shared Communication instance used to bidirectionally communicate with the PC
          * during runtime.
-         * @param dynamic_parameters The shared DynamicRuntimeParameters structure that stores the global runtime
-         * parameters shared by all library assets.
          *
          */
-        Module(
-            const uint8_t module_type,
-            const uint8_t module_id,
-            Communication& communication,
-            const DynamicRuntimeParameters& dynamic_parameters
-        ) :
-            _module_type(module_type),
-            _module_id(module_id),
-            _communication(communication),
-            _dynamic_parameters(dynamic_parameters)
+        Module(const uint8_t module_type, const uint8_t module_id, Communication& communication) :
+            _module_type(module_type), _module_id(module_id), _communication(communication)
         {}
 
         // CORE METHODS.
@@ -298,9 +288,9 @@ class Module
         virtual bool SetCustomParameters() = 0;
 
         /**
-         * @brief Executes the instance method associated with the currently active command.
+         * @brief Executes the instance method associated with the active command.
          *
-         * @note This method should translate the currently active command returned by the GetActiveCommand()
+         * @note This method should translate the active command returned by the GetActiveCommand()
          * method inherited from the base Module class into the call to the command-specific method that executes the
          * command's logic.
          *
@@ -308,12 +298,12 @@ class Module
          * was recognized and matched to the appropriate method call. The called method should use the inherited
          * SendData() method to report command runtime status to the PC.
          *
-         * @returns bool @b true if the currently active module command was matched to a specific custom method and @b
+         * @returns bool @b true if the active module command was matched to a specific custom method and @b
          * false otherwise.
          *
          * Example method implementation:
          * @code
-         * uint8_t active_command = GetActiveCommand();  // Returns the code of the currently active command.
+         * uint8_t active_command = GetActiveCommand();  // Returns the code of the active command.
          *
          * // Matches the active command to the appropriate method call.
          * switch (active_command) {
@@ -325,7 +315,7 @@ class Module
          *      if (success) command_3();
          *      return true;
          *  default:
-         *      // The only case for returning 'false' should be not recognizing the command code.
+         *      // If the command is not recognized, returns 'false'
          *      return false;
          * }
          * @endcode
@@ -364,40 +354,28 @@ class Module
         virtual ~Module() = default;
 
     protected:
-        /// Stores the byte-code for the type (family) of the module. All modules in the family share the same type
-        /// code.
+        /// Stores the instance's type (family) identifier code.
         const uint8_t _module_type;
 
-        /// Stores the ID byte-code of the specific module instance. This code has to be unique within the same module
-        /// family.
+        /// Stores the instance's unique identifier code.
         const uint8_t _module_id;
 
-        /// Combines type and id byte-codes into a single uint16 value that is expected to be unique for each module
-        /// instance active at the same time (across all module types).
+        /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
+        /// active at the same time.
         const uint16_t _module_type_id = _module_type << 8 | _module_id;
 
-        /// A reference to the shared instance of the Communication class. This class is used to send module runtime
-        /// data to the PC.
+        /// The Communication instance used to send module runtime data to the PC.
         Communication& _communication;
 
-        /// A reference to the shared instance of the DynamicRuntimeParameters structure. This structure stores
-        /// PC-addressable runtime parameters used to broadly alter controller behavior. For example, this
-        /// structure dynamically enables or disables output pin activity.
-        const DynamicRuntimeParameters& _dynamic_parameters;
-
         // UTILITY METHODS.
-        // These methods are designed to help developers with writing custom module classes. They are not accessed by
+        // These methods are designed to help end users with writing custom module classes. They are not accessed by
         // the Kernel class and are not required for integrating the custom module with the rest of the library. It is
-        // highly recommended to only access inherited (base) Module properties and attributes through these utility
-        // methods however, as it adds an extra layer of security.
+        // highly recommended to use these utility methods where appropriate, as they are required for the custom
+        // modules to support the full range of features provided by the library, such as non-blocking module command
+        // execution.
 
         /**
-         * @brief Returns the code of the currently active (running) command.
-         *
-         * If there are no active commands, the returned code will be 0.
-         *
-         * @note Use this method when implementing RunActiveCommand() virtual method to learn the code of the command
-         * that needs to be executed.
+         * @brief Returns the active (running) command's code or 0, if there are no active commands.
          */
         [[nodiscard]]
         uint8_t GetActiveCommand() const
@@ -405,58 +383,35 @@ class Module
             return execution_parameters.command;
         }
 
-        /// This method terminates the currently active command and ensures it will not run again if it is recurrent.
-        /// Use this method to abort the runtime of a command that runs into an error that is likely not recoverable to
-        /// ensure the command does not run again.
+        /**
+         * @brief Terminates the active command (if any).
+         *
+         * If the aborted command is a recurrent command, the method resets the command queue to ensure that the
+         * command is not reactivated until it is re-queued from the PC.
+         */
         void AbortCommand()
         {
-            // Ensures the failed command is cleared from the recurrent queue. If the new_command flag is true,
-            // this indicates that the current command will be replaced with a new command anyway, so clearing
-            // the recurrent activation is not necessary.
+            // Only resets the command queue if there is no other command to replace the currently executed command when
+            // it is completed.
             if (!execution_parameters.new_command) ResetCommandQueue();
             CompleteCommand();  // Finishes the command execution and sends the completion message to the PC.
         }
 
         /**
-         * @brief Resets the timer that tracks the delay between active command stages.
+         * @brief Advances the stage of the currently executed command.
          *
-         * This timer is primarily used by methods that block for a period of time or until an external trigger is
-         * encountered. This method resets the timer to 0. It is called automatically when AdvanceCommandStage() method
-         * is called, but it is also exposed as a separate method for user convenience.
-         *
-         * @warning This method should be called each time before advancing the command stage. Calling
-         * AdvanceCommandStage() method automatically calls this method. If this method is not called when advancing
-         * command stage, it is very likely that the controller will behave unexpectedly!
-         */
-        void ResetStageTimer()
-        {
-            execution_parameters.delay_timer = 0;
-        }
-
-        /**
-         * @brief Advances the execution stage of the active (running) command.
-         *
-         * This method should be used by noblock-compatible commands to properly advance the command execution stage
-         * where necessary. It modifies the stage tracker field inside the Module's execution_parameters structure by
-         * 1 each time this method is called.
-         *
-         * @note Calling this method also resets the stage timer to 0. Therefore, this method aggregates all steps
-         * necessary to properly advance executed command stage and should be used over manually changing command flow
-         * trackers where possible.
+         * As part of its runtime, the method also resets the stage delay timer, making it a one-stop solution
+         * for properly transitioning between command stages.
          */
         void AdvanceCommandStage()
         {
             execution_parameters.stage++;
-            ResetStageTimer();  // Also resets the stage delay timer
+            execution_parameters.delay_timer = 0;
         }
 
         /**
-         * @brief Returns the execution stage of the active (running) command.
-         *
-         * This method should be used by noblock-compatible commands to retrieve the current execution stage of the
-         * active command.
-         *
-         * @warning This method returns 0 if there is no actively executed command. 0 is not a valid stage number!
+         * @brief Returns the execution stage of the active (running) command or 0, if there are no active
+         * commands.
          */
         [[nodiscard]]
         uint8_t GetCommandStage() const
@@ -469,17 +424,14 @@ class Module
         }
 
         /**
-         * @brief Completes (ends) the currently active (running) command execution.
+         * @brief Completes (ends) the active (running) command's execution.
          *
-         * This method should only be called when the command method completes everything it sets out to do. For noblock
-         * commands, the microcontroller may need to loop through the command method multiple times before it reaches
-         * the algorithmic endpoint. In this case, the call to this method should be protected by an 'if' statement that
-         * ensures it is only called when the command has finished it's work (the command stage reached the necessary
-         * endpoint).
+         * @warning Only call this method when the command has completed everything it needed to do. To transition
+         * between the stages of the same command, use the AdvanceCommandStage() method instead.
          *
-         * @warning It is essential that this method is called at the end of every command function to allow executing
-         * other commands. Failure to do so can completely deadlock the Module and, in severe cases, the whole
-         * Microcontroller.
+         * @note It is essential that this method is called at the end of every command's method (function) to allow
+         * executing other commands. Failure to do so can completely deadlock the Module and, in severe cases, the
+         * entire Microcontroller.
          */
         void CompleteCommand()
         {
@@ -507,12 +459,11 @@ class Module
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified analog pin.
          *
-         * @param pin The number (id) of the analog pin to read.
-         * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
+         * @param pin The analog pin to read.
+         * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
-         * @returns uint16_t value of the analog sensor. The actual resolution of the returned signal value depends on
-         * teh microcontroller's ADC resolution parameter.
+         * @returns uint16_t The read analog value.
          */
         static uint16_t AnalogRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
@@ -528,8 +479,7 @@ class Module
             {
                 uint32_t accumulated_readouts = 0;  // Aggregates polled values by self-addition
 
-                // If averaging is enabled, repeatedly polls the pin the requested number of times. 'i' always uses
-                // the same type as pool_size.
+                // If averaging is enabled, repeatedly polls the pin the requested number of times.
                 for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
                 {
                     accumulated_readouts += analogRead(pin);  // Aggregates readouts
@@ -547,21 +497,17 @@ class Module
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified digital pin.
          *
-         * @note Digital readout averaging is primarily helpful for controlling jitter and backlash noise.
-         *
-         * @param pin The number (id) of the digital pin to read.
-         * @param pool_size The number of pin readout values to average into the final readout. Set to 0 or 1 to
+         * @param pin The digital pin to read.
+         * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
-         * @returns the value of the pin as @b true (HIGH) or @b false (LOW).
+         * @returns bool The read digital value as @b true (HIGH) or @b false (LOW).
          */
         static bool DigitalRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
             bool digital_readout;  // Pre-declares the final output readout
 
-            // Reads the physical sensor value. Optionally uses averaging as a means of debouncing the digital signal.
-            // Generally, this is a built-in hardware feature for many boards, but the logic is maintained here for
-            // backward compatibility. Pool size 0 and 1 essentially mean no averaging.
+            // Reads the physical sensor value.
             if (pool_size < 2)
             {
                 digital_readout = digitalReadFast(pin);
@@ -587,21 +533,15 @@ class Module
         }
 
         /**
-         * @brief Checks if the input duration of microseconds has passed since the module's delay_timer has been reset.
+         * @brief Delays the active command execution for the requested number of microseconds.
          *
-         * Depending on execution configuration, the method can block in-place until the escape duration has passed or
-         * function as a non-blocking check for whether the required duration of microseconds has passed
-         * (for noblock runtimes).
+         * @warning The delay is timed relative to the last command's execution stage advancement.
          *
-         * @note The delay_timer can be reset by calling ResetStageTimer() method. The timer is also reset whenever
-         * AdvanceCommandStage() method is called. Overall, the delay is intended to be relative to the onset of the
-         * current command execution stage.
+         * @note Depending on the active command's configuration, the method can block in-place until the
+         * delay has passed or function as a non-blocking check for whether the required duration of microseconds has
+         * passed.
          *
-         * @param delay_duration The duration, in @em microseconds the method should delay / check for.
-         *
-         * @returns bool @b true if the delay has been successfully enforced (either via blocking or checking) and
-         * @b false in all other cases. If the elapsed duration equals to the delay_duration, this is considered a
-         * passing condition.
+         * @param delay_duration The delay duration, in microseconds.
          */
         [[nodiscard]]
         bool WaitForMicros(const uint32_t delay_duration) const
@@ -626,115 +566,37 @@ class Module
         }
 
         /**
-         * @brief Sets the input digital pin to the specified value (High or Low).
+         * @brief Packages and sends the provided event_code and data object to the PC.
          *
-         * This utility method is used to control the value of a digital pin configured to output a constant High or Low
-         * level signal. Internally, the method checks for appropriate output locks, based on the pin type, before
-         * setting its value.
-         *
-         * @param pin The number (id) of the digital pin to interface with.
-         * @param value The boolean value to set the pin to.
-         * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
-         * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
-         * applicable, either of these parameters prevents changing the pin output value.
-         *
-         * @returns bool @b true if the pin has been set to the requested value and @b false if the pin is locked and
-         * has not been set.
-         */
-        [[nodiscard]]
-        bool DigitalWrite(const uint8_t pin, const bool value, const bool ttl_pin) const
-        {
-            // If the appropriate lock parameter for the pin is enabled, returns false to indicate that the pin is
-            // locked.
-            if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
-                return false;
-
-            // If the pin is not locked, sets it to the requested value and returns true to indicate tha the pin was
-            // triggered successfully.
-            digitalWriteFast(pin, value);
-            return true;
-        }
-
-        /**
-         * @brief Sets the input analog pin to the specified duty-cycle value (from 0 to 255).
-         *
-         * This utility method is used to control the value of an analog pin configured to output a PWM-pulse with the
-         * defined duty cycle from 0 (off) to 255 (always on). Internally, the method checks for appropriate output
-         * locks, based on the pin type, before setting its value.
-         *
-         * @note Currently, the method only supports standard 8-bit resolution to maintain backward-compatibility with
-         * AVR boards. In the future, this may be adjusted.
-         *
-         * @param pin The number (id) of the analog pin to interface with.
-         * @param value The duty cycle value from 0 to 255 that controls the proportion of time during which the pin
-         * is HIGH. Note, the exact meaning of each duty-cycle step depends on the clock that is used to control the
-         * analog pin cycling behavior.
-         * @param ttl_pin Determines whether the pin is used to drive hardware actions or for TTL communication. This
-         * is necessary to resolve whether action_lock or ttl_lock dynamic runtime parameters apply to the pin. When
-         * applicable, either of these parameters prevents changing the pin output value.
-         *
-         * @returns bool @b true if the pin has been set to the requested value and @b false if the pin is locked and
-         * has not been set.
-         */
-        [[nodiscard]]
-        bool AnalogWrite(const uint8_t pin, const uint8_t value, const bool ttl_pin) const
-        {
-            // If the appropriate lock parameter for the pin is enabled, ensures that the pin is set to 0
-            // (constantly off) and returns the current value of the pin (0).
-            if ((ttl_pin && _dynamic_parameters.ttl_lock) || (!ttl_pin && _dynamic_parameters.action_lock))
-                return false;
-
-            // If the pin is not locked, sets it to the requested value and returns the new value of the pin.
-            analogWrite(pin, value);
-            return true;
-        }
-
-        /**
-         * @brief Packages and sends the provided event_code and data object to the PC via the Communication class
-         * instance.
-         *
-         * This method simplifies sending data through the Communication class by automatically resolving most of the
-         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
-         * the necessary data. In turn, this allows custom module developers to focus on custom module code, abstracting
-         * away interaction with the Communication class.
-         *
-         * @note It is highly recommended to use this method for sending data to the PC instead of using the
-         * Communication class directly. If the data you are sending does not need a data object, use the overloaded
-         * version of this method that only accepts the event_code to send.
+         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
+         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
+         * than the data-containing version.
          *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
-         * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
-         * this method to avoid interference!
+         * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
+         * using this method to avoid interference!
          *
-         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
-         * automatically by the template constructor.
-         * @param event_code The byte-code specifying the event that triggered the data message.
-         * @param prototype The prototype byte-code specifying the structure of the data object. Currently, all data
-         * objects have to use one of the supported prototype structures. If you need to add additional prototypes,
-         * modify the kPrototypes enumeration available from the axmc_communication_assets namespace.
-         * @param object Additional data object to be sent along with the message. The structure of the object has to
-         * match the object structure declared by the prototype code for the PC to deserialize the object.
+         * @tparam ObjectType The type of the data object to be sent along with the message.
+         * @param event_code The event that triggered the data transmission.
+         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
+         * enumeration members.
+         * @param object The data object to be sent along with the message.
          */
         template <typename ObjectType = void>
-        void SendData(
-            const uint8_t event_code,
-            const axmc_communication_assets::kPrototypes prototype,
-            const ObjectType& object
-        )
+        void SendData(const uint8_t event_code, const kPrototypes prototype, const ObjectType& object)
         {
-            // Packages and sends the data to the connected system via the Communication class
-            const bool success = _communication.SendDataMessage(
-                _module_type,
-                _module_id,
-                execution_parameters.command,
-                event_code,
-                prototype,
-                object
-            );
-
-            // If the message was sent, ends the runtime
-            if (success) return;
+            // Packages and sends the data to the connected system via the Communication class. If the message was sent,
+            // ends the runtime
+            if (_communication.SendDataMessage(
+                    _module_type,
+                    _module_id,
+                    execution_parameters.command,
+                    event_code,
+                    prototype,
+                    object
+                ))
+                return;
 
             // If the message was not sent, calls a method that attempts to send a communication error message to the
             // PC and turns on the built-in LED to visually indicate the error.
@@ -747,21 +609,19 @@ class Module
         }
 
         /**
-         * @brief Packages and sends the provided event_code to the PC via the Communication class instance.
+         * @brief Packages and sends the provided event code to the PC.
          *
-         * This method overloads the SendData() method to optimize transmission in cases where there is no additional
-         * data to include with the state event-code.
+         * This method overloads the SendData() method to optimize transmitting messages that only need to communicate
+         * the event.
          *
-         * @param event_code The byte-code specifying the event that triggered the data message.
+         * @param event_code The code of the event that triggered the data transmission.
          */
         void SendData(const uint8_t event_code) const
         {
-            // Packages and sends the data to the connected system via the Communication class
-            const bool success =
-                _communication.SendStateMessage(_module_type, _module_id, execution_parameters.command, event_code);
-
-            // If the message was sent, ends the runtime
-            if (success) return;
+            // Packages and sends the data to the connected system via the Communication class. If the message was
+            // sent, ends the runtime
+            if (_communication.SendStateMessage(_module_type, _module_id, execution_parameters.command, event_code))
+                return;
 
             // If the message was not sent, calls a method that attempts to send a communication error message to the
             // PC and turns on the built-in LED to visually indicate the error.
@@ -774,13 +634,12 @@ class Module
         }
 
         /**
-         * @brief Updates the memory of the provided object with the new PC-addressable runtime parameter data
-         * received from the PC.
+         * @brief Unpacks the instance's runtime parameters received from the PC into the specified storage object.
          *
-         * @tparam ObjectType The type of the storage_object. This is inferred automatically by the template
-         * constructor.
-         * @param storage_object The object used to store PC-addressable custom runtime parameters.
-         * @return @bool True if the parameters were successfully extracted, false otherwise.
+         * @tparam ObjectType The type of the object used to store the PC-addressable module's parameters.
+         * @param storage_object The object used to store the PC-addressable module's parameters.
+         *
+         * @return @bool True if the parameters were successfully unpacked, false otherwise.
          */
         template <typename ObjectType>
         bool ExtractParameters(ObjectType& storage_object)

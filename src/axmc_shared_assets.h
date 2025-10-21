@@ -36,27 +36,6 @@ namespace axmc_shared_assets
         kParametersExtracted = 60,  ///< Parameter data has been successfully extracted.
         kExtractionForbidden = 61,  ///< Attempted to extract parameters from the message other than ModuleParameters.
     };
-
-    /**
-     * @struct DynamicRuntimeParameters
-     * @brief Stores global runtime parameters shared by all library assets and addressable through the Kernel instance.
-     *
-     * These parameters broadly affect the runtime behavior of all Module-derived instances. These parameters are
-     * dynamically configured using the data transmitted from the PC.
-     *
-     * @warning The @b only class allowed to modify this structure is the Kernel. End users should never modify the
-     * elements of this structure from any custom classes.
-     */
-    struct DynamicRuntimeParameters
-    {
-            /// Determines whether the library is allowed to change the output state of the hardware pins that control
-            /// the 'actor' hardware modules.
-            bool action_lock = true;
-
-            /// Determines whether the library is allowed to change the output state of the hardware pins that control
-            /// the 'ttl' (communication) hardware modules.
-            bool ttl_lock = true;
-    } PACKED_STRUCT;
 }  // namespace axmc_shared_assets
 
 /**
@@ -94,30 +73,27 @@ namespace axmc_communication_assets
         /// Used by Module-addressed parameter messages.
         kModuleParameters = 5,
 
-        /// Used by Kernel-addressed parameter messages.
-        kKernelParameters = 6,
-
         /// Used by Module data or error messages that include an arbitrary data object in addition to the event
         /// state-code.
-        kModuleData = 7,
+        kModuleData = 6,
 
         /// Used by Kernel data or error messages that include an arbitrary data object in addition to event state-code.
-        kKernelData = 8,
+        kKernelData = 7,
 
         /// Used by Module data or error messages that only include the state-code.
-        kModuleState = 9,
+        kModuleState = 8,
 
         /// Used by Kernel data or error messages that only include the state-code.
-        kKernelState = 10,
+        kKernelState = 9,
 
         /// Used to acknowledge the reception of command and parameter messages.
-        kReceptionCode = 11,
+        kReceptionCode = 10,
 
         /// Used to identify the host-microcontroller to the PC.
-        kControllerIdentification = 12,
+        kControllerIdentification = 11,
 
         /// Used to identify the hardware module instances managed by a Kernel instance to the PC.
-        kModuleIdentification = 13,
+        kModuleIdentification = 12,
     };
 
     /**
@@ -465,19 +441,6 @@ namespace axmc_communication_assets
 
             /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
             uint8_t return_code = 0;
-    } PACKED_STRUCT;
-
-    /**
-     * @struct KernelParameters
-     * @brief Instructs the Kernel to update the shared DynamicRuntimeParameters object with the included data.
-     */
-    struct KernelParameters
-    {
-            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
-            uint8_t return_code = 0;
-
-            /// The DynamicRuntimeParameters structure that stored the updated parameters.
-            axmc_shared_assets::DynamicRuntimeParameters dynamic_parameters;
     } PACKED_STRUCT;
 
     /**

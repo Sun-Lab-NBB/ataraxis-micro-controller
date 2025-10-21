@@ -352,27 +352,6 @@ void TestReceiveMessage()
     TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_parameters_header.return_code);  // Check return_code
 
     mock_port.reset();  // Resets the mock port
-
-    // Verifies KernelParameters reception.
-    uint8_t test_buffer_6[10] = {129, 4, 0, 6, 1, 0, 1, 0, 0, 0};
-
-    // Packages test message data into the mock reception buffer.
-    cobs_class.EncodePayload(test_buffer_6);
-    crc_class.CalculateChecksum<false>(test_buffer_6);
-    for (size_t i = 0; i < sizeof(test_buffer_6); ++i)
-    {
-        mock_port.rx_buffer[i] = static_cast<int16_t>(test_buffer_6[i]);
-    }
-
-    // Receives and verifies message data.
-    comm_class.ReceiveMessage();
-    TEST_ASSERT_EQUAL_UINT8(
-        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
-        comm_class.communication_status
-    );
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_parameters.return_code);            // Check return_code
-    TEST_ASSERT_FALSE(comm_class.kernel_parameters.dynamic_parameters.action_lock);  // Check action_lock
-    TEST_ASSERT_TRUE(comm_class.kernel_parameters.dynamic_parameters.ttl_lock);      // Check ttl_lock
 }
 
 // Tests the error-handling behavior of the Communication's ReceiveMessage() method.
