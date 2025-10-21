@@ -64,7 +64,7 @@ class Module
 
         /**
          * @enum kCoreStatusCodes
-         * @brief Stores the status codes used to communicate the states and errors encountered during the shared API
+         * @brief Defines the status codes used to communicate the states and errors encountered during the shared API
          * method runtimes.
          *
          * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
@@ -95,7 +95,6 @@ class Module
          * each instance of the same module family (class) used as part of the same runtime.
          * @param communication The shared Communication instance used to bidirectionally communicate with the PC
          * during runtime.
-         *
          */
         Module(const uint8_t module_type, const uint8_t module_id, Communication& communication) :
             _module_type(module_type), _module_id(module_id), _communication(communication)
