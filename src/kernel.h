@@ -184,21 +184,15 @@ class Kernel
         /**
          * @brief Carries out a single runtime cycle.
          *
-         * During each runtime cycle, the class first receives and processes all messages stored in the serial interface
-         * reception buffer. All messages other than Module-targeted commands are processed and handled immediately.
+         * During each runtime cycle, the instance first receives and processes all messages sent from the PC. All
+         * messages other than commands addressed to the managed hardware modules are processed and handled immediately.
          * For example, Kernel-addressed commands are executed as soon as they are received. Module-addressed commands
          * are queued for execution and are executed after all available data is received and parsed.
          *
-         * Once all data is received, the method loops over managed modules and attempts to execute one command stage
-         * for each module. This design pattern ensures that PC communication takes precedence over executing local
-         * commands.
+         * Once all data is received, the method loops over managed modules and executes one command execution stage
+         * for each module.
          *
-         * @warning This method has to be repeatedly called from the loop() function of the main.cpp / main.ino file.
-         * It aggregates all necessary steps to operate the microcontroller through the centralized PC interface.
-         *
-         * @attention This method has to be called after calling the Setup() method. If it is called before the setup,
-         * the microcontroller will cycle LED HIGH/LOW signal to indicate setup error and will not respond to any
-         * further commands until it is reset via power cycling or firmware reupload.
+         * @note This method has to be repeatedly called as part of the main loop() function.
          */
         void RuntimeCycle()
         {
@@ -206,8 +200,8 @@ class Kernel
             // fails setup, it bricks the controller until the firmware is reset.
             static bool once = true;
 
-            // If the Setup method was not called, sets up the built-in LED control via Kernel-specific setup sequence
-            // known to not be fail-prone. This is only done once
+            // If the Setup method was not called, sets up the built-in LED control via the Kernel-specific setup
+            // sequence known to be fail-prone. This is only done once.
             if (!_setup_complete && once)
             {
                 SetupKernel();
@@ -215,7 +209,7 @@ class Kernel
             }
 
             // If the method is called before the Setup() method, instead of normal runtime continuously blinks the
-            // LED to visually communicate SetUp error to the user.
+            // LED to visually communicate setup error to the user.
             if (!_setup_complete)
             {
                 digitalWriteFast(LED_BUILTIN, HIGH);  // Turns the LED on
@@ -372,7 +366,8 @@ class Kernel
                     _keepalive_interval
                 );
 
-                // Resets the microcontroller runtime to default parameters.
+                // Resets the microcontroller runtime to default parameters, effectively clearing all command buffers
+                // and hardware states.
                 Setup();
             }
         }
@@ -405,17 +400,10 @@ class Kernel
         bool _setup_complete = false;
 
         /**
-         * @brief Attempts to receive (parse) a message from the data contained in the serial interface reception
-         * buffer.
+         * @brief If a message sent from the PC is available for reception, decodes it into the Communication's
+         * reception buffer.
          *
-         * The RuntimeCycle method repeatedly calls this method until it returns an undefined protocol code (0).
-         *
-         * @attention This method automatically attempts to send error messages to the PC if it runs into errors. It
-         * also activates the built-in LED to visually communicate encountered runtime errors. Do not use the
-         * LED-connected pin in your code when using this class.
-         *
-         * @returns The byte-code of the protocol used by the received message or 0 to indicate no valid message was
-         * received.
+         * @returns The protocol code of the received message or 0 to indicate that no valid message was received.
          */
         [[nodiscard]]
         uint8_t ReceiveData() const
@@ -429,7 +417,7 @@ class Kernel
             // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
             // an error and should be handled as a valid 'no need to do anything' case.
             if (_communication.communication_status !=
-                static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kNoBytesToReceive))
+                static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive))
             {
                 // For legitimately failed runtimes, sends an error message to the PC.
                 _communication.SendCommunicationErrorMessage(
@@ -444,30 +432,22 @@ class Kernel
         }
 
         /**
-         * @brief Packages and sends the provided event_code and data object to the PC via the Communication class
-         * instance.
+         * @brief Packages and sends the provided event_code and data object to the PC.
          *
-         * This method simplifies sending data through the Communication class by automatically resolving most of the
-         * payload metadata. This method guarantees that the formed payload follows the correct format and contains
-         * the necessary data.
-         *
-         * @note It is highly recommended to use this utility method for sending data to the connected system instead of
-         * using the Communication class directly. If the data you are sending does not need a data object, use the
-         * overloaded version of this method that only accepts the event_code to send.
+         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
+         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
+         * than the data-containing version.
          *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
-         * board to visually communicate encountered runtime error. Do not use the LED-connected pin or LED when using
-         * this method to avoid interference!
+         * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
+         * using this method to avoid interference!
          *
-         * @tparam ObjectType The type of the data object to be sent along with the message. This is inferred
-         * automatically by the template constructor.
-         * @param event_code The byte-code specifying the event that triggered the data message.
-         * @param prototype The prototype byte-code specifying the structure of the data object. Currently, all data
-         * objects have to use one of the supported prototype structures. If you need to add additional prototypes,
-         * modify the kPrototypes enumeration available from the communication_assets namespace.
-         * @param object Additional data object to be sent along with the message. The structure of the object has to
-         * match the object structure declared by the prototype code for the PC to deserialize the object.
+         * @tparam ObjectType The type of the data object to be sent along with the message.
+         * @param event_code The event that triggered the data transmission.
+         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
+         * enumeration members.
+         * @param object The data object to be sent along with the message.
          */
         template <typename ObjectType>
         void SendData(const uint8_t event_code, const kPrototypes prototype, const ObjectType& object)
@@ -475,7 +455,7 @@ class Kernel
             // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendDataMessage(kernel_command, event_code, prototype, object)) return;
 
-            // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
+            // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
                 kernel_command,
                 static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
@@ -483,53 +463,52 @@ class Kernel
         }
 
         /**
-         * @brief Packages and sends the provided event_code to the PC via the Communication class instance.
+         * @brief Packages and sends the provided event code to the PC.
          *
-         * This method overloads the SendData() method to optimize transmission in cases where there is no additional
-         * data to include with the state event-code.
+         * This method overloads the SendData() method to optimize transmitting messages that only need to communicate
+         * the event.
          *
-         * @param event_code The byte-code specifying the event that triggered the data message.
+         * @param event_code The code of the event that triggered the data transmission.
          */
         void SendData(const uint8_t event_code) const
         {
             // Packages and sends the state message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendStateMessage(kernel_command, event_code)) return;
 
-            // Otherwise, attempts sending a communication error to the PC and activates the LED indicator.
+            // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
                 kernel_command,
                 static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
 
-        /// Sends the ID code of the managed controller to the PC. This is used to identify specific controllers
-        /// connected to different PC USB ports. If data sending fails, attempts sending a communication error and
-        /// activates the LED indicator.
+        /**
+         * @brief Sends the unique identifier code of the microcontroller that uses this Kernel instance to the PC.
+         */
         void SendControllerID() const
         {
-            // Packages and sends the service message to the PC. If the message was sent, ends the runtime
             _communication.SendServiceMessage<kProtocols::kControllerIdentification>(_controller_id);
         }
 
-        /// Loops over all managed modules and sends the combined type+id code of each managed module to the PC. Since
-        /// each type+id combination has to be unique for a correctly configured microcontroller, the PC uses this
-        /// information to ensure the MicroControllerInterface and the Microcontroller are configured appropriately.
-        /// If data sending fails, attempts sending a communication error and activates the LED indicator.
+        /**
+         * @brief Sequentially sends the combined type and ID code for each hardware module instance managed by this
+         * Kernel instance to the PC.
+         */
         void SendModuleTypeIDs() const
         {
             for (size_t i = 0; i < _module_count; ++i)
             {
-                // Packages and sends the service message to the PC.
                 _communication.SendServiceMessage<kProtocols::kModuleIdentification>(_modules[i]->GetModuleTypeID());
             }
         }
 
-        /// Sends the input reception_code to the PC. This is used to acknowledge the reception of PC-sent Command and
-        /// Parameter messages. If data sending fails, attempts sending a communication error and activates the
-        /// LED indicator.
+        /**
+         * @brief Sends the input reception code to the PC.
+         *
+         * @param reception_code The reception code received as part of an incoming message sent from the PC.
+         */
         void SendReceptionCode(const uint8_t reception_code) const
         {
-            // Packages and sends the service message to the PC. If the message was sent, ends the runtime
             _communication.SendServiceMessage<kProtocols::kReceptionCode>(reception_code);
         }
 
@@ -548,11 +527,11 @@ class Kernel
         }
 
         /**
-         * @brief Determines and executes the requested Kernel command received from the PC.
+         * @brief Resolves and calls the method associated with the currently active Kernel command.
          */
         void RunKernelCommand()
         {
-            // Resolves and executes the specific command code communicated by the message:
+            // Resolves and executes the specific requested command
             kernel_command = _communication.kernel_command.command;
             switch (static_cast<kKernelCommands>(kernel_command))
             {
@@ -563,8 +542,10 @@ class Kernel
                 case kKernelCommands::kIdentifyModules: SendModuleTypeIDs(); return;
 
                 case kKernelCommands::kKeepAlive:
-                    // Prevents enabling the keepalive tracking if the interval is set to 0
+                    // If necessary, activates the keepalive tracking. Prevents enabling the keepalive tracking if the
+                    // interval is set to 0.
                     if (!_keepalive_enabled && _keepalive_interval > 0) _keepalive_enabled = true;
+
                     // Resets the keepalive interval tracker in-place
                     _since_previous_keepalive = 0;
                     return;
@@ -576,15 +557,16 @@ class Kernel
         }
 
         /**
-         * @brief Loops through the managed modules and attempts to find the module addressed by the input type and id
-         * codes.
+         * @brief Finds the managed hardware module instance addressed by the input type and id codes.
          *
-         * @param target_type: The type (family) of the addressed module.
-         * @param target_id The ID of the specific module within the target_type family.
+         * @note If this method is unable to resolve the target module, it automatically sends an error message to the
+         * PC in addition to returning the '-1' error code.
+         *
+         * @param target_type: The type (family) identifier of the addressed module.
+         * @param target_id The unique identifier of the addressed module.
          *
          * @return A non-negative integer representing the index of the module in the array of managed modules if the
-         * addressed module is found. A '-1' value if the target module was not found. Additionally, sends an error
-         * message to the PC if it fails to find the target module.
+         * addressed module is found. A '-1' value if the target module was not found.
          */
         int16_t ResolveTargetModule(const uint8_t target_type, const uint8_t target_id)
         {
@@ -606,11 +588,7 @@ class Kernel
         }
 
         /**
-         * @brief Loops over all managed modules and for each attempts to resolve and execute a command.
-         *
-         * This method first determines whether there is a command to run and, if there is, calls the API method that
-         * instructs the module to run the logic that matches the active command code. If the module does not recognize
-         * the active command, instructs it to send an error message to the PC.
+         * @brief Resolves and, if necessary, executes the active command for each managed hardware module.
          */
         void RunModuleCommands() const
         {
@@ -624,7 +602,7 @@ class Kernel
                 // cycles and speed up looping through modules.
                 if (!_modules[i]->ResolveActiveCommand()) continue;
 
-                // If RunActiveCommand is implemented properly, it will return 'true' if it matches the active command
+                // If RunActiveCommand is implemented properly, it returns 'true' if it matches the active command
                 // code to the method to execute and 'false' otherwise. If the method returns 'false', the Kernel calls
                 // an API method to send a predetermined error message to the PC.
                 if (!_modules[i]->RunActiveCommand()) _modules[i]->SendCommandActivationError();

@@ -366,10 +366,17 @@ class Communication
                 "uint32_t service codes are supported."
             );
 
-            // Packages hte input protocol code and the service code into the transmission buffer.
+            // Packages the input protocol code and the service code into the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(static_cast<uint8_t>(protocol))) success = false;
             if (success && !_transport_layer.WriteData(service_code)) success = false;
+
+            // If serializing the message and the data payload fails, breaks the runtime with an error status.
+            if (!success)
+            {
+                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
+                return false;
+            }
 
             // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
