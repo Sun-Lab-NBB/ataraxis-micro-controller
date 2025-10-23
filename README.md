@@ -210,39 +210,41 @@ waits for the delay to expire.
 microcontrollers that have a very high CPU clock speed. Additionally, to support non-blocking runtimes, all 
 modules used at the same time must support non-blocking execution for all commands. Overall, the decision of whether to
 use the non-blocking mode often requires practical testing under the intended runtime conditions and may not be optimal
-for certain runtime conditions.
+for certain use cases.
 
-**Note!** While this library only supports non-blocking execution for time-based delays natively, skilled users can 
+**Note!** While this library only supports non-blocking execution for time-based delays natively, advanced users can 
 follow the same design principles to implement non-blocking sensor-based delays when implementing custom command logic.
 
 #### Virtual methods
-These methods link custom logic of each hardware module with the rest of the library API. Thy are called by the Kernel 
-class and allow it to manage the runtime behavior of the module, regardless of the specific implementation of each 
-module. This is what makes the library work with any hardware module design.
+These methods provide the inherited API that integrates any custom hardware module with the centralized control 
+interface running on the companion host-computer (PC). Specifically, the Kernel calls these methods during runtime to 
+interface with each managed module instance.
 
 #### SetCustomParameters
-This method enables the Kernel to unpack and save the module’s runtime parameters, when new values for these parameters
-are received from the PC.
+This method enables the Kernel to unpack and save the module’s runtime parameters, when updated parameter values are 
+received from the PC. The primary purpose of this virtual method is to tell the Kernel where to unpack the module’s
+parameter data.
 
-Usually, this method can be implemented with 1 line of code:
+For most use cases, the method can be implemented with a single call to the ExtractParameters() utility method 
+inherited from the base Module class:
 ```
 bool SetCustomParameters() override
 {
     return ExtractParameters(parameters);  // Unpacks the received parameter data into the storage object
 }
 ```
-The `parameters` object can be any valid C++ object used for storing PC-addressable parameters, such as a structure or 
-array. `ExtractParameters` is a utility method inherited from the base Module class, which reads the data transmitted 
-from the PC and uses it to overwrite the memory of the provided object. Essentially, the core purpose of this virtual 
-method is to tell the Kernel where to unpack the parameter data.
+
+The `parameters` object is typically a structure that stores the instance’s PC-addressable runtime parameters. 
+The `ExtractParameters()` utility method, reads the data received from the PC and uses it to overwrite the memory of 
+the provided object.
 
 ### RunActiveCommand
-This method allows the Kernel to execute the managed module’s logic in response to receiving module-addressed commands 
+This method enables the Kernel to execute the managed module’s logic in response to receiving module-addressed commands 
 from the PC. Specifically, the Kernel receives and queues the commands to be executed and then calls this method for 
-each managed module. The method has to retrieve the code of the currently active command, match it to custom command 
-logic, and call the necessary function(s).
+each managed module to run the queued command’s logic. The primary purpose of this method is to translate the active 
+command code into the call to the command’s logic method.
 
-There are many ways for implementing this method, but we use a simple switch statement for this demonstration:
+For most use cases, this method can be implemented with a simple switch statement:
 ```
 switch (static_cast<kCommands>(GetActiveCommand()))
 {
@@ -258,21 +260,24 @@ switch (static_cast<kCommands>(GetActiveCommand()))
     default: return false;  // Notifies the Kernel that the command was not recognized
 }
 ```
-The switch uses `GetActiveCommand` method, inherited from the base Module class, to retrieve the code of the currently 
-active command. The Kernel assigns this command to the module for each runtime loop cycle. To simplify code 
-maintenance, we assume that all valid command codes are stored in an enumeration, in this case the `kCommands`. The 
-switch statement matches the command code to one of the valid commands, calls the function associated with each command,
-and returns `true`. Note, the method ***has*** to returns `true` if it recognized the command and return `false` if it
-did not. It does not matter if the command was executed successfully or not, the return of this method ***only*** 
-communicates whether the command was recognized or not.
+
+The switch uses the `GetActiveCommand()` method, inherited from the base Module class, to retrieve the code of the 
+currently active command. The Kernel assigns this command to the module for each runtime loop cycle. It is recommended 
+to use an enumeration to map valid command codes to meaningful names addressable in code, like it is done with the 
+`kCommands` enumeration in the demonstration above. The switch statement matches the command code to one of the valid 
+commands, calls the function associated with each command, and returns `true`. Note, the method ***has*** to returns 
+`true` if it recognized the command and return `false` if it did not. The return of this method ***only*** communicates 
+whether the command was recognized. It should ***not*** be used to track the runtime status (success / failure) of the 
+called command’s method.
 
 ### SetupModule
-This method allows the Kernel to set up the hardware and software for each managed module. This is done from the global
-`setup` function, which is executed by the Arduino and Teensy microcontroller after firmware reupload. This is also done
-in response to the PC requesting the controller to be reset to the default state.
+This method enables the Kernel to set up the hardware and software assets for each managed module instance. This is 
+done from the global `setup()` function, which is executed by the Arduino and Teensy microcontrollers after firmware 
+reupload. This is also done in response to the PC requesting the controller to be reset to the default state. The 
+primary purpose of this method is to initialize the hardware and software of each module instance to the state that 
+supports the runtime.
 
-Generally, this method would follow the same implementation guidelines as you would when writing the general 
-microcontroller `setup` function:
+The implementation of this method should follow the same guidelines as the general microcontroller `setup()` function:
 ```
 bool SetupModule() override
 {
@@ -289,83 +294,22 @@ bool SetupModule() override
     return true;
 }
 ```
-It is generally expected that the method will always return `true` and will not fail. However, to support certain 
-runtimes that need to be able to fail, the method supports returning `false` to notify the Kernel that the setup has 
-failed. If this method returns `false`, the Kernel will deadlock the microcontroller in the error state until you 
-reupload the firmware, as failing setup is considered one of the most severe error states the microcontroller can 
-encounter.
+
+It is recommended to implement the method in a way that always returns `true` and does not fail. However, to support 
+the runtimes that need to be able to fail, the method supports returning `false` to notify the Kernel that the setup has
+failed. If this method returns `false`, the Kernel deadlocks the microcontroller in the error state until the 
+microcontroller firmware is reuploaded to fix the setup error.
 
 ### Utility methods
-To further simplify implementing new custom hardware modules, the base Module class exposes a number of utility methods.
-These methods provide an easy-to-use API for accessing internal attributes and properties of the superclass, which 
-further abstracts the inner workings of the class, allowing the module developers to largely treat the library as a
-black box.
+To further simplify implementing custom hardware modules, the base Module class exposes a collection of utility methods.
+These methods provide an easy-to-use API for safely accessing internal attributes and properties of the superclass, 
+simplifying the interaction between the superclass (Module) and the custom logic of each hardware module that inherits 
+from the base class.
 
-Note, the list below only provides the names and brief descriptions for each utility method. Use the
-[API documentation](https://ataraxis-micro-controller-api-docs.netlify.app/) to get more information about each of 
-these methods.
-
-#### GetActiveCommand 
-Returns the byte-code of the currently active module command. Primarily, this method should be used to access the 
-active command code when implementing the `RunActiveCommand` virtual method.
-
-#### AbortCommand 
-Aborts the currently active command and, if it was queued to run again, clears it from queue. Use this method if your
-command logic runs into an error to immediately end its execution and ensure it is not executed again.
-
-#### ResetStageTimer
-Resets the internal timer used to delay module command execution. This method resets the timer used by `WaitForMicros` 
-method (see below). It is called automatically as part of the `AdvanceCommandStage` method. We strongly advise not 
-calling this method directly and to instead segregate each delay into a separate command stage, as showcased in our
-[TestModule](./examples/example_module.h) implementation.
-
-#### AdvanceCommandStage
-Increments the stage of the currently active command by one and resets the stage delay timer. This method has to be 
-called at the end of each multi-stage command to advance the stages. Failure to call this method may result in the 
-module or the whole controller getting stuck with infinitely executing the same command stage.
-
-#### GetCommandStage
-Returns the current stage number of the executed (active) command. Use this method when writing multi-stage command 
-logic to segregate the logic for each stage into separate blocks. See [TestModule](./examples/example_module.h) 
-implementation for examples.
-
-#### CompleteCommand
-Notifies the PC that the command has been completed and resets the active command tracker. It is essential to call this
-method when the command reaches its end point to notify the Kernel that the module has completed the command and is 
-ready to execute the next queued command. Failure to call this method may result in the module or the whole controller 
-getting stuck with infinitely executing the same command stage.
-
-#### AnalogRead
-Reads the value of the specified analog input pin. The method supports averaging multiple pin readouts to produce
-the final pin value. It returns the detected value in 'analog units' of the microcontroller, which depend on the 
-Analog-to-Digital-Converter resolution. Essentially, this method is the same as `analogRead` with an optional averaging 
-mechanism. It is safe to use `analogRead` directly if you do not need the averaging mechanism.
-
-#### DigitalRead
-Reads the value of the specified digital pin. This method functions similar to AnalogRead and can also average multiple 
-pin readouts. The method internally uses an efficient `digitalReadFast` library to speed up accessing the digital pin 
-state.
-
-#### WaitForMicros
-Delays further command execution for the requested number of microseconds. This method can operate in two modes, 
-**blocking** and **non-blocking**. The blocking mode behaves identical to the microsecond-precise `delay` method.
-The non-blocking mode works by checking whether the requested delay has passed since the last command stage timer 
-reset, which is done through `AdvanceCommandStage` or `ResetStageTimer` methods. If the delay has passed, the 
-method returns `true` and, if not, `false`. This method should be used to delay code execution in noblock-compatible 
-module commands to allow the Kernel to execute other modules’ commands while delaying. See 
-[TestModule](./examples/example_module.h) for an example of using this utility method to enable non-blocking execution.
-
-#### SendData
-Packages and sends the input data to the PC. There are two versions for this method accessible via overloading. The 
-first version only takes the 8-bit `state code` and is specialized for communicating module states. The second version 
-**also** takes in an 8-bit `prototype code` and a `data object` specified by that prototype. 
-
-Currently, we support sending scalars and arrays of up to 15 elements, made up of all supported scalar types: bool, 
-uint8-64, int8-64, float32-64. Generally, this range of supported objects should be enough for most conceivable 
-use cases. Note, not all supported prototypes may be available on lower-end microcontrollers, as they may be too
-large to fit inside the serial buffer of the microcontroller.
-
-See [TestModule](./examples/example_module.h) for the demonstration on how to use both versions.
+See the [API Documentation of the base Module class](#api-documentation) for the list of available (protected) Utility
+methods. Also, see the [TestModule](./examples/example_module.h) for the demonstration on how to use some of these 
+methods when implementing custom hardware module, most notably those relating to sending the data to the PC and using
+the stage-based command design pattern.
 
 ___
 
@@ -444,4 +388,5 @@ This project is licensed under the GPL3 License: see the [LICENSE](LICENSE) file
 - All Sun lab [members](https://neuroai.github.io/sunlab/people) for providing the inspiration and comments during the
   development of this library.
 - The creators of all other dependencies and projects listed in the [platformio.ini](platformio.ini) file.
+
 ---
