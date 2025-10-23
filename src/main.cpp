@@ -17,6 +17,11 @@
 // Specifies the unique identifier for the test microcontroller
 constexpr uint8_t kControllerID = 222;
 
+// Keepalive interval. The Kernel expects the PC to send 'keepalive' messages ~ every second. If the Kernel does not
+// receive a keepalive message int ime, it assumes that the microcontroller-PC communication has been lost and resets
+// the microcontroller, aborting the runtime.
+constexpr uint32_t kKeepaliveInterval = 500;  // Sets the keepalive interval to 500 milliseconds.
+
 // Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
 // outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
 // NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
@@ -35,7 +40,7 @@ TestModule<6> test_module_2(1, 2, axmc_communication);
 Module* modules[] = {&test_module_1, &test_module_2};
 
 // Instantiates the Kernel class. The Kernel has to be instantiated last.
-Kernel axmc_kernel(kControllerID, axmc_communication,  modules);
+Kernel axmc_kernel(kControllerID, axmc_communication,  modules, kKeepaliveInterval);
 
 // This function is only executed once. Since Kernel manages the setup for each module, there is no need to set up each
 // module's hardware individually.

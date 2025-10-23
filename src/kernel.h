@@ -47,7 +47,8 @@ using namespace axmc_shared_assets;
  *
  * // The Kernel class should always be instantiated last
  * const uint8_t controller_id = 123;  // Example controller ID
- * Kernel kernel_instance(controller_id, axmc_communication, modules);
+ * const uin32_t keepalive_interval = 1000;  // Example keepalive interval (1 second)
+ * Kernel kernel_instance(controller_id, axmc_communication, modules, keepalive_interval);
  * @endcode
  */
 class Kernel
@@ -99,9 +100,9 @@ class Kernel
          * @param module_array The array of pointers to custom hardware module instances. Note, each instance must
          * inherit from the base Module class.
          * @param keepalive_interval The interval, in milliseconds, within which the Kernel must receive a keepalive
-         * command from the PC. If the Kernel does not receive the command within this interval, it conducts an
-         * emergency reset procedure and assumes that communication with the PC has been lost. Setting this parameter to
-         * 0 disables the keepalive mechanism.
+         * command from the PC. If the Kernel does not receive the command within two consecutive intervals, it
+         * conducts an emergency reset procedure and assumes that communication with the PC has been lost. Setting this
+         * parameter to 0 disables the keepalive mechanism.
          */
         template <const size_t kModuleNumber>
         Kernel(
@@ -113,7 +114,7 @@ class Kernel
             _modules(module_array),
             _module_count(kModuleNumber),
             _controller_id(controller_id),
-            _keepalive_interval(keepalive_interval),
+            _keepalive_interval(keepalive_interval * 2),  // Doubles the interval to allow brief communication lapses
             _communication(communication)
         {
             // While compiling an empty array should not be possible, ensures there is always at least one module to

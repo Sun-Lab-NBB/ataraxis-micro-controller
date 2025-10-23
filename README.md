@@ -100,10 +100,10 @@ the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp imp
 // Specifies the unique identifier for the test microcontroller
 constexpr uint8_t kControllerID = 222;
 
-// Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
-// outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
-// NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
-Communication axmc_communication(Serial);
+// Keepalive interval. The Kernel expects the PC to send 'keepalive' messages ~ every second. If the Kernel does not
+// receive a keepalive message int ime, it assumes that the microcontroller-PC communication has been lost and resets
+// the microcontroller, aborting the runtime.
+constexpr uint32_t kKeepaliveInterval = 500;  // Sets the keepalive interval to 500 milliseconds.
 
 // Creates two instances of the TestModule class. The first argument is the module type (family), which is the same (1)
 // for both, the second argument is the module ID (instance), which is different. The type and id codes do not have
@@ -161,6 +161,16 @@ and the PC.**
 - `Module ID` for each hardware module instance. This code has to be unique within the module type (family) and is used 
    to identify specific module instances. For example, if two voltage sensors (type code 2) are used at the same time, 
    the first voltage sensor should use ID code 1, while the second sensor should use ID code 2.
+
+### Keepalive
+A major runtime safety feature of this library is the support for keepalive messaging. When enabled, the Kernel instance
+expects the PC to send a 'keepalive' command at regular intervals, specified by the `keepalive_interval` Kernel 
+constructor argument. If the Kernel does not receive the keepalive message for **two consecutive interval windows**, 
+it aborts the runtime by resetting the microcontroller’s hardware and software to the default state and sends an error 
+message to the PC.
+
+The keepalive functionality is **disabled** by default, but it is recommended to enable it for most use cases. See the
+[API documentation for the Kernel class](#api-documentation) for more details on configuring the keepalive messaging.
 
 ### Custom Hardware Modules
 For this library, any external hardware that communicates with Arduino or Teensy microcontroller pins is a hardware 
