@@ -65,10 +65,10 @@ class Kernel
             kModuleSetupError       = 2,  ///< Setup() method runtime failed due to a module setup error.
             kReceptionError         = 3,  ///< Encountered a communication error when receiving data from the PC.
             kTransmissionError      = 4,  ///< Encountered a communication error when sending data to the PC.
-            kInvalidMessageProtocol = 5,  ///< Received message uses an unsupported (unknown) protocol.
+            kInvalidMessageProtocol = 5,  ///< Received a message that uses an unsupported (unknown) protocol.
             kModuleParametersSet    = 6,  ///< Received and applied the parameters addressed to the module instance.
             kModuleParametersError  = 7,  ///< Unable to apply the received parameters to the module instance.
-            kCommandNotRecognized   = 8,  ///< Received and unsupported (unknown) Kernel command.
+            kCommandNotRecognized   = 8,  ///< Received an unsupported (unknown) Kernel command.
             kTargetModuleNotFound   = 9,  ///< Unable to find the module with the requested combined type and ID code.
             kKeepAliveTimeout       = 10  ///< The Kernel did not receive a keepalive message within the expected time.
         };
@@ -100,9 +100,8 @@ class Kernel
          * @param module_array The array of pointers to custom hardware module instances. Note, each instance must
          * inherit from the base Module class.
          * @param keepalive_interval The interval, in milliseconds, within which the Kernel must receive a keepalive
-         * command from the PC. If the Kernel does not receive the command within two consecutive intervals, it
-         * conducts an emergency reset procedure and assumes that communication with the PC has been lost. Setting this
-         * parameter to 0 disables the keepalive mechanism.
+         * command from the PC to prevent emergency shutdown. Setting this parameter to 0 disables the keepalive
+         * mechanism.
          */
         template <const size_t kModuleNumber>
         Kernel(

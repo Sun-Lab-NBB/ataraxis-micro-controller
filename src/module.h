@@ -30,8 +30,9 @@
  * Any class that inherits from this base class gains the API used by the Kernel and Communication classes to enable
  * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC)
  *
- * @note Use the utility methods inherited from the base Module class to ensure that the custom module implementation
- * is compatible with non-blocking runtime mode. See the ReadMe for more information about non-blocking runtime support.
+ * @note Use the utility methods inherited from the base Module class and stage-based command design pattern to ensure
+ * that the custom module implementation is compatible with non-blocking runtime mode. See the ReadMe for more
+ * information about non-blocking runtime support.
  *
  * @warning Every custom module class @b has to inherit from this base class. Follow this instantiation order when
  * writing the main .cpp / .ino file for the controller: Communication → Module(s) → Kernel. See the /examples folder
