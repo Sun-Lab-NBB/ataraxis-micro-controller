@@ -100,10 +100,15 @@ the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp imp
 // Specifies the unique identifier for the test microcontroller
 constexpr uint8_t kControllerID = 222;
 
-// Keepalive interval. The Kernel expects the PC to send 'keepalive' messages ~ every second. If the Kernel does not
-// receive a keepalive message int ime, it assumes that the microcontroller-PC communication has been lost and resets
-// the microcontroller, aborting the runtime.
-constexpr uint32_t kKeepaliveInterval = 500;  // Sets the keepalive interval to 500 milliseconds.
+// Keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the PC to send
+// keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it assumes that the
+// microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
+constexpr uint32_t kKeepaliveInterval = 5000;  // Sets the keepalive interval to 5 seconds.
+
+// Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
+// outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
+// NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
+Communication axmc_communication(Serial);
 
 // Creates two instances of the TestModule class. The first argument is the module type (family), which is the same (1)
 // for both, the second argument is the module ID (instance), which is different. The type and id codes do not have
@@ -118,7 +123,7 @@ TestModule<6> test_module_2(1, 2, axmc_communication);
 Module* modules[] = {&test_module_1, &test_module_2};
 
 // Instantiates the Kernel class. The Kernel has to be instantiated last.
-Kernel axmc_kernel(kControllerID, axmc_communication,  modules);
+Kernel axmc_kernel(kControllerID, axmc_communication,  modules, kKeepaliveInterval);
 
 // This function is only executed once. Since Kernel manages the setup for each module, there is no need to set up each
 // module's hardware individually.
@@ -149,7 +154,7 @@ and the PC.**
 - `Controller ID`. This is a unique code from 1 to 255 that identifies the microcontroller. This ID code is used when 
    communicating with the microcontroller and logging the data received from the microcontroller, so 
    **it has to be unique for all microcontrollers and other Ataraxis assets used at the same time.** For example, 
-   [Video System](https://github.com/Sun-Lab-NBB/ataraxis-video-system) classes also use the IDs to 
+   [Video System](https://github.com/Sun-Lab-NBB/ataraxis-video-system) classes also use the ID code system to 
    identify themselves during communication and logging and **clash** with microcontroller IDs if both are used at the
    same time.
 
@@ -159,8 +164,8 @@ and the PC.**
    entirely on the end-user’s preference when implementing the hardware module and its PC interface.
 
 - `Module ID` for each hardware module instance. This code has to be unique within the module type (family) and is used 
-   to identify specific module instances. For example, if two voltage sensors (type code 2) are used at the same time, 
-   the first voltage sensor should use ID code 1, while the second sensor should use ID code 2.
+   to identify specific module instances. For example, if two voltage sensors (type code '2') are used at the same 
+   time, the first voltage sensor should use ID code '1,' while the second sensor should use ID code '2.'
 
 ### Keepalive
 A major runtime safety feature of this library is the support for keepalive messaging. When enabled, the Kernel instance
@@ -169,13 +174,20 @@ constructor argument. If the Kernel does not receive the keepalive message for *
 it aborts the runtime by resetting the microcontroller’s hardware and software to the default state and sends an error 
 message to the PC.
 
-The keepalive functionality is **disabled** by default, but it is recommended to enable it for most use cases. See the
-[API documentation for the Kernel class](#api-documentation) for more details on configuring the keepalive messaging.
+The keepalive functionality is **disabled** (set to 0) by default, but it is recommended to enable it for most use 
+cases. See the [API documentation for the Kernel class](#api-documentation) for more details on configuring the 
+keepalive messaging.
+
+***Note!*** The appropriate keepalive interval depends on the communication speed and the CPU frequency of the 
+microcontroller. For a fast microcontroller (teensy4.1) that uses the USB communication interface, an appropriate 
+keepalive interval is typically measured in milliseconds (100 to 500). For a slower microcontroller (arduino mega) with 
+a UART communication interface using the baudrate of 115200, the appropriate keepalive interval is typically measured 
+in seconds (2 to 5).
 
 ### Custom Hardware Modules
 For this library, any external hardware that communicates with Arduino or Teensy microcontroller pins is a hardware 
 module. For example, a 3d-party voltage sensor that emits an analog signal detected by an Arduino microcontroller is a 
-module. A rotary encoder that sends digital interrupt signals to 3 digital pins of a Teensy 4.1 microcontroller is a 
+module. A rotary encoder that sends digital interrupt signals to 3 digital pins of a Teensy microcontroller is a 
 module. A solenoid valve gated by HIGH signal sent from an Arduino microcontroller’s digital pin is a module.
 
 The library expects that the logic that governs how the microcontroller interacts with these modules is 
@@ -190,7 +202,7 @@ compatible hardware modules.
 All modules intended to be accessible through this library have to follow the implementation guidelines described in the
 [example module header file](./examples/example_module.h). Specifically, **all custom modules have to subclass the 
 Module class from this library and overload all pure virtual methods**. Additionally, it is highly advised to implement 
-custom command logic for the Module using the **stage-based design pattern** shown in the example. Note, all examples 
+the module’s custom command logic using the **stage-based design pattern** shown in the example. Note, all examples 
 featured in this guide are taken directly from the [example_module.h](./examples/example_module.h) and the 
 [module_integration.cpp](./examples/module_integration.cpp).
 
@@ -201,15 +213,17 @@ These two classes act as the endpoints of the PC-Microcontroller interface, whil
 intermediate steps that connect the PC interface class with the microcontroller hardware logic class.
 
 ***Do not directly access the Kernel or Communication classes when implementing custom hardware modules.*** The base 
-Module class allows accessing all necessary library assets through the inherited [utility methods](#utility-methods).
+Module class allows accessing all necessary library assets through the inherited utility methods. See the 
+'protected static functions' section of the Module class [API documentation](#api-documentation) for more details about 
+the available utility methods
 
 #### Concurrent (Non-Blocking) Execution
-A major feature of the library is that it allows maximizing the microcontroller throughput by partially overlapping the 
-execution of multiple commands under certain conditions. Specifically, it allows executing other commands while waiting 
-for a time-based delay in the currently executed command. This feature is especially relevant for higher-end 
+A major feature of the library is that it allows maximizing the microcontroller’s throughput by partially overlapping 
+the execution of multiple commands under certain conditions. Specifically, it allows executing other commands while 
+waiting for a time-based delay in the currently executed command. This feature is especially relevant for higher-end 
 microcontrollers, such as Teensy 4.0+, that can execute many instructions during a multi-millisecond delay interval.
 
-During each cycle of the main microcontroller `loop()` function, the Kernel sequentially instructs each managed module 
+During each cycle of the microcontroller’s main `loop()` function, the Kernel sequentially instructs each managed module
 instance to execute its active command. Typically, the module runs through the command, delaying code execution as 
 necessary, and resulting in the microcontroller doing nothing during the delay. With this library, commands can use the 
 `WaitForMicros` utility method together with the **stage-based design pattern** showcased by the 
@@ -219,8 +233,8 @@ waits for the delay to expire.
 **Warning!** The non-blocking mode is most effective when used with delays that tolerate a degree of imprecision or on 
 microcontrollers that have a very high CPU clock speed. Additionally, to support non-blocking runtimes, all 
 modules used at the same time must support non-blocking execution for all commands. Overall, the decision of whether to
-use the non-blocking mode often requires practical testing under the intended runtime conditions and may not be optimal
-for certain use cases.
+use the non-blocking mode often requires practical testing under the intended runtime conditions and may not be suitable
+for all use cases.
 
 **Note!** While this library only supports non-blocking execution for time-based delays natively, advanced users can 
 follow the same design principles to implement non-blocking sensor-based delays when implementing custom command logic.
@@ -272,13 +286,12 @@ switch (static_cast<kCommands>(GetActiveCommand()))
 ```
 
 The switch uses the `GetActiveCommand()` method, inherited from the base Module class, to retrieve the code of the 
-currently active command. The Kernel assigns this command to the module for each runtime loop cycle. It is recommended 
-to use an enumeration to map valid command codes to meaningful names addressable in code, like it is done with the 
-`kCommands` enumeration in the demonstration above. The switch statement matches the command code to one of the valid 
-commands, calls the function associated with each command, and returns `true`. Note, the method ***has*** to returns 
-`true` if it recognized the command and return `false` if it did not. The return of this method ***only*** communicates 
-whether the command was recognized. It should ***not*** be used to track the runtime status (success / failure) of the 
-called command’s method.
+currently active command. It is recommended to use an enumeration to map valid command codes to meaningful names 
+addressable in code, like it is done with the `kCommands` enumeration in the demonstration above. 
+
+**Note!** The method ***has*** to return `true` if it recognizes the command and return `false` if it does not. The 
+returned value of this method ***only*** communicates whether the command was recognized. It should ***not*** be used 
+to track the runtime status (success / failure) of the called command’s method.
 
 ### SetupModule
 This method enables the Kernel to set up the hardware and software assets for each managed module instance. This is 
@@ -310,7 +323,7 @@ the runtimes that need to be able to fail, the method supports returning `false`
 failed. If this method returns `false`, the Kernel deadlocks the microcontroller in the error state until the 
 microcontroller firmware is reuploaded to fix the setup error.
 
-### Utility methods
+### Utility Methods
 To further simplify implementing custom hardware modules, the base Module class exposes a collection of utility methods.
 These methods provide an easy-to-use API for safely accessing internal attributes and properties of the superclass, 
 simplifying the interaction between the superclass (Module) and the custom logic of each hardware module that inherits 
