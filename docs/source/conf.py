@@ -3,9 +3,9 @@
 # -- Project information -----------------------------------------------------
 project = 'ataraxis-micro-controller'
 # noinspection PyShadowingBuiltins
-copyright = '2024, Ivan Kondratyev (Inkaros) & Sun Lab'
-authors = ['Ivan Kondratyev (Inkaros)', 'Jasmine Si']
-release = '1.0.0'
+copyright = '2025, Sun (NeuroAI) lab'
+authors = ['Ivan Kondratyev', 'Jasmine Si']
+release = '2.0.0'
 
 # -- General configuration ---------------------------------------------------
 extensions = [
@@ -26,6 +26,9 @@ breathe_doxygen_config_options = {
     'EXPAND_ONLY_PREDEF': 'NO',
     'PREDEFINED': 'PACKED_STRUCT='
 }
+
+# Disables the dark mode by default.
+default_dark_mode = False
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = 'sphinx_rtd_theme'  # Directs sphinx to use RTD theme
