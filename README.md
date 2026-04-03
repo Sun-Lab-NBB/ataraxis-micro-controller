@@ -1,7 +1,6 @@
 # ataraxis-micro-controller
 
-A C++ library for Arduino and Teensy microcontrollers that provides the framework for integrating custom hardware 
-modules with a centralized PC control interface.
+Provides the framework for integrating custom hardware modules with a centralized PC control interface.
 
 [![PlatformIO Registry](https://tinyurl.com/bdhdc2d8)](https://tinyurl.com/mrj7h9an)
 ![c++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=C%2B%2B&logoColor=white)
@@ -75,7 +74,7 @@ Note, installation from source is ***highly discouraged*** for anyone who is not
 ### Platformio
 
 1. Navigate to the project’s platformio.ini file and add the following line to the target environment specification:
-   ```lib_deps = inkaros/ataraxis-micro-controller@^2.0.0```.
+   ```lib_deps = inkaros/ataraxis-micro-controller@^3.0.0```.
 2. Add `include <kernel.h>`, `include <communication.h>`, and `include <module.h>` at the top of the main.cpp file and
    `include <module.h>` at the top of each custom hardware module header file.
 
