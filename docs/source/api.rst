@@ -1,5 +1,5 @@
 .. This file provides the instructions for how to display the API documentation generated using doxygen-breathe-sphinx
-.. pipeline.
+   pipeline. Use it to declare C++ documentation sub-directories via appropriate doxygen directives.
 
 Shared Assets
 =============
