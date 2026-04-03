@@ -3,8 +3,6 @@
  * @brief Provides the Communication class that establishes and maintains bidirectional communication with
  * host-computers (PCs) running the ataraxis-communication-interface Python library.
  *
- * @section comm_description Description:
- *
  * This class defines the communication message structures and provides the API used by other library components to
  * exchange data with the interface running on the PC.
  *
@@ -15,7 +13,6 @@
 #ifndef AXMC_COMMUNICATION_H
 #define AXMC_COMMUNICATION_H
 
-// Dependencies:
 #include <Arduino.h>
 #include <axtlmc_shared_assets.h>
 #include <digitalWriteFast.h>
@@ -27,7 +24,6 @@ using namespace axtlmc_shared_assets;
 using namespace axmc_communication_assets;
 
 /**
- * @class Communication
  * @brief Exposes methods that allow exchanging data with a host-computer (PC) running the
  * ataraxis-communication-interface library.
  *
@@ -38,27 +34,6 @@ using namespace axmc_communication_assets;
 class Communication
 {
     public:
-        /// Stores the runtime status of the most recently called method.
-        uint8_t communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kStandby);
-
-        /// Stores the protocol code of the last received message.
-        uint8_t protocol_code = static_cast<uint8_t>(kProtocols::kUndefined);
-
-        /// Stores the last received Module-addressed recurrent (repeated) command message data.
-        RepeatedModuleCommand repeated_module_command;
-
-        /// Stores the last received Module-addressed non-recurrent (one-off) command message data.
-        OneOffModuleCommand one_off_module_command;
-
-        /// Stores the last received Kernel-addressed command message data.
-        KernelCommand kernel_command;
-
-        /// Stores the last received Module-addressed dequeue command message data.
-        DequeueModuleCommand module_dequeue;
-
-        /// Stores the last received Module-addressed parameters message header data.
-        ModuleParameters module_parameters_header;
-
         /**
          * @brief Instantiates a specialized TransportLayer instance to handle the microcontroller-PC communication.
          *
@@ -66,12 +41,6 @@ class Communication
          * number may be lowered up to ~700 bytes due to adaptive optimization.
          *
          * @param communication_port The initialized communication interface instance, such as Serial or USB Serial.
-         *
-         * Example instantiation:
-         * @code
-         * Serial.begin(9600);  // Initializes the serial communication interface.
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
-         * @endcode
          */
         explicit Communication(Stream& communication_port) :
             _transport_layer(
@@ -82,13 +51,72 @@ class Communication
             )
         {}
 
-        /**
-         * @brief Returns the most recent TransportLayer's status code.
-         */
+        /// Returns the runtime status of the Communication class.
         [[nodiscard]]
-        uint8_t GetTransportLayerStatus() const
+        uint8_t get_communication_status() const
         {
-            return _transport_layer.runtime_status;
+            return _communication_status;
+        }
+
+        /// Sets the runtime status of the Communication class.
+        void set_communication_status(const uint8_t status)
+        {
+            _communication_status = status;
+        }
+
+        /// Returns the protocol code of the last received message.
+        [[nodiscard]]
+        uint8_t get_protocol_code() const
+        {
+            return _protocol_code;
+        }
+
+        /// Sets the protocol code of the last received message.
+        void set_protocol_code(const uint8_t code)
+        {
+            _protocol_code = code;
+        }
+
+        /// Returns the last received Module-addressed recurrent (repeated) command message data.
+        [[nodiscard]]
+        const RepeatedModuleCommand& get_repeated_module_command() const
+        {
+            return _repeated_module_command;
+        }
+
+        /// Returns the last received Module-addressed non-recurrent (one-off) command message data.
+        [[nodiscard]]
+        const OneOffModuleCommand& get_one_off_module_command() const
+        {
+            return _one_off_module_command;
+        }
+
+        /// Returns the last received Kernel-addressed command message data.
+        [[nodiscard]]
+        const KernelCommand& get_kernel_command() const
+        {
+            return _kernel_command;
+        }
+
+        /// Returns the last received Module-addressed dequeue command message data.
+        [[nodiscard]]
+        const DequeueModuleCommand& get_module_dequeue() const
+        {
+            return _module_dequeue;
+        }
+
+        /// Returns the last received Module-addressed parameters message header data.
+        [[nodiscard]]
+        const ModuleParameters& get_module_parameters_header() const
+        {
+            return _module_parameters_header;
+        }
+
+        /// Returns the most recent TransportLayer's status code.
+        [[nodiscard]]
+        uint8_t get_transport_layer_status() const
+        {
+            return _transport_layer.get_runtime_status();
         }
 
         /**
@@ -106,22 +134,7 @@ class Communication
          * enumeration members.
          * @param object The data object to be sent along with the message.
          *
-         * @returns True if the message is sent, false otherwise.
-         *
-         * Example usage:
-         * @code
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
-         * Serial.begin(9600);  // Initializes serial interface.
-         *
-         * // Sends the example data message.
-         * const uint8_t module_type = 112
-         * const uint8_t module_id = 12;
-         * const uint8_t command = 88;
-         * const uint8_t event_code = 221;
-         * auto prototype = kPrototypes::kOneUint8;
-         * const uint8_t placeholder_object = 255;
-         * comm_class.SendDataMessage(module_type, module_id, command, event_code, prototype, placeholder_object);
-         * @endcode
+         * @returns true if the message is sent, false otherwise.
          */
         template <typename ObjectType>
         bool SendDataMessage(
@@ -140,7 +153,7 @@ class Communication
                 "the size of the ModuleData header sent with the object."
             );
 
-            // Constructs the message header
+            // Constructs the message header.
             const ModuleData message {
                 static_cast<uint8_t>(kProtocols::kModuleData),
                 module_type,
@@ -158,17 +171,28 @@ class Communication
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
             if (!success)
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
             // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
-        /// Overloads SendDataMessage to support sending Kernel data messages.
+        /**
+         * @brief Sends the input event code and data object to the PC as a Kernel-addressed message.
+         *
+         * @tparam ObjectType The type of the data object to be sent along with the message.
+         * @param command The command the Kernel was executing when it sent the message.
+         * @param event_code The event that triggered the message.
+         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
+         * enumeration members.
+         * @param object The data object to be sent along with the message.
+         *
+         * @returns true if the message is sent, false otherwise.
+         */
         template <typename ObjectType>
         bool SendDataMessage(
             const uint8_t command,
@@ -184,7 +208,7 @@ class Communication
                 "the size of the KernelData header sent with the object."
             );
 
-            // Constructs the message header
+            // Constructs the message header.
             const KernelData message {
                 static_cast<uint8_t>(kProtocols::kKernelData),
                 command,
@@ -200,13 +224,13 @@ class Communication
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
             if (!success)
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
             // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
@@ -220,20 +244,7 @@ class Communication
          * @param command The command executed by the module that sent the message.
          * @param event_code The event that triggered the message.
          *
-         * @returns True if the message is sent, false otherwise.
-         *
-         * Example usage:
-         * @code
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
-         * Serial.begin(9600);  // Initializes serial interface.
-         *
-         * // Sends the example state message.
-         * const uint8_t module_type = 112;
-         * const uint8_t module_id = 12;
-         * const uint8_t command = 88;
-         * const uint8_t event_code = 221;
-         * comm_class.SendStateMessage(module_type, module_id, command, event_code);
-         * @endcode
+         * @returns true if the message is sent, false otherwise.
          */
         bool SendStateMessage(
             const uint8_t module_type,
@@ -249,17 +260,24 @@ class Communication
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
             // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
-        /// Overloads SendDataMessage to support sending Kernel state messages.
+        /**
+         * @brief Sends the input event code to the PC as a Kernel-addressed state message.
+         *
+         * @param command The command the Kernel was executing when it sent the message.
+         * @param event_code The event that triggered the message.
+         *
+         * @returns true if the message is sent, false otherwise.
+         */
         bool SendStateMessage(const uint8_t command, const uint8_t event_code)
         {
             // Constructs the message header.
@@ -268,13 +286,13 @@ class Communication
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
             // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
@@ -298,7 +316,7 @@ class Communication
         {
             // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.
             // Jointly, this information should be enough to diagnose the error.
-            const uint8_t errors[2] = {communication_status, _transport_layer.runtime_status};
+            const uint8_t errors[2] = {_communication_status, _transport_layer.get_runtime_status()};
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
@@ -310,12 +328,18 @@ class Communication
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
-        /// Overloads SendCommunicationErrorMessage to support sending Kernel communication error messages.
+        /**
+         * @brief Sends the communication error message to the PC as a Kernel-addressed message and activates the
+         * built-in LED.
+         *
+         * @param command The command the Kernel was executing when it encountered the error.
+         * @param error_code The encountered communication error.
+         */
         void SendCommunicationErrorMessage(const uint8_t command, const uint8_t error_code)
         {
             // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.
             // Jointly, this information should be enough to diagnose the error.
-            const uint8_t errors[2] = {communication_status, _transport_layer.runtime_status};
+            const uint8_t errors[2] = {_communication_status, _transport_layer.get_runtime_status()};
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
@@ -330,34 +354,25 @@ class Communication
         /**
          * @brief Uses the specified service message protocol to send the input service code to the PC.
          *
-         * @tparam protocol The protocol to use for the transmitted message. Has to be one of the following kProtocols
+         * @tparam kProtocol The protocol to use for the transmitted message. Has to be one of the following kProtocols
          * enumeration members: kReceptionCode, kControllerIdentification or kModuleIdentification.
          * @tparam ObjectType The data type of the service code value.
          * @param service_code The service code to be transmitted to the PC.
          *
-         * @returns True if the message is sent, false otherwise.
-         *
-         * Example usage:
-         * @code
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
-         * Serial.begin(9600);  // Initializes serial interface.
-         *
-         * // Protocol is given as a template, service code as an uint8_t argument.
-         * comm_class.SendServiceMessage<kProtocols::kReceptionCode>(112);
-         * @endcode
+         * @returns true if the message is sent, false otherwise.
          */
-        template <const kProtocols protocol, typename ObjectType>
+        template <const kProtocols kProtocol, typename ObjectType>
         bool SendServiceMessage(const ObjectType service_code)
         {
             // Ensures the communication protocol is one of the supported Service protocols.
             static_assert(
-                protocol == kProtocols::kReceptionCode || protocol == kProtocols::kControllerIdentification ||
-                    protocol == kProtocols::kModuleIdentification,
+                kProtocol == kProtocols::kReceptionCode || kProtocol == kProtocols::kControllerIdentification ||
+                    kProtocol == kProtocols::kModuleIdentification,
                 "Encountered an invalid ServiceMessage protocol code. Use one of the supported Service protocols from "
                 "the kProtocols enumeration."
             );
 
-            // Ensures that the provide service_code is of the correct type.
+            // Ensures that the provided service_code is of the correct type.
             static_assert(
                 axtlmc_shared_assets::is_same_v<ObjectType, uint8_t> ||
                     axtlmc_shared_assets::is_same_v<ObjectType, uint16_t> ||
@@ -368,19 +383,19 @@ class Communication
 
             // Packages the input protocol code and the service code into the transmission buffer.
             bool success = true;
-            if (!_transport_layer.WriteData(static_cast<uint8_t>(protocol))) success = false;
+            if (!_transport_layer.WriteData(static_cast<uint8_t>(kProtocol))) success = false;
             if (success && !_transport_layer.WriteData(service_code)) success = false;
 
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
             if (!success)
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
 
             // If the data was written to the buffer, sends it to the PC.
             _transport_layer.SendData();
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
 
@@ -394,75 +409,69 @@ class Communication
          * @attention If the received message is a ModuleParameters message, call the ExtractModuleParameters() method
          * to extract the data payload. This method DOES NOT extract Module parameter data from the serial buffer.
          *
-         * @returns True if a message was successfully received, false otherwise. If this method returns false, this
-         * does not by itself indicate a runtime error. Use the 'communication_status' instance property
-         * to determine if the method encountered a runtime error.
-         *
-         * Example usage:
-         * @code
-         * Serial.begin(9600);  // Initializes serial interface.
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
-         * bool success = comm_class.ReceiveMessage();  // Attempts to receive the message
-         * @endcode
+         * @returns true if a message was successfully received, false otherwise. If this method returns false, this
+         * does not by itself indicate a runtime error. Use the get_communication_status() accessor to determine if
+         * the method encountered a runtime error.
          */
         bool ReceiveMessage()
         {
-            // Attempts to receive the next available message
+            // Attempts to receive the next available message.
             if (!_transport_layer.ReceiveData())
             {
                 // The reception protocol can 'fail' gracefully if the reception buffer does not have enough bytes to
                 // attempt message reception.
-                if (_transport_layer.runtime_status == static_cast<uint8_t>(kTransportStatusCodes::kNoBytesToParse))
+                if (_transport_layer.get_runtime_status() ==
+                    static_cast<uint8_t>(kTransportStatusCodes::kNoBytesToParse))
                 {
-                    communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive);
+                    _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive);
                     return false;
                 }
 
                 // Otherwise, returns with a status that indicates runtime failure.
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kReceptionError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kReceptionError);
                 return false;
             }
 
             // If the message is received and decoded, extracts the protocol code of the received message and uses
-            // it to parse the rest of the message
-            if (_transport_layer.ReadData(protocol_code))
+            // it to parse the rest of the message.
+            if (_transport_layer.ReadData(_protocol_code))
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageReceived);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageReceived);
                 // Unpacks the message header into the appropriate attribute structure.
-                switch (static_cast<kProtocols>(protocol_code))
+                switch (static_cast<kProtocols>(_protocol_code))
                 {
-                    case kProtocols::KRepeatedModuleCommand:
-                        if (_transport_layer.ReadData(repeated_module_command)) return true;
+                    case kProtocols::kRepeatedModuleCommand:
+                        if (_transport_layer.ReadData(_repeated_module_command)) return true;
                         break;
 
                     case kProtocols::kOneOffModuleCommand:
-                        if (_transport_layer.ReadData(one_off_module_command)) return true;
+                        if (_transport_layer.ReadData(_one_off_module_command)) return true;
                         break;
 
                     case kProtocols::kDequeueModuleCommand:
-                        if (_transport_layer.ReadData(module_dequeue)) return true;
+                        if (_transport_layer.ReadData(_module_dequeue)) return true;
                         break;
 
                     case kProtocols::kKernelCommand:
-                        if (_transport_layer.ReadData(kernel_command)) return true;
+                        if (_transport_layer.ReadData(_kernel_command)) return true;
                         break;
 
                     case kProtocols::kModuleParameters:
                         // Reads the HEADER of the message into the storage structure. This gives the Kernel class
                         // enough information to address the message, but this is NOT the whole message. To retrieve
                         // the parameter data bundled with the message, use the ExtractModuleParameters() method.
-                        if (_transport_layer.ReadData(module_parameters_header)) return true;
+                        if (_transport_layer.ReadData(_module_parameters_header)) return true;
                         break;
 
                     default:
                         // If input protocol code is not one of the valid protocols, aborts with an error status.
-                        communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kInvalidProtocol);
+                        _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kInvalidProtocol);
                         return false;
                 }
             }
 
             // If any of the data reading calls above fail, returns with an error status.
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParsingError);
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParsingError);
             return false;
         }
 
@@ -474,52 +483,37 @@ class Communication
          * method implementation. Do not call this method from any other context.
          *
          * @tparam ObjectType The type of the destination object.
-         * @tparam object_size The size of the destination object, in bytes.
+         * @tparam kObjectSize The size of the destination object, in bytes.
          * @param destination The object where to unpack the received parameters. Typically, this is a packed structure.
          *
-         * @returns True if the parameter data was successfully extracted into the destination object and false
+         * @returns true if the parameter data was successfully extracted into the destination object and false
          * otherwise.
-         *
-         * Example usage:
-         * @code
-         * Serial.begin(9600);  // Initializes serial interface.
-         * Communication comm_class(Serial);  // Instantiates the Communication class.
-         *
-         * // Initializes a test structure.
-         * struct DataMessage
-         * {
-         *     uint8_t id = 1;
-         *     uint8_t data = 10;
-         * } data_message;
-         *
-         * bool success = comm_class.ExtractParameters(data_message);  // Attempts to extract the parameters.
-         * @endcode
          */
-        template <typename ObjectType, const size_t object_size = sizeof(ObjectType)>
+        template <typename ObjectType, const size_t kObjectSize = sizeof(ObjectType)>
         bool ExtractModuleParameters(ObjectType& destination)
         {
             // Ensures that the prototype compiles with the limitations of the transport layer.
             static_assert(
-                object_size > 0 && object_size <= 250,
+                kObjectSize > 0 && kObjectSize <= 250,
                 "Unable to extract the target module's parameters as the method has received an invalid "
                 "'destination' input. A valid destination object must have a size between 1 and 250 bytes."
             );
 
             // Ensures this method cannot be called (successfully) unless the message currently stored in the reception
             // buffer is a ModuleParameters message.
-            if (protocol_code != static_cast<uint8_t>(kProtocols::kModuleParameters))
+            if (_protocol_code != static_cast<uint8_t>(kProtocols::kModuleParameters))
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kExtractionForbidden);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kExtractionForbidden);
                 return false;
             }
 
             // Verifies that the size of the prototype structure exactly matches the number of object bytes received
             // with the message. The '-1' accounts for the protocol code (first variable of each message) that precedes
             // the message structure.
-            if (static_cast<uint8_t>(object_size) !=
+            if (static_cast<uint8_t>(kObjectSize) !=
                 _transport_layer.get_bytes_in_reception_buffer() - sizeof(ModuleParameters) - 1)
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParameterMismatch);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParameterMismatch);
                 return false;
             }
 
@@ -527,22 +521,43 @@ class Communication
             // structure (by reference).
             if (!_transport_layer.ReadData(destination))
             {
-                communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParsingError);
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParsingError);
                 return false;
             }
 
-            // Returns with success code
-            communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParametersExtracted);
-            return true;  // Successfully extracted parameters.
+            // Returns with success code.
+            _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParametersExtracted);
+            return true;
         }
 
     private:
-        /// The maximum possible size for the received and transmitted payloads. Reuses the
+        /// Defines the maximum possible size for the received and transmitted payloads. Reuses the
         /// kSerialBufferSize constant defined inside transport_layer.h to determine the serial buffer size of the
         /// host microcontroller.
         static constexpr uint8_t kMaximumPayloadSize = min(kSerialBufferSize - 6, 254);
 
-        /// The TransportLayer instance that handles the bidirectional communication with the PC.
+        /// Stores the runtime status of the most recently called method.
+        uint8_t _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kStandby);
+
+        /// Stores the protocol code of the last received message.
+        uint8_t _protocol_code = static_cast<uint8_t>(kProtocols::kUndefined);
+
+        /// Stores the last received Module-addressed recurrent (repeated) command message data.
+        RepeatedModuleCommand _repeated_module_command;
+
+        /// Stores the last received Module-addressed non-recurrent (one-off) command message data.
+        OneOffModuleCommand _one_off_module_command;
+
+        /// Stores the last received Kernel-addressed command message data.
+        KernelCommand _kernel_command;
+
+        /// Stores the last received Module-addressed dequeue command message data.
+        DequeueModuleCommand _module_dequeue;
+
+        /// Stores the last received Module-addressed parameters message header data.
+        ModuleParameters _module_parameters_header;
+
+        /// Manages the bidirectional communication with the PC.
         TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize> _transport_layer;
 };
 

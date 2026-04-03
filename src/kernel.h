@@ -3,8 +3,6 @@
  * @brief Provides the Kernel class used to manage the runtime of custom hardware modules and
  * integrate them with the companion host-computer (PC) control interface.
  *
- * @section kern_description Description:
- *
  * This class manages PC-microcontroller communication and schedules and executes commands addressed to custom hardware
  * modules. Due to the static API exposed by the (base) Module class, from which all custom module instances should
  * inherit, Kernel seamlessly integrates custom hardware modules with the centralized interface running on the
@@ -18,7 +16,6 @@
 #ifndef AXMC_KERNEL_H
 #define AXMC_KERNEL_H
 
-// Dependencies
 #include <Arduino.h>
 #include <digitalWriteFast.h>
 #include "axmc_shared_assets.h"
@@ -38,45 +35,27 @@ using namespace axmc_shared_assets;
  *
  * @note During initialization, this class should be provided with an array of hardware module instances
  * that inherit from the Module class.
- *
- * Example Instantiation:
- * @code
- * Communication axmc_communication(Serial);  // Communication class first
- * TestModule test_module(1, 1, axmc_communication);  // Example custom module
- * Module* modules[] = {&test_module};  // Packages the module(s) into an array to be provided to the Kernel class
- *
- * // The Kernel class should always be instantiated last
- * const uint8_t controller_id = 123;  // Example controller ID
- * const uin32_t keepalive_interval = 1000;  // Example keepalive interval (1 second)
- * Kernel kernel_instance(controller_id, axmc_communication, modules, keepalive_interval);
- * @endcode
  */
 class Kernel
 {
     public:
-        /**
-         * @enum kKernelStatusCodes
-         * @brief Defines the codes used by the Kernel class to communicate its runtime state to the PC.
-         */
+        /// Defines the codes used by the Kernel class to communicate its runtime state to the PC.
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandBy                = 0,  ///< Currently not used. Statically reserves 0 to NOT be a valid code.
-            kSetupComplete          = 1,  ///< Setup() method runtime succeeded.
-            kModuleSetupError       = 2,  ///< Setup() method runtime failed due to a module setup error.
-            kReceptionError         = 3,  ///< Encountered a communication error when receiving data from the PC.
-            kTransmissionError      = 4,  ///< Encountered a communication error when sending data to the PC.
-            kInvalidMessageProtocol = 5,  ///< Received a message that uses an unsupported (unknown) protocol.
-            kModuleParametersSet    = 6,  ///< Received and applied the parameters addressed to the module instance.
-            kModuleParametersError  = 7,  ///< Unable to apply the received parameters to the module instance.
-            kCommandNotRecognized   = 8,  ///< Received an unsupported (unknown) Kernel command.
-            kTargetModuleNotFound   = 9,  ///< Unable to find the module with the requested combined type and ID code.
-            kKeepAliveTimeout       = 10  ///< The Kernel did not receive a keepalive message within the expected time.
+            kStandby                = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
+            kSetupComplete          = 1,   ///< Setup() method runtime succeeded.
+            kModuleSetupError       = 2,   ///< Setup() method runtime failed due to a module setup error.
+            kReceptionError         = 3,   ///< Encountered a communication error when receiving data from the PC.
+            kTransmissionError      = 4,   ///< Encountered a communication error when sending data to the PC.
+            kInvalidMessageProtocol = 5,   ///< Received a message that uses an unsupported (unknown) protocol.
+            kModuleParametersSet    = 6,   ///< Received and applied the parameters addressed to the module instance.
+            kModuleParametersError  = 7,   ///< Unable to apply the received parameters to the module instance.
+            kCommandNotRecognized   = 8,   ///< Received an unsupported (unknown) Kernel command.
+            kTargetModuleNotFound   = 9,   ///< Unable to find the module with the requested combined type and ID code.
+            kKeepAliveTimeout       = 10,  ///< The Kernel did not receive a keepalive message within the expected time.
         };
 
-        /**
-         * @enum kKernelCommands
-         * @brief Defines the codes for the supported Kernel's commands.
-         */
+        /// Defines the codes for the supported Kernel commands.
         enum class kKernelCommands : uint8_t
         {
             kStandby            = 0,  ///< The standby code used during class initialization.
@@ -87,8 +66,18 @@ class Kernel
             kKeepAlive          = 5,  ///< Resets the keepalive watchdog timer, starting a new keepalive cycle.
         };
 
-        /// Tracks the currently active Kernel command. This is used to send data and error messages to the PC.
-        uint8_t kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
+        /// Returns the currently active Kernel command code.
+        [[nodiscard]]
+        uint8_t get_kernel_command() const
+        {
+            return _kernel_command;
+        }
+
+        /// Sets the currently active Kernel command code.
+        void set_kernel_command(const uint8_t command)
+        {
+            _kernel_command = command;
+        }
 
         /**
          * @brief Initializes the necessary assets used to manage the runtime of the input hardware module instances.
@@ -127,16 +116,16 @@ class Kernel
         /**
          * @brief Configures the hardware and software assets used by the Kernel and all managed hardware modules.
          *
-         * @note This method has to be called as part of the main setup() function.
-         *
          * @warning This is the only method that turns off the built-in LED of the controller board. Seeing
          * the LED constantly ON (HIGH) after this method's runtime means the controller experienced a communication
          * error when it tried sending data to the PC. Seeing the LED blinking with ~2-second periodicity indicates that
          * the Kernel failed the setup sequence.
+         *
+         * @note This method has to be called as part of the main setup() function.
          */
         void Setup()
         {
-            kernel_command = static_cast<uint8_t>(kKernelCommands::kResetController);  // Sets active command code
+            _kernel_command = static_cast<uint8_t>(kKernelCommands::kResetController);  // Sets active command code
 
             // Ensures that the setup tracker is inactivated before running the rest of the setup code. This is needed
             // to support correct cycling through Setup() calls on Teensy board that do not reset on USB connection
@@ -152,8 +141,8 @@ class Kernel
                 {
                     // If the setup fails, sends an error message to notify the PC of the setup failure.
                     const uint8_t error_object[2] = {
-                        _modules[i]->GetModuleType(),
-                        _modules[i]->GetModuleID(),
+                        _modules[i]->get_module_type(),
+                        _modules[i]->get_module_id(),
                     };
 
                     SendData(
@@ -220,7 +209,7 @@ class Kernel
             }
 
             // Continuously parses the data received from the PC until all data is processed.
-            kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);
+            _kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);
             while (true)
             {
                 const uint8_t protocol = ReceiveData();  // Attempts to receive the data
@@ -236,15 +225,15 @@ class Kernel
                     case kProtocols::kUndefined: break_loop = true; break;
 
                     case kProtocols::kModuleParameters:
-                        return_code = _communication.module_parameters_header.return_code;
+                        return_code = _communication.get_module_parameters_header().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         // For module-addressed commands, attempts to resolve (discover) the addressed module. If this
                         // method succeeds, it returns an index (>=0) of the target module class inside the _modules
                         // array
                         target_module = ResolveTargetModule(
-                            _communication.module_parameters_header.module_type,
-                            _communication.module_parameters_header.module_id
+                            _communication.get_module_parameters_header().module_type,
+                            _communication.get_module_parameters_header().module_id
                         );
 
                         // Aborts early if the target module is not found, as indicated by the returned code being
@@ -257,8 +246,8 @@ class Kernel
                             // If the module fails to process the parameters, as indicated by the API method returning
                             // 'false', sends an error message to the PC to communicate the error.
                             const uint8_t error_object[2] = {
-                                _modules[static_cast<size_t>(target_module)]->GetModuleType(),
-                                _modules[static_cast<size_t>(target_module)]->GetModuleID(),
+                                _modules[static_cast<size_t>(target_module)]->get_module_type(),
+                                _modules[static_cast<size_t>(target_module)]->get_module_id(),
                             };
                             SendData(
                                 static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError),
@@ -272,7 +261,7 @@ class Kernel
                         break;
 
                     case kProtocols::kKernelCommand:
-                        return_code = _communication.kernel_command.return_code;
+                        return_code = _communication.get_kernel_command().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         // This method resolves and executes the command logic. It automatically extracts the command
@@ -281,11 +270,11 @@ class Kernel
                         break;
 
                     case kProtocols::kDequeueModuleCommand:
-                        return_code = _communication.module_dequeue.return_code;
+                        return_code = _communication.get_module_dequeue().return_code;
                         if (return_code) SendReceptionCode(return_code);
                         target_module = ResolveTargetModule(
-                            _communication.module_dequeue.module_type,
-                            _communication.module_dequeue.module_id
+                            _communication.get_module_dequeue().module_type,
+                            _communication.get_module_dequeue().module_id
                         );
 
                         // Aborts early if the target module is not found, as indicated by the returned code being
@@ -298,30 +287,30 @@ class Kernel
                         break;
 
                     case kProtocols::kOneOffModuleCommand:
-                        return_code = _communication.one_off_module_command.return_code;
+                        return_code = _communication.get_one_off_module_command().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         target_module = ResolveTargetModule(
-                            _communication.one_off_module_command.module_type,
-                            _communication.one_off_module_command.module_id
+                            _communication.get_one_off_module_command().module_type,
+                            _communication.get_one_off_module_command().module_id
                         );
 
                         if (target_module < 0) break;
 
                         // Uses an overloaded QueueCommand method that always sets the input command as non-recurrent.
                         _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                            _communication.one_off_module_command.command,
-                            _communication.one_off_module_command.noblock
+                            _communication.get_one_off_module_command().command,
+                            _communication.get_one_off_module_command().noblock
                         );
                         break;
 
-                    case kProtocols::KRepeatedModuleCommand:
-                        return_code = _communication.repeated_module_command.return_code;
+                    case kProtocols::kRepeatedModuleCommand:
+                        return_code = _communication.get_repeated_module_command().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         target_module = ResolveTargetModule(
-                            _communication.repeated_module_command.module_type,
-                            _communication.repeated_module_command.module_id
+                            _communication.get_repeated_module_command().module_type,
+                            _communication.get_repeated_module_command().module_id
                         );
 
                         if (target_module < 0) break;
@@ -329,19 +318,19 @@ class Kernel
                         // Uses the non-overloaded QueueCommand method that always sets the input command to execute
                         // recurrently.
                         _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                            _communication.repeated_module_command.command,
-                            _communication.repeated_module_command.noblock,
-                            _communication.repeated_module_command.cycle_delay
+                            _communication.get_repeated_module_command().command,
+                            _communication.get_repeated_module_command().noblock,
+                            _communication.get_repeated_module_command().cycle_delay
                         );
                         break;
 
                     default:
                         // If the message protocol is not one of the expected protocols, sends an error message to the
-                        // PC.Includes the invalid protocol value in the message.
+                        // PC. Includes the invalid protocol value in the message.
                         SendData(
                             static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
                             kPrototypes::kOneUint8,
-                            _communication.protocol_code
+                            _communication.get_protocol_code()
                         );
                         break;
                 }
@@ -356,7 +345,7 @@ class Kernel
 
             // Keepalive status resolution. If the Kernel is configured to require keepalive messages, and it does not
             // receive a keepalive message within the configured interval, sends an error message to the PC and triggers
-            // an emergency reset
+            // an emergency reset.
             if (_keepalive_enabled && (_since_previous_keepalive > _keepalive_interval))
             {
                 // Sends an error message to the PC
@@ -373,6 +362,9 @@ class Kernel
         }
 
     private:
+        /// Tracks the currently active Kernel command. Used to send data and error messages to the PC.
+        uint8_t _kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
+
         /// Stores the managed custom hardware module classes.
         Module** _modules;
 
@@ -386,16 +378,16 @@ class Kernel
         /// sent from the PC to the microcontroller.
         const uint32_t _keepalive_interval;
 
-        /// The elapsedMillis instance that tracks the time elapsed since receiving the last keepalive message.
+        /// Tracks the time elapsed since receiving the last keepalive message.
         elapsedMillis _since_previous_keepalive;
 
-        /// Tracks whether the keepalive tracking is enabled.
+        /// Determines whether the keepalive tracking is enabled.
         bool _keepalive_enabled = false;
 
-        /// The Communication instance  used to bidirectionally communicate with the PC interface.
+        /// Stores the Communication instance used to bidirectionally communicate with the PC interface.
         Communication& _communication;
 
-        /// Tracks whether the Setup() method has been called to ensure that the instance is properly configured for
+        /// Determines whether the Setup() method has been called to ensure that the instance is properly configured for
         /// runtime.
         bool _setup_complete = false;
 
@@ -410,13 +402,13 @@ class Kernel
         {
             // Attempts to receive a message sent by the PC. If reception succeeds, returns the protocol code of the
             // received message
-            if (_communication.ReceiveMessage()) return _communication.protocol_code;
+            if (_communication.ReceiveMessage()) return _communication.get_protocol_code();
 
             // Data reception can fail for two broad reasons. The first reason is that one of the classes involved in
             // data reception encounters an error. If this happens, the error needs to be reported to the PC. However,
             // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
             // an error and should be handled as a valid 'no need to do anything' case.
-            if (_communication.communication_status !=
+            if (_communication.get_communication_status() !=
                 static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive))
             {
                 // For legitimately failed runtimes, sends an error message to the PC.
@@ -434,14 +426,14 @@ class Kernel
         /**
          * @brief Packages and sends the provided event_code and data object to the PC.
          *
-         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
-         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
-         * than the data-containing version.
-         *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
          * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
          * using this method to avoid interference!
+         *
+         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
+         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
+         * than the data-containing version.
          *
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param event_code The event that triggered the data transmission.
@@ -453,11 +445,11 @@ class Kernel
         void SendData(const uint8_t event_code, const kPrototypes prototype, const ObjectType& object)
         {
             // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
-            if (_communication.SendDataMessage(kernel_command, event_code, prototype, object)) return;
+            if (_communication.SendDataMessage(_kernel_command, event_code, prototype, object)) return;
 
             // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
-                kernel_command,
+                _kernel_command,
                 static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
@@ -473,11 +465,11 @@ class Kernel
         void SendData(const uint8_t event_code) const
         {
             // Packages and sends the state message to the PC. If the message was sent, ends the runtime.
-            if (_communication.SendStateMessage(kernel_command, event_code)) return;
+            if (_communication.SendStateMessage(_kernel_command, event_code)) return;
 
             // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
-                kernel_command,
+                _kernel_command,
                 static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
             );
         }
@@ -498,7 +490,7 @@ class Kernel
         {
             for (size_t i = 0; i < _module_count; ++i)
             {
-                _communication.SendServiceMessage<kProtocols::kModuleIdentification>(_modules[i]->GetModuleTypeID());
+                _communication.SendServiceMessage<kProtocols::kModuleIdentification>(_modules[i]->get_module_type_id());
             }
         }
 
@@ -532,8 +524,8 @@ class Kernel
         void RunKernelCommand()
         {
             // Resolves and executes the specific requested command
-            kernel_command = _communication.kernel_command.command;
-            switch (static_cast<kKernelCommands>(kernel_command))
+            _kernel_command = _communication.get_kernel_command().command;
+            switch (static_cast<kKernelCommands>(_kernel_command))
             {
                 case kKernelCommands::kResetController: Setup(); return;
 
@@ -562,10 +554,10 @@ class Kernel
          * @note If this method is unable to resolve the target module, it automatically sends an error message to the
          * PC in addition to returning the '-1' error code.
          *
-         * @param target_type: The type (family) identifier of the addressed module.
+         * @param target_type The type (family) identifier of the addressed module.
          * @param target_id The unique identifier of the addressed module.
          *
-         * @return A non-negative integer representing the index of the module in the array of managed modules if the
+         * @returns A non-negative integer representing the index of the module in the array of managed modules if the
          * addressed module is found. A '-1' value if the target module was not found.
          */
         int16_t ResolveTargetModule(const uint8_t target_type, const uint8_t target_id)
@@ -574,7 +566,7 @@ class Kernel
             for (size_t i = 0; i < _module_count; i++)
             {
                 // If the matching module is found, returns its index in the array of managed modules.
-                if (_modules[i]->GetModuleType() == target_type && _modules[i]->GetModuleID() == target_id)
+                if (_modules[i]->get_module_type() == target_type && _modules[i]->get_module_id() == target_id)
                 {
                     return static_cast<int16_t>(i);
                 }
