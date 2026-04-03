@@ -3,8 +3,6 @@
  * @brief Provides the Kernel class used to manage the runtime of custom hardware modules and
  * integrate them with the companion host-computer (PC) control interface.
  *
- * @section kern_description Description:
- *
  * This class manages PC-microcontroller communication and schedules and executes commands addressed to custom hardware
  * modules. Due to the static API exposed by the (base) Module class, from which all custom module instances should
  * inherit, Kernel seamlessly integrates custom hardware modules with the centralized interface running on the
@@ -18,7 +16,6 @@
 #ifndef AXMC_KERNEL_H
 #define AXMC_KERNEL_H
 
-// Dependencies
 #include <Arduino.h>
 #include <digitalWriteFast.h>
 #include "axmc_shared_assets.h"
@@ -42,29 +39,23 @@ using namespace axmc_shared_assets;
 class Kernel
 {
     public:
-        /**
-         * @enum kKernelStatusCodes
-         * @brief Defines the codes used by the Kernel class to communicate its runtime state to the PC.
-         */
+        /// Defines the codes used by the Kernel class to communicate its runtime state to the PC.
         enum class kKernelStatusCodes : uint8_t
         {
-            kStandBy                = 0,  ///< Currently not used. Statically reserves 0 to NOT be a valid code.
-            kSetupComplete          = 1,  ///< Setup() method runtime succeeded.
-            kModuleSetupError       = 2,  ///< Setup() method runtime failed due to a module setup error.
-            kReceptionError         = 3,  ///< Encountered a communication error when receiving data from the PC.
-            kTransmissionError      = 4,  ///< Encountered a communication error when sending data to the PC.
-            kInvalidMessageProtocol = 5,  ///< Received a message that uses an unsupported (unknown) protocol.
-            kModuleParametersSet    = 6,  ///< Received and applied the parameters addressed to the module instance.
-            kModuleParametersError  = 7,  ///< Unable to apply the received parameters to the module instance.
-            kCommandNotRecognized   = 8,  ///< Received an unsupported (unknown) Kernel command.
-            kTargetModuleNotFound   = 9,  ///< Unable to find the module with the requested combined type and ID code.
+            kStandby                = 0,   ///< Currently not used. Statically reserves 0 to NOT be a valid code.
+            kSetupComplete          = 1,   ///< Setup() method runtime succeeded.
+            kModuleSetupError       = 2,   ///< Setup() method runtime failed due to a module setup error.
+            kReceptionError         = 3,   ///< Encountered a communication error when receiving data from the PC.
+            kTransmissionError      = 4,   ///< Encountered a communication error when sending data to the PC.
+            kInvalidMessageProtocol = 5,   ///< Received a message that uses an unsupported (unknown) protocol.
+            kModuleParametersSet    = 6,   ///< Received and applied the parameters addressed to the module instance.
+            kModuleParametersError  = 7,   ///< Unable to apply the received parameters to the module instance.
+            kCommandNotRecognized   = 8,   ///< Received an unsupported (unknown) Kernel command.
+            kTargetModuleNotFound   = 9,   ///< Unable to find the module with the requested combined type and ID code.
             kKeepAliveTimeout       = 10,  ///< The Kernel did not receive a keepalive message within the expected time.
         };
 
-        /**
-         * @enum kKernelCommands
-         * @brief Defines the codes for the supported Kernel's commands.
-         */
+        /// Defines the codes for the supported Kernel commands.
         enum class kKernelCommands : uint8_t
         {
             kStandby            = 0,  ///< The standby code used during class initialization.
@@ -125,12 +116,12 @@ class Kernel
         /**
          * @brief Configures the hardware and software assets used by the Kernel and all managed hardware modules.
          *
-         * @note This method has to be called as part of the main setup() function.
-         *
          * @warning This is the only method that turns off the built-in LED of the controller board. Seeing
          * the LED constantly ON (HIGH) after this method's runtime means the controller experienced a communication
          * error when it tried sending data to the PC. Seeing the LED blinking with ~2-second periodicity indicates that
          * the Kernel failed the setup sequence.
+         *
+         * @note This method has to be called as part of the main setup() function.
          */
         void Setup()
         {
@@ -387,13 +378,13 @@ class Kernel
         /// sent from the PC to the microcontroller.
         const uint32_t _keepalive_interval;
 
-        /// The elapsedMillis instance that tracks the time elapsed since receiving the last keepalive message.
+        /// Tracks the time elapsed since receiving the last keepalive message.
         elapsedMillis _since_previous_keepalive;
 
         /// Determines whether the keepalive tracking is enabled.
         bool _keepalive_enabled = false;
 
-        /// The Communication instance used to bidirectionally communicate with the PC interface.
+        /// Stores the Communication instance used to bidirectionally communicate with the PC interface.
         Communication& _communication;
 
         /// Determines whether the Setup() method has been called to ensure that the instance is properly configured for
@@ -435,14 +426,14 @@ class Kernel
         /**
          * @brief Packages and sends the provided event_code and data object to the PC.
          *
-         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
-         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
-         * than the data-containing version.
-         *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
          * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
          * using this method to avoid interference!
+         *
+         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
+         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
+         * than the data-containing version.
          *
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param event_code The event that triggered the data transmission.

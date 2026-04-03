@@ -3,8 +3,6 @@
  * @brief Provides the Module class that exposes the API for integrating user-defined custom hardware
  * modules with other library components and the interface running on the host-computer (PC).
  *
- * @section mod_description Description:
- *
  * This class defines the API interface used by Kernel and Communication classes to interact with any custom hardware
  * module instance that inherits from the base Module class. Additionally, the class provides the utility functions
  * for routine tasks, such as changing pin states, that support the concurrent (non-blocking) runtime of multiple
@@ -30,19 +28,18 @@
  * Any class that inherits from this base class gains the API used by the Kernel and Communication classes to enable
  * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC)
  *
- * @note Use the utility methods inherited from the base Module class and stage-based command design pattern to ensure
- * that the custom module implementation is compatible with non-blocking runtime mode. See the ReadMe for more
- * information about non-blocking runtime support.
- *
  * @warning Every custom module class @b has to inherit from this base class. Follow this instantiation order when
  * writing the main .cpp / .ino file for the controller: Communication → Module(s) → Kernel. See the /examples folder
  * for details.
+ *
+ * @note Use the utility methods inherited from the base Module class and stage-based command design pattern to ensure
+ * that the custom module implementation is compatible with non-blocking runtime mode. See the ReadMe for more
+ * information about non-blocking runtime support.
  */
 class Module
 {
     public:
         /**
-         * @struct ExecutionControlParameters
          * @brief Stores the data that supports executing module-addressed commands sent from the PC interface.
          *
          * @warning End users should not modify any elements of this structure directly. This structure is modified by
@@ -63,21 +60,20 @@ class Module
         };
 
         /**
-         * @enum kCoreStatusCodes
          * @brief Defines the status codes used to communicate the states and errors encountered during the shared API
          * method runtimes.
-         *
-         * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
-         * Module class. These status codes are considered 'system-reserved' and are handled implicitly by the
-         * PC-side companion library.
          *
          * @note To support consistent status code reporting, this enumeration reserves values 0 through 50. All custom
          * status codes should use values 51 through 250. This prevents the status codes derived from this enumeration
          * from clashing with custom status codes.
+         *
+         * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
+         * Module class. These status codes are considered 'system-reserved' and are handled implicitly by the
+         * PC-side companion library.
          */
         enum class kCoreStatusCodes : uint8_t
         {
-            kStandBy              = 0,  ///< The code used to initialize the module_status variable.
+            kStandby              = 0,  ///< The code used to initialize the module_status variable.
             kTransmissionError    = 1,  ///< Encountered an error when sending data to the PC.
             kCommandCompleted     = 2,  ///< The last active command has been completed and removed from the queue.
             kCommandNotRecognized = 3,  ///< The RunActiveCommand() method did not recognize the requested command.
@@ -116,21 +112,21 @@ class Module
          */
         void QueueCommand(const uint8_t command, const bool noblock, const uint32_t cycle_delay)
         {
-            execution_parameters.next_command    = command;
-            execution_parameters.next_noblock    = noblock;
-            execution_parameters.run_recurrently = true;
-            execution_parameters.recurrent_delay = cycle_delay;
-            execution_parameters.new_command     = true;
+            _execution_parameters.next_command    = command;
+            _execution_parameters.next_noblock    = noblock;
+            _execution_parameters.run_recurrently = true;
+            _execution_parameters.recurrent_delay = cycle_delay;
+            _execution_parameters.new_command     = true;
         }
 
         /// Overloads the QueueCommand() method for queueing non-cyclic commands.
         void QueueCommand(const uint8_t command, const bool noblock)
         {
-            execution_parameters.next_command    = command;
-            execution_parameters.next_noblock    = noblock;
-            execution_parameters.run_recurrently = false;
-            execution_parameters.recurrent_delay = 0;
-            execution_parameters.new_command     = true;
+            _execution_parameters.next_command    = command;
+            _execution_parameters.next_noblock    = noblock;
+            _execution_parameters.run_recurrently = false;
+            _execution_parameters.recurrent_delay = 0;
+            _execution_parameters.new_command     = true;
         }
 
         /**
@@ -140,11 +136,11 @@ class Module
          */
         void ResetCommandQueue()
         {
-            execution_parameters.next_command    = 0;
-            execution_parameters.next_noblock    = false;
-            execution_parameters.run_recurrently = false;
-            execution_parameters.recurrent_delay = 0;
-            execution_parameters.new_command     = false;
+            _execution_parameters.next_command    = 0;
+            _execution_parameters.next_noblock    = false;
+            _execution_parameters.run_recurrently = false;
+            _execution_parameters.recurrent_delay = 0;
+            _execution_parameters.new_command     = false;
         }
 
         /**
@@ -161,26 +157,26 @@ class Module
         {
             // If the command field is not 0, this means there is already an active command being executed and no
             // further action is necessary.
-            if (execution_parameters.command != 0) return true;
+            if (_execution_parameters.command != 0) return true;
 
             // If there is no active command and the next_command field is set to 0, this means that the module does
             // not have any new or recurrent commands to execute.
-            if (execution_parameters.next_command == 0) return false;
+            if (_execution_parameters.next_command == 0) return false;
 
             // If there is a next command in the queue and the new_command flag is set to true, activates the queued
             // command without any further condition.
-            if (execution_parameters.new_command)
+            if (_execution_parameters.new_command)
             {
                 // Transfers the command and the noblock flag from buffer fields to active fields
-                execution_parameters.command = execution_parameters.next_command;
-                execution_parameters.noblock = execution_parameters.next_noblock;
+                _execution_parameters.command = _execution_parameters.next_command;
+                _execution_parameters.noblock = _execution_parameters.next_noblock;
 
                 // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
                 // should start with stage 1, as stage 0 is reserved for communicating no active commands sate.
-                execution_parameters.stage = 1;
+                _execution_parameters.stage = 1;
 
                 // Removes the new_command flag to indicate that the new command has been consumed.
-                execution_parameters.new_command = false;
+                _execution_parameters.new_command = false;
 
                 return true;  // Returns true to indicate there is a command to run.
             }
@@ -189,14 +185,14 @@ class Module
             // number of microseconds has passed, re-activates the previously executed command. Note, the
             // next_command != 0 check is here to support correct behavior in response to Dequeue command, which sets
             // the next_command field to 0 and should be able to abort cyclic and non-cyclic command execution.
-            if (execution_parameters.run_recurrently &&
-                execution_parameters.recurrent_timer > execution_parameters.recurrent_delay &&
-                execution_parameters.next_command != 0)
+            if (_execution_parameters.run_recurrently &&
+                _execution_parameters.recurrent_timer > _execution_parameters.recurrent_delay &&
+                _execution_parameters.next_command != 0)
             {
                 // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
-                execution_parameters.command = execution_parameters.next_command;
-                execution_parameters.noblock = execution_parameters.next_noblock;
-                execution_parameters.stage   = 1;
+                _execution_parameters.command = _execution_parameters.next_command;
+                _execution_parameters.noblock = _execution_parameters.next_noblock;
+                _execution_parameters.stage   = 1;
                 return true;  // Indicates there is a command to run.
             }
 
@@ -210,17 +206,17 @@ class Module
          */
         void ResetExecutionParameters()
         {
-            // Resets the execution_parameters structure back to default values
-            execution_parameters.command         = 0;
-            execution_parameters.stage           = 0;
-            execution_parameters.noblock         = false;
-            execution_parameters.next_command    = 0;
-            execution_parameters.next_noblock    = false;
-            execution_parameters.new_command     = false;
-            execution_parameters.run_recurrently = false;
-            execution_parameters.recurrent_delay = 0;
-            execution_parameters.recurrent_timer = 0;
-            execution_parameters.delay_timer     = 0;
+            // Resets the _execution_parameters structure back to default values
+            _execution_parameters.command         = 0;
+            _execution_parameters.stage           = 0;
+            _execution_parameters.noblock         = false;
+            _execution_parameters.next_command    = 0;
+            _execution_parameters.next_noblock    = false;
+            _execution_parameters.new_command     = false;
+            _execution_parameters.run_recurrently = false;
+            _execution_parameters.recurrent_delay = 0;
+            _execution_parameters.recurrent_timer = 0;
+            _execution_parameters.delay_timer     = 0;
         }
 
         /**
@@ -279,13 +275,13 @@ class Module
         /**
          * @brief Executes the instance method associated with the active command.
          *
-         * @note This method should translate the active command returned by the get_active_command()
-         * method inherited from the base Module class into the call to the command-specific method that executes the
-         * command's logic.
-         *
          * @warning This method should not evaluate whether the command ran successfully, only whether the command
          * was recognized and matched to the appropriate method call. The called method should use the inherited
          * SendData() method to report command runtime status to the PC.
+         *
+         * @note This method should translate the active command returned by the get_active_command()
+         * method inherited from the base Module class into the call to the command-specific method that executes the
+         * command's logic.
          *
          * @returns true if the active module command was matched to a specific custom method, false otherwise.
          */
@@ -321,7 +317,7 @@ class Module
         [[nodiscard]]
         uint8_t get_active_command() const
         {
-            return execution_parameters.command;
+            return _execution_parameters.command;
         }
 
         /**
@@ -334,7 +330,7 @@ class Module
         {
             // Only resets the command queue if there is no other command to replace the currently executed command when
             // it is completed.
-            if (!execution_parameters.new_command) ResetCommandQueue();
+            if (!_execution_parameters.new_command) ResetCommandQueue();
             CompleteCommand();  // Finishes the command execution and sends the completion message to the PC.
         }
 
@@ -346,8 +342,8 @@ class Module
          */
         void AdvanceCommandStage()
         {
-            execution_parameters.stage++;
-            execution_parameters.delay_timer = 0;
+            _execution_parameters.stage++;
+            _execution_parameters.delay_timer = 0;
         }
 
         /**
@@ -358,7 +354,7 @@ class Module
         uint8_t get_command_stage() const
         {
             // If there is an actively executed command, returns its stage
-            if (execution_parameters.command != 0) return execution_parameters.stage;
+            if (_execution_parameters.command != 0) return _execution_parameters.stage;
 
             // Otherwise returns 0 to indicate there is no actively running command
             return 0;
@@ -379,22 +375,22 @@ class Module
             // Resolves and, if necessary, notifies the PC that the active command has been completed. This is only done
             // for commands that have finished their runtime. Specifically, recurrent commands do not report completion
             // until they are canceled or replaced by a new command. One-shot commands always report completion.
-            if (execution_parameters.new_command || execution_parameters.next_command == 0 ||
-                !execution_parameters.run_recurrently)
+            if (_execution_parameters.new_command || _execution_parameters.next_command == 0 ||
+                !_execution_parameters.run_recurrently)
             {
-                // Since this automatically accesses execution_parameters.command for command code, this has to be
+                // Since this automatically accesses _execution_parameters.command for command code, this has to be
                 // called before resetting the command field.
                 SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
             }
 
-            execution_parameters.command = 0;  // Removes active command code
-            execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
-            execution_parameters.recurrent_timer =
+            _execution_parameters.command = 0;  // Removes active command code
+            _execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
+            _execution_parameters.recurrent_timer =
                 0;  // Resets the recurrent command timer when the command is completed
 
             // If the command that has just been completed is not a recurrent command and there is no new command,
             // resets the command queue to clear out the completed command data.
-            if (!execution_parameters.new_command && !execution_parameters.run_recurrently) ResetCommandQueue();
+            if (!_execution_parameters.new_command && !_execution_parameters.run_recurrently) ResetCommandQueue();
         }
 
         /**
@@ -491,15 +487,15 @@ class Module
         {
             // If the caller command is executed in blocking mode, blocks in-place until the requested duration has
             // passed
-            if (!execution_parameters.noblock)
+            if (!_execution_parameters.noblock)
             {
                 // Blocks until delay_duration has passed
-                while (execution_parameters.delay_timer <= delay_duration);
+                while (_execution_parameters.delay_timer <= delay_duration);
             }
 
             // Evaluates whether the requested number of microseconds has passed. If the duration was enforced above,
             // this check will always be true.
-            if (execution_parameters.delay_timer >= delay_duration)
+            if (_execution_parameters.delay_timer >= delay_duration)
             {
                 return true;
             }
@@ -511,14 +507,14 @@ class Module
         /**
          * @brief Packages and sends the provided event_code and data object to the PC.
          *
-         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
-         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
-         * than the data-containing version.
-         *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
          * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
          * using this method to avoid interference!
+         *
+         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
+         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
+         * than the data-containing version.
          *
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param event_code The event that triggered the data transmission.
@@ -534,7 +530,7 @@ class Module
             if (_communication.SendDataMessage(
                     _module_type,
                     _module_id,
-                    execution_parameters.command,
+                    _execution_parameters.command,
                     event_code,
                     prototype,
                     object
@@ -546,7 +542,7 @@ class Module
             _communication.SendCommunicationErrorMessage(
                 _module_type,
                 _module_id,
-                execution_parameters.command,
+                _execution_parameters.command,
                 static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
             );
         }
@@ -563,7 +559,7 @@ class Module
         {
             // Packages and sends the data to the connected system via the Communication class. If the message was
             // sent, ends the runtime
-            if (_communication.SendStateMessage(_module_type, _module_id, execution_parameters.command, event_code))
+            if (_communication.SendStateMessage(_module_type, _module_id, _execution_parameters.command, event_code))
                 return;
 
             // If the message was not sent, calls a method that attempts to send a communication error message to the
@@ -571,7 +567,7 @@ class Module
             _communication.SendCommunicationErrorMessage(
                 _module_type,
                 _module_id,
-                execution_parameters.command,
+                _execution_parameters.command,
                 static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
             );
         }
@@ -601,11 +597,11 @@ class Module
         /// active at the same time.
         const uint16_t _module_type_id = _module_type << 8 | _module_id;
 
-        /// The Communication instance used to send module runtime data to the PC.
+        /// Stores the Communication instance used to send module runtime data to the PC.
         Communication& _communication;
 
         /// Stores instance-specific runtime flow control parameters.
-        ExecutionControlParameters execution_parameters;
+        ExecutionControlParameters _execution_parameters;
 };
 
 #endif  //AXMC_MODULE_H

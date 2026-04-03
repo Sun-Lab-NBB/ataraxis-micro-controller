@@ -8,19 +8,18 @@
  * ataraxis-communication-interface library running on the host-computer (PC).
  */
 
-// Dependencies
-#include "../examples/example_module.h"
 #include <Arduino.h>
+#include "../examples/example_module.h"
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
 
-// Specifies the unique identifier for the test microcontroller.
+/// Specifies the unique identifier for the test microcontroller.
 static constexpr uint8_t kControllerID = 222;
 
-// Keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the PC to send
-// keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it assumes that the
-// microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
+/// Stores the keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the
+/// PC to send keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it
+/// assumes that the microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
 static constexpr uint32_t kKeepaliveInterval = 5000;
 
 // Initializes the Communication class. This class instance is shared by all other classes and manages incoming and

@@ -13,7 +13,6 @@
 #ifndef AXMC_COMMUNICATION_H
 #define AXMC_COMMUNICATION_H
 
-// Dependencies
 #include <Arduino.h>
 #include <axtlmc_shared_assets.h>
 #include <digitalWriteFast.h>
@@ -135,7 +134,7 @@ class Communication
          * enumeration members.
          * @param object The data object to be sent along with the message.
          *
-         * @returns True if the message is sent, false otherwise.
+         * @returns true if the message is sent, false otherwise.
          */
         template <typename ObjectType>
         bool SendDataMessage(
@@ -245,7 +244,7 @@ class Communication
          * @param command The command executed by the module that sent the message.
          * @param event_code The event that triggered the message.
          *
-         * @returns True if the message is sent, false otherwise.
+         * @returns true if the message is sent, false otherwise.
          */
         bool SendStateMessage(
             const uint8_t module_type,
@@ -355,20 +354,20 @@ class Communication
         /**
          * @brief Uses the specified service message protocol to send the input service code to the PC.
          *
-         * @tparam protocol The protocol to use for the transmitted message. Has to be one of the following kProtocols
+         * @tparam kProtocol The protocol to use for the transmitted message. Has to be one of the following kProtocols
          * enumeration members: kReceptionCode, kControllerIdentification or kModuleIdentification.
          * @tparam ObjectType The data type of the service code value.
          * @param service_code The service code to be transmitted to the PC.
          *
-         * @returns True if the message is sent, false otherwise.
+         * @returns true if the message is sent, false otherwise.
          */
-        template <const kProtocols protocol, typename ObjectType>
+        template <const kProtocols kProtocol, typename ObjectType>
         bool SendServiceMessage(const ObjectType service_code)
         {
             // Ensures the communication protocol is one of the supported Service protocols.
             static_assert(
-                protocol == kProtocols::kReceptionCode || protocol == kProtocols::kControllerIdentification ||
-                    protocol == kProtocols::kModuleIdentification,
+                kProtocol == kProtocols::kReceptionCode || kProtocol == kProtocols::kControllerIdentification ||
+                    kProtocol == kProtocols::kModuleIdentification,
                 "Encountered an invalid ServiceMessage protocol code. Use one of the supported Service protocols from "
                 "the kProtocols enumeration."
             );
@@ -384,7 +383,7 @@ class Communication
 
             // Packages the input protocol code and the service code into the transmission buffer.
             bool success = true;
-            if (!_transport_layer.WriteData(static_cast<uint8_t>(protocol))) success = false;
+            if (!_transport_layer.WriteData(static_cast<uint8_t>(kProtocol))) success = false;
             if (success && !_transport_layer.WriteData(service_code)) success = false;
 
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
@@ -410,7 +409,7 @@ class Communication
          * @attention If the received message is a ModuleParameters message, call the ExtractModuleParameters() method
          * to extract the data payload. This method DOES NOT extract Module parameter data from the serial buffer.
          *
-         * @returns True if a message was successfully received, false otherwise. If this method returns false, this
+         * @returns true if a message was successfully received, false otherwise. If this method returns false, this
          * does not by itself indicate a runtime error. Use the get_communication_status() accessor to determine if
          * the method encountered a runtime error.
          */
@@ -484,18 +483,18 @@ class Communication
          * method implementation. Do not call this method from any other context.
          *
          * @tparam ObjectType The type of the destination object.
-         * @tparam object_size The size of the destination object, in bytes.
+         * @tparam kObjectSize The size of the destination object, in bytes.
          * @param destination The object where to unpack the received parameters. Typically, this is a packed structure.
          *
-         * @returns True if the parameter data was successfully extracted into the destination object and false
+         * @returns true if the parameter data was successfully extracted into the destination object and false
          * otherwise.
          */
-        template <typename ObjectType, const size_t object_size = sizeof(ObjectType)>
+        template <typename ObjectType, const size_t kObjectSize = sizeof(ObjectType)>
         bool ExtractModuleParameters(ObjectType& destination)
         {
             // Ensures that the prototype compiles with the limitations of the transport layer.
             static_assert(
-                object_size > 0 && object_size <= 250,
+                kObjectSize > 0 && kObjectSize <= 250,
                 "Unable to extract the target module's parameters as the method has received an invalid "
                 "'destination' input. A valid destination object must have a size between 1 and 250 bytes."
             );
@@ -511,7 +510,7 @@ class Communication
             // Verifies that the size of the prototype structure exactly matches the number of object bytes received
             // with the message. The '-1' accounts for the protocol code (first variable of each message) that precedes
             // the message structure.
-            if (static_cast<uint8_t>(object_size) !=
+            if (static_cast<uint8_t>(kObjectSize) !=
                 _transport_layer.get_bytes_in_reception_buffer() - sizeof(ModuleParameters) - 1)
             {
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParameterMismatch);
@@ -532,7 +531,7 @@ class Communication
         }
 
     private:
-        /// The maximum possible size for the received and transmitted payloads. Reuses the
+        /// Defines the maximum possible size for the received and transmitted payloads. Reuses the
         /// kSerialBufferSize constant defined inside transport_layer.h to determine the serial buffer size of the
         /// host microcontroller.
         static constexpr uint8_t kMaximumPayloadSize = min(kSerialBufferSize - 6, 254);
@@ -558,7 +557,7 @@ class Communication
         /// Stores the last received Module-addressed parameters message header data.
         ModuleParameters _module_parameters_header;
 
-        /// The TransportLayer instance that handles the bidirectional communication with the PC.
+        /// Manages the bidirectional communication with the PC.
         TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize> _transport_layer;
 };
 

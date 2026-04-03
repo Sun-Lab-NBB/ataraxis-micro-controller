@@ -52,11 +52,7 @@ class TestModule final : public Module
         };
 
         /// Initializes the base Module class with the provided type, id, and communication instance.
-        TestModule(
-            const uint8_t module_type,
-            const uint8_t module_id,
-            Communication& communication
-        ) :
+        TestModule(const uint8_t module_type, const uint8_t module_id, Communication& communication) :
             Module(module_type, module_id, communication)
         {}
 
@@ -94,7 +90,6 @@ class TestModule final : public Module
         ~TestModule() override = default;
 
     private:
-
         /// Emits a square digital pulse using the managed pin.
         void Pulse()
         {
@@ -131,11 +126,7 @@ class TestModule final : public Module
         /// Sends the current value of the 'echo_value' parameter to the PC.
         void Echo()
         {
-            SendData(
-                static_cast<uint8_t>(kStates::kEcho),
-                kPrototypes::kOneUint16,
-                parameters.echo_value
-            );
+            SendData(static_cast<uint8_t>(kStates::kEcho), kPrototypes::kOneUint16, parameters.echo_value);
             CompleteCommand();
         }
 };
