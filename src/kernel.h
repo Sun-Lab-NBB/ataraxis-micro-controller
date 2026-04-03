@@ -315,7 +315,7 @@ class Kernel
                         );
                         break;
 
-                    case kProtocols::KRepeatedModuleCommand:
+                    case kProtocols::kRepeatedModuleCommand:
                         return_code = _communication.repeated_module_command.return_code;
                         if (return_code) SendReceptionCode(return_code);
 

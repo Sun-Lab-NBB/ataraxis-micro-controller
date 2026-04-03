@@ -431,7 +431,7 @@ class Communication
                 // Unpacks the message header into the appropriate attribute structure.
                 switch (static_cast<kProtocols>(protocol_code))
                 {
-                    case kProtocols::KRepeatedModuleCommand:
+                    case kProtocols::kRepeatedModuleCommand:
                         if (_transport_layer.ReadData(repeated_module_command)) return true;
                         break;
 

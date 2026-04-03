@@ -1,6 +1,6 @@
 /**
  * @file
- * @brief This file provides the assets shared between all library components.
+ * @brief Provides the assets shared between all library components.
  */
 
 #ifndef AXMC_SHARED_ASSETS_H
@@ -55,45 +55,19 @@ namespace axmc_communication_assets
      */
     enum class kProtocols : uint8_t
     {
-        /// Not a valid protocol code. Used to initialize the Communication class.
-        kUndefined = 0,
-
-        /// Used by Module-addressed commands that should be repeated (executed recurrently).
-        KRepeatedModuleCommand = 1,
-
-        /// Used by Module-addressed commands that should not be repeated (executed only once).
-        kOneOffModuleCommand = 2,
-
-        /// Used by Module-addressed commands that remove all queued commands, including recurrent commands.
-        kDequeueModuleCommand = 3,
-
-        /// Used by Kernel-addressed commands. All Kernel commands are always non-repeatable (one-shot).
-        kKernelCommand = 4,
-
-        /// Used by Module-addressed parameter messages.
-        kModuleParameters = 5,
-
-        /// Used by Module data or error messages that include an arbitrary data object in addition to the event
-        /// state-code.
-        kModuleData = 6,
-
-        /// Used by Kernel data or error messages that include an arbitrary data object in addition to event state-code.
-        kKernelData = 7,
-
-        /// Used by Module data or error messages that only include the state-code.
-        kModuleState = 8,
-
-        /// Used by Kernel data or error messages that only include the state-code.
-        kKernelState = 9,
-
-        /// Used to acknowledge the reception of command and parameter messages.
-        kReceptionCode = 10,
-
-        /// Used to identify the host-microcontroller to the PC.
-        kControllerIdentification = 11,
-
-        /// Used to identify the hardware module instances managed by a Kernel instance to the PC.
-        kModuleIdentification = 12,
+        kUndefined                = 0,   ///< Not a valid protocol code. Used to initialize the Communication class.
+        kRepeatedModuleCommand    = 1,   ///< Module-addressed commands that should be repeated (recurrently).
+        kOneOffModuleCommand      = 2,   ///< Module-addressed commands that should not be repeated (one-off).
+        kDequeueModuleCommand     = 3,   ///< Module commands that clear all queued commands, including recurrent ones.
+        kKernelCommand            = 4,   ///< Kernel-addressed commands. All Kernel commands are non-repeatable.
+        kModuleParameters         = 5,   ///< Module-addressed parameter messages.
+        kModuleData               = 6,   ///< Module messages with an event state-code and an additional data object.
+        kKernelData               = 7,   ///< Kernel messages with an event state-code and an additional data object.
+        kModuleState              = 8,   ///< Module data or error messages that only include the state-code.
+        kKernelState              = 9,   ///< Kernel data or error messages that only include the state-code.
+        kReceptionCode            = 10,  ///< Acknowledges the reception of command and parameter messages.
+        kControllerIdentification = 11,  ///< Identifies the host-microcontroller to the PC.
+        kModuleIdentification     = 12,  ///< Identifies the module instances managed by the Kernel to the PC.
     };
 
     /**
@@ -355,24 +329,12 @@ namespace axmc_communication_assets
      */
     struct RepeatedModuleCommand
     {
-            /// The type (family) code of the module to which the command is addressed.
-            uint8_t module_type = 0;
-
-            /// The ID of the specific module instance within the broader module family.
-            uint8_t module_id = 0;
-
-            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
-            uint8_t return_code = 0;
-
-            /// The code of the command to execute.
-            uint8_t command = 0;
-
-            /// Determines whether to allow concurrent execution of other commands while waiting for the requested
-            /// command to complete.
-            bool noblock = false;
-
-            /// The delay, in microseconds, before repeating (cycling) the command.
-            uint32_t cycle_delay = 0;
+            uint8_t module_type  = 0;      ///< The type (family) code of the module to which the command is addressed.
+            uint8_t module_id    = 0;      ///< The ID of the specific module instance within the broader module family.
+            uint8_t return_code  = 0;      ///< The acknowledgment code for the message, if set to a non-zero value.
+            uint8_t command      = 0;      ///< The code of the command to execute.
+            bool noblock         = false;  ///< Determines whether to allow concurrent execution of other commands.
+            uint32_t cycle_delay = 0;      ///< The delay, in microseconds, before repeating (cycling) the command.
     } PACKED_STRUCT;
 
     /**
@@ -381,21 +343,11 @@ namespace axmc_communication_assets
      */
     struct OneOffModuleCommand
     {
-            /// The type (family) code of the module to which the command is addressed.
-            uint8_t module_type = 0;
-
-            /// The ID of the specific module instance within the broader module family.
-            uint8_t module_id = 0;
-
-            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
-            uint8_t return_code = 0;
-
-            /// The code of the command to execute.
-            uint8_t command = 0;
-
-            /// Determines whether to allow concurrent execution of other commands while waiting for the requested
-            /// command to complete.
-            bool noblock = false;
+            uint8_t module_type = 0;      ///< The type (family) code of the module to which the command is addressed.
+            uint8_t module_id   = 0;      ///< The ID of the specific module instance within the broader module family.
+            uint8_t return_code = 0;      ///< The acknowledgment code for the message, if set to a non-zero value.
+            uint8_t command     = 0;      ///< The code of the command to execute.
+            bool noblock        = false;  ///< Determines whether to allow concurrent execution of other commands.
     } PACKED_STRUCT;
 
     /**
@@ -404,14 +356,9 @@ namespace axmc_communication_assets
      */
     struct DequeueModuleCommand
     {
-            /// The type (family) code of the module to which the command is addressed.
-            uint8_t module_type = 0;
-
-            /// The ID of the specific module instance within the broader module family.
-            uint8_t module_id = 0;
-
-            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
-            uint8_t return_code = 0;
+            uint8_t module_type = 0;  ///< The type (family) code of the module to which the command is addressed.
+            uint8_t module_id   = 0;  ///< The ID of the specific module instance within the broader module family.
+            uint8_t return_code = 0;  ///< The acknowledgment code for the message, if set to a non-zero value.
     } PACKED_STRUCT;
 
     /**
@@ -420,11 +367,8 @@ namespace axmc_communication_assets
      */
     struct KernelCommand
     {
-            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
-            uint8_t return_code = 0;
-
-            /// The code of the command to execute.
-            uint8_t command = 0;
+            uint8_t return_code = 0;  ///< The acknowledgment code for the message, if set to a non-zero value.
+            uint8_t command     = 0;  ///< The code of the command to execute.
     } PACKED_STRUCT;
 
     /**
@@ -433,14 +377,9 @@ namespace axmc_communication_assets
      */
     struct ModuleParameters
     {
-            /// The type (family) code of the module to which the parameter configuration is addressed.
-            uint8_t module_type = 0;
-
-            /// The ID of the specific module instance within the broader module family.
-            uint8_t module_id = 0;
-
-            /// The code to use for acknowledging the reception of the message, if set to a non-zero value.
-            uint8_t return_code = 0;
+            uint8_t module_type = 0;  ///< The type (family) code of the module to which parameters are addressed.
+            uint8_t module_id   = 0;  ///< The ID of the specific module instance within the broader module family.
+            uint8_t return_code = 0;  ///< The acknowledgment code for the message, if set to a non-zero value.
     } PACKED_STRUCT;
 
     /**
@@ -451,46 +390,27 @@ namespace axmc_communication_assets
      */
     struct ModuleData
     {
-            /// The message protocol used by this structure.
-            uint8_t protocol;
-
-            /// The type (family) code of the module that sent the data message.
-            uint8_t module_type;
-
-            /// The ID of the specific module instance within the broader module family.
-            uint8_t module_id;
-
-            /// The command the Module was executing when it sent the data message.
-            uint8_t command;
-
-            /// The event that prompted the data transmission.
-            uint8_t event;
-
-            /// The code that specifies the type of the data object transmitted with the message.
-            uint8_t prototype;
-
+            uint8_t protocol;     ///< The message protocol used by this structure.
+            uint8_t module_type;  ///< The type (family) code of the module that sent the data message.
+            uint8_t module_id;    ///< The ID of the specific module instance within the broader module family.
+            uint8_t command;      ///< The command the Module was executing when it sent the data message.
+            uint8_t event;        ///< The event that prompted the data transmission.
+            uint8_t prototype;    ///< The prototype code for the data object transmitted with the message.
     } PACKED_STRUCT;
 
     /**
      * @struct KernelData
      * @brief Communicates that the Kernel has encountered a notable event and includes an additional data object.
      *
-     * @note Use the KernelState structure for messages that only need to transmit an event state-code.
-     * */
+     * @note Use the KernelState structure for messages that need to transmit a data object in addition to the state
+     * event-code.
+     */
     struct KernelData
     {
-            /// The message protocol used by this structure.
-            uint8_t protocol;
-
-            /// The command the Kernel was executing when it sent the data message.
-            uint8_t command;
-
-            /// The event that prompted the data transmission.
-            uint8_t event;
-
-            /// The code that specifies the type of the data object transmitted with the message.
-            uint8_t prototype;
-
+            uint8_t protocol;   ///< The message protocol used by this structure.
+            uint8_t command;    ///< The command the Kernel was executing when it sent the data message.
+            uint8_t event;      ///< The event that prompted the data transmission.
+            uint8_t prototype;  ///< The prototype code for the data object transmitted with the message.
     } PACKED_STRUCT;
 
     /**
@@ -502,20 +422,11 @@ namespace axmc_communication_assets
      */
     struct ModuleState
     {
-            /// The message protocol used by this structure.
-            uint8_t protocol;
-
-            /// The type (family) code of the module that sent the data message.
-            uint8_t module_type;
-
-            /// The ID of the specific module instance within the broader module family.
-            uint8_t module_id;
-
-            /// The command the Module was executing when it sent the data message.
-            uint8_t command;
-
-            /// The event that prompted the data transmission.
-            uint8_t event;
+            uint8_t protocol;     ///< The message protocol used by this structure.
+            uint8_t module_type;  ///< The type (family) code of the module that sent the data message.
+            uint8_t module_id;    ///< The ID of the specific module instance within the broader module family.
+            uint8_t command;      ///< The command the Module was executing when it sent the data message.
+            uint8_t event;        ///< The event that prompted the data transmission.
     } PACKED_STRUCT;
 
     /**
@@ -527,14 +438,9 @@ namespace axmc_communication_assets
      */
     struct KernelState
     {
-            /// The message protocol used by this structure.
-            uint8_t protocol;
-
-            /// The command the Kernel was executing when it sent the data message.
-            uint8_t command;
-
-            /// The event that prompted the data transmission.
-            uint8_t event;
+            uint8_t protocol;  ///< The message protocol used by this structure.
+            uint8_t command;   ///< The command the Kernel was executing when it sent the data message.
+            uint8_t event;     ///< The event that prompted the data transmission.
     } PACKED_STRUCT;
 
 }  // namespace axmc_communication_assets
