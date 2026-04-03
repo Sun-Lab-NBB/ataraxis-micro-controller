@@ -88,7 +88,7 @@ class Communication
         [[nodiscard]]
         uint8_t GetTransportLayerStatus() const
         {
-            return _transport_layer.runtime_status;
+            return _transport_layer.get_runtime_status();
         }
 
         /**
@@ -298,7 +298,7 @@ class Communication
         {
             // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.
             // Jointly, this information should be enough to diagnose the error.
-            const uint8_t errors[2] = {communication_status, _transport_layer.runtime_status};
+            const uint8_t errors[2] = {communication_status, _transport_layer.get_runtime_status()};
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
@@ -315,7 +315,7 @@ class Communication
         {
             // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.
             // Jointly, this information should be enough to diagnose the error.
-            const uint8_t errors[2] = {communication_status, _transport_layer.runtime_status};
+            const uint8_t errors[2] = {communication_status, _transport_layer.get_runtime_status()};
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
@@ -412,7 +412,7 @@ class Communication
             {
                 // The reception protocol can 'fail' gracefully if the reception buffer does not have enough bytes to
                 // attempt message reception.
-                if (_transport_layer.runtime_status == static_cast<uint8_t>(kTransportStatusCodes::kNoBytesToParse))
+                if (_transport_layer.get_runtime_status() == static_cast<uint8_t>(kTransportStatusCodes::kNoBytesToParse))
                 {
                     communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive);
                     return false;
