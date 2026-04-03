@@ -5,7 +5,7 @@ Provides the framework for integrating custom hardware modules with a centralize
 [![PlatformIO Registry](https://tinyurl.com/bdhdc2d8)](https://tinyurl.com/mrj7h9an)
 ![c++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=C%2B%2B&logoColor=white)
 ![arduino](https://img.shields.io/badge/Arduino-00878F?logo=arduino&logoColor=fff&style=plastic)
-![license](https://img.shields.io/badge/license-GPLv3-blue)
+![license](https://img.shields.io/badge/license-Apache%202.0-blue)
 
 ___
 
@@ -29,7 +29,7 @@ ___
 - Supports concurrent command execution for multiple module instances.
 - Contains many sanity checks performed at compile time and initialization to minimize the potential for unexpected
   behavior and data corruption.
-- GPL 3 License.
+- Apache 2.0 License.
 
 ___
 
@@ -401,7 +401,7 @@ releases.
 
 ## License
 
-This project is licensed under the GPL3 License: see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache 2.0 License: see the [LICENSE](LICENSE) file for details.
 
 ---
 
