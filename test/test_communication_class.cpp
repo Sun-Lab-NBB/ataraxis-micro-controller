@@ -39,7 +39,7 @@ void TestSendDataMessage()
     constexpr uint16_t expected_kernel[6] = {kernel_protocol, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 6; ++i)
     {
@@ -55,7 +55,7 @@ void TestSendDataMessage()
         {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 8; ++i)
     {
@@ -80,7 +80,7 @@ void TestSendStateMessage()
     constexpr uint16_t expected_kernel[4] = {kernel_protocol, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 4; ++i)
     {
@@ -95,7 +95,7 @@ void TestSendStateMessage()
     constexpr uint16_t expected_module[6] = {module_protocol, module_type, module_id, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 6; ++i)
     {
@@ -114,8 +114,8 @@ void SendCommunicationErrorMessage()
     constexpr uint8_t module_id     = 2;
     constexpr uint8_t command       = 3;
     constexpr uint8_t error_code    = 4;
-    comm_class.communication_status = 189;                     // Manually sets the Communication class status code.
-    uint8_t tl_status = comm_class.GetTransportLayerStatus();  // Extracts the current Transport Layer status.
+    comm_class.set_communication_status(189);  // Manually sets the Communication class status code.
+    uint8_t tl_status = comm_class.get_transport_layer_status();  // Extracts the current Transport Layer status.
 
     // Defines the prototype byte-code. Communication errors contain two uint8 values: Communication and
     // TransportLayer status codes.
@@ -128,16 +128,16 @@ void SendCommunicationErrorMessage()
     const uint16_t expected_kernel[7] = {kernel_protocol, 3, 4, prototype_code, 189, tl_status, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 7; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
 
-    mock_port.reset();                                 // Resets the mock port
-    comm_class.communication_status = 65;              // Resets the communication class status.
-    tl_status = comm_class.GetTransportLayerStatus();  // Re-extracts the current Transport Layer status.
+    mock_port.reset();                                      // Resets the mock port
+    comm_class.set_communication_status(65);              // Resets the communication class status.
+    tl_status = comm_class.get_transport_layer_status();  // Re-extracts the current Transport Layer status.
 
     // Module error message
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
@@ -145,7 +145,7 @@ void SendCommunicationErrorMessage()
     const uint16_t expected_module[9] = {module_protocol, 1, 2, 3, 4, prototype_code, 65, tl_status, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 9; ++i)
     {
@@ -169,7 +169,7 @@ void TestSendServiceMessage()
     comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 2; ++i)
     {
@@ -186,7 +186,7 @@ void TestSendServiceMessage()
     comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(service_code);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 2; ++i)
     {
@@ -205,7 +205,7 @@ void TestSendServiceMessage()
     comm_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(module_type_id);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     for (int i = 0; i < 3; ++i)
     {
@@ -228,7 +228,7 @@ void TestReceiveMessage()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kNoBytesToReceive),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
 
     mock_port.reset();  // Resets the mock port
@@ -248,14 +248,14 @@ void TestReceiveMessage()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.repeated_module_command.module_type);   // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.repeated_module_command.module_id);     // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, comm_class.repeated_module_command.return_code);   // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(5, comm_class.repeated_module_command.command);       // Check command
-    TEST_ASSERT_FALSE(comm_class.repeated_module_command.noblock);                // Check noblock
-    TEST_ASSERT_EQUAL_UINT32(0, comm_class.repeated_module_command.cycle_delay);  // Check cycle_delay
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_repeated_module_command().module_type);   // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.get_repeated_module_command().module_id);     // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(4, comm_class.get_repeated_module_command().return_code);   // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(5, comm_class.get_repeated_module_command().command);       // Check command
+    TEST_ASSERT_FALSE(comm_class.get_repeated_module_command().noblock);                // Check noblock
+    TEST_ASSERT_EQUAL_UINT32(0, comm_class.get_repeated_module_command().cycle_delay);  // Check cycle_delay
 
     mock_port.reset();  // Resets the mock port
 
@@ -274,13 +274,13 @@ void TestReceiveMessage()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(0, comm_class.one_off_module_command.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.one_off_module_command.module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.one_off_module_command.return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.one_off_module_command.command);      // Check command
-    TEST_ASSERT_TRUE(comm_class.one_off_module_command.noblock);                // Check noblock
+    TEST_ASSERT_EQUAL_UINT8(0, comm_class.get_one_off_module_command().module_type);  // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.get_one_off_module_command().module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_one_off_module_command().return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.get_one_off_module_command().command);      // Check command
+    TEST_ASSERT_TRUE(comm_class.get_one_off_module_command().noblock);                // Check noblock
 
     mock_port.reset();  // Resets the mock port
 
@@ -299,11 +299,11 @@ void TestReceiveMessage()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_dequeue.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_dequeue.module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_dequeue.return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.get_module_dequeue().module_type);  // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_module_dequeue().module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.get_module_dequeue().return_code);  // Check return_code
 
     mock_port.reset();  // Resets the mock port
 
@@ -322,10 +322,10 @@ void TestReceiveMessage()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.kernel_command.return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.kernel_command.command);      // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.get_kernel_command().return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_kernel_command().command);      // Check return_code
 
     mock_port.reset();  // Resets the mock port
 
@@ -345,11 +345,11 @@ void TestReceiveMessage()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(1, comm_class.module_parameters_header.module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.module_parameters_header.module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(3, comm_class.module_parameters_header.return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(1, comm_class.get_module_parameters_header().module_type);  // Check module_type
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_module_parameters_header().module_id);    // Check module_id
+    TEST_ASSERT_EQUAL_UINT8(3, comm_class.get_module_parameters_header().return_code);  // Check return_code
 
     mock_port.reset();  // Resets the mock port
 }
@@ -376,7 +376,7 @@ void TestReceiveMessageErrors()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kReceptionError),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
 
     mock_port.reset();  // Resets the mock port
@@ -398,7 +398,7 @@ void TestReceiveMessageErrors()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kInvalidProtocol),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
 
     mock_port.reset();  // Resets the mock port
@@ -419,7 +419,7 @@ void TestReceiveMessageErrors()
     comm_class.ReceiveMessage();
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParsingError),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
 }
 
@@ -450,7 +450,7 @@ void TestExtractModuleParameters()
     comm_class.ExtractModuleParameters(extract_data);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     const uint8_t expected_data[6] = {
         5,
@@ -464,7 +464,7 @@ void TestExtractModuleParameters()
 
     mock_port.reset();  // Resets the mock port
 
-    //Verifies that extracting parameter data into a structure works as expected
+    // Verifies that extracting parameter data into a structure works as expected
     uint8_t test_buffer_2[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
@@ -487,7 +487,7 @@ void TestExtractModuleParameters()
     comm_class.ExtractModuleParameters(test_structure);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
     TEST_ASSERT_EQUAL_UINT8(9, test_structure.id);
     const uint8_t expected_data_2[5] = {
@@ -527,21 +527,21 @@ void TestExtractModuleParametersErrors()
     comm_class.ExtractModuleParameters(extract_into);
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kExtractionForbidden),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
 
     mock_port.reset();  // Resets the mock port
 
     // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of the parameters
     // block inside the serial buffer raises a kParameterMismatch error.
-    comm_class.protocol_code = 5;  // Manually sets the protocol code to kModuleParameters
+    comm_class.set_protocol_code(5);  // Manually sets the protocol code to kModuleParameters
 
     // Prototype is larger than stored data size
     uint8_t invalid_prototype_2[12] = {};  // Prototype is smaller than stored data size
     TEST_ASSERT_FALSE(comm_class.ExtractModuleParameters(invalid_prototype_2));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParameterMismatch),
-        comm_class.communication_status
+        comm_class.get_communication_status()
     );
 }
 

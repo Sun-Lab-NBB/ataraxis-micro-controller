@@ -236,15 +236,15 @@ class Kernel
                     case kProtocols::kUndefined: break_loop = true; break;
 
                     case kProtocols::kModuleParameters:
-                        return_code = _communication.module_parameters_header.return_code;
+                        return_code = _communication.get_module_parameters_header().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         // For module-addressed commands, attempts to resolve (discover) the addressed module. If this
                         // method succeeds, it returns an index (>=0) of the target module class inside the _modules
                         // array
                         target_module = ResolveTargetModule(
-                            _communication.module_parameters_header.module_type,
-                            _communication.module_parameters_header.module_id
+                            _communication.get_module_parameters_header().module_type,
+                            _communication.get_module_parameters_header().module_id
                         );
 
                         // Aborts early if the target module is not found, as indicated by the returned code being
@@ -272,7 +272,7 @@ class Kernel
                         break;
 
                     case kProtocols::kKernelCommand:
-                        return_code = _communication.kernel_command.return_code;
+                        return_code = _communication.get_kernel_command().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         // This method resolves and executes the command logic. It automatically extracts the command
@@ -281,11 +281,11 @@ class Kernel
                         break;
 
                     case kProtocols::kDequeueModuleCommand:
-                        return_code = _communication.module_dequeue.return_code;
+                        return_code = _communication.get_module_dequeue().return_code;
                         if (return_code) SendReceptionCode(return_code);
                         target_module = ResolveTargetModule(
-                            _communication.module_dequeue.module_type,
-                            _communication.module_dequeue.module_id
+                            _communication.get_module_dequeue().module_type,
+                            _communication.get_module_dequeue().module_id
                         );
 
                         // Aborts early if the target module is not found, as indicated by the returned code being
@@ -298,30 +298,30 @@ class Kernel
                         break;
 
                     case kProtocols::kOneOffModuleCommand:
-                        return_code = _communication.one_off_module_command.return_code;
+                        return_code = _communication.get_one_off_module_command().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         target_module = ResolveTargetModule(
-                            _communication.one_off_module_command.module_type,
-                            _communication.one_off_module_command.module_id
+                            _communication.get_one_off_module_command().module_type,
+                            _communication.get_one_off_module_command().module_id
                         );
 
                         if (target_module < 0) break;
 
                         // Uses an overloaded QueueCommand method that always sets the input command as non-recurrent.
                         _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                            _communication.one_off_module_command.command,
-                            _communication.one_off_module_command.noblock
+                            _communication.get_one_off_module_command().command,
+                            _communication.get_one_off_module_command().noblock
                         );
                         break;
 
                     case kProtocols::kRepeatedModuleCommand:
-                        return_code = _communication.repeated_module_command.return_code;
+                        return_code = _communication.get_repeated_module_command().return_code;
                         if (return_code) SendReceptionCode(return_code);
 
                         target_module = ResolveTargetModule(
-                            _communication.repeated_module_command.module_type,
-                            _communication.repeated_module_command.module_id
+                            _communication.get_repeated_module_command().module_type,
+                            _communication.get_repeated_module_command().module_id
                         );
 
                         if (target_module < 0) break;
@@ -329,19 +329,19 @@ class Kernel
                         // Uses the non-overloaded QueueCommand method that always sets the input command to execute
                         // recurrently.
                         _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                            _communication.repeated_module_command.command,
-                            _communication.repeated_module_command.noblock,
-                            _communication.repeated_module_command.cycle_delay
+                            _communication.get_repeated_module_command().command,
+                            _communication.get_repeated_module_command().noblock,
+                            _communication.get_repeated_module_command().cycle_delay
                         );
                         break;
 
                     default:
                         // If the message protocol is not one of the expected protocols, sends an error message to the
-                        // PC.Includes the invalid protocol value in the message.
+                        // PC. Includes the invalid protocol value in the message.
                         SendData(
                             static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
                             kPrototypes::kOneUint8,
-                            _communication.protocol_code
+                            _communication.get_protocol_code()
                         );
                         break;
                 }
@@ -392,7 +392,7 @@ class Kernel
         /// Tracks whether the keepalive tracking is enabled.
         bool _keepalive_enabled = false;
 
-        /// The Communication instance  used to bidirectionally communicate with the PC interface.
+        /// The Communication instance used to bidirectionally communicate with the PC interface.
         Communication& _communication;
 
         /// Tracks whether the Setup() method has been called to ensure that the instance is properly configured for
@@ -410,13 +410,13 @@ class Kernel
         {
             // Attempts to receive a message sent by the PC. If reception succeeds, returns the protocol code of the
             // received message
-            if (_communication.ReceiveMessage()) return _communication.protocol_code;
+            if (_communication.ReceiveMessage()) return _communication.get_protocol_code();
 
             // Data reception can fail for two broad reasons. The first reason is that one of the classes involved in
             // data reception encounters an error. If this happens, the error needs to be reported to the PC. However,
             // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
             // an error and should be handled as a valid 'no need to do anything' case.
-            if (_communication.communication_status !=
+            if (_communication.get_communication_status() !=
                 static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive))
             {
                 // For legitimately failed runtimes, sends an error message to the PC.
@@ -532,7 +532,7 @@ class Kernel
         void RunKernelCommand()
         {
             // Resolves and executes the specific requested command
-            kernel_command = _communication.kernel_command.command;
+            kernel_command = _communication.get_kernel_command().command;
             switch (static_cast<kKernelCommands>(kernel_command))
             {
                 case kKernelCommands::kResetController: Setup(); return;
@@ -562,7 +562,7 @@ class Kernel
          * @note If this method is unable to resolve the target module, it automatically sends an error message to the
          * PC in addition to returning the '-1' error code.
          *
-         * @param target_type: The type (family) identifier of the addressed module.
+         * @param target_type The type (family) identifier of the addressed module.
          * @param target_id The unique identifier of the addressed module.
          *
          * @return A non-negative integer representing the index of the module in the array of managed modules if the
