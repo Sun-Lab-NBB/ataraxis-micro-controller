@@ -182,7 +182,18 @@ class Communication
             return true;
         }
 
-        /// Overloads SendDataMessage to support sending Kernel data messages.
+        /**
+         * @brief Sends the input event code and data object to the PC as a Kernel-addressed message.
+         *
+         * @tparam ObjectType The type of the data object to be sent along with the message.
+         * @param command The command the Kernel was executing when it sent the message.
+         * @param event_code The event that triggered the message.
+         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
+         * enumeration members.
+         * @param object The data object to be sent along with the message.
+         *
+         * @returns true if the message is sent, false otherwise.
+         */
         template <typename ObjectType>
         bool SendDataMessage(
             const uint8_t command,
@@ -260,7 +271,14 @@ class Communication
             return true;
         }
 
-        /// Overloads SendStateMessage to support sending Kernel state messages.
+        /**
+         * @brief Sends the input event code to the PC as a Kernel-addressed state message.
+         *
+         * @param command The command the Kernel was executing when it sent the message.
+         * @param event_code The event that triggered the message.
+         *
+         * @returns true if the message is sent, false otherwise.
+         */
         bool SendStateMessage(const uint8_t command, const uint8_t event_code)
         {
             // Constructs the message header.
@@ -311,7 +329,13 @@ class Communication
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
-        /// Overloads SendCommunicationErrorMessage to support sending Kernel communication error messages.
+        /**
+         * @brief Sends the communication error message to the PC as a Kernel-addressed message and activates the
+         * built-in LED.
+         *
+         * @param command The command the Kernel was executing when it encountered the error.
+         * @param error_code The encountered communication error.
+         */
         void SendCommunicationErrorMessage(const uint8_t command, const uint8_t error_code)
         {
             // Combines the latest statuses of the Communication class and the TransportLayer class into a 2-byte array.

@@ -1,3 +1,8 @@
+/**
+ * @file
+ * @brief Verifies the behavior of the Communication class send, receive, and parameter extraction methods.
+ */
+
 // Dependencies
 #include <Arduino.h>             // For Arduino functions
 #include <unity.h>               // This is the C testing framework, no connection to the Unity game engine
@@ -16,7 +21,7 @@ void tearDown()
 {}
 
 // Tests the functioning of the Communication's SendDataMessage() method.
-void TestSendDataMessage()
+void test_send_data_message()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -41,7 +46,7 @@ void TestSendDataMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 6; ++i)
+    for (size_t i = 0; i < 6; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -57,14 +62,14 @@ void TestSendDataMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 8; ++i)
+    for (size_t i = 0; i < 8; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
 }
 
 // Tests the functioning of the Communication's SendStateMessage() method.
-void TestSendStateMessage()
+void test_send_state_message()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -82,7 +87,7 @@ void TestSendStateMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 4; ++i)
+    for (size_t i = 0; i < 4; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -97,25 +102,25 @@ void TestSendStateMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 6; ++i)
+    for (size_t i = 0; i < 6; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
 }
 
 // Tests the functioning of the Communication's SendCommunicationErrorMessage() method.
-void SendCommunicationErrorMessage()
+void test_send_communication_error_message()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
 
     // Defines static payload components.
-    constexpr uint8_t module_type   = 1;
-    constexpr uint8_t module_id     = 2;
-    constexpr uint8_t command       = 3;
-    constexpr uint8_t error_code    = 4;
+    constexpr uint8_t module_type = 1;
+    constexpr uint8_t module_id   = 2;
+    constexpr uint8_t command     = 3;
+    constexpr uint8_t error_code  = 4;
     comm_class.set_communication_status(189);  // Manually sets the Communication class status code.
-    uint8_t tl_status = comm_class.get_transport_layer_status();  // Extracts the current Transport Layer status.
+    const uint8_t tl_status = comm_class.get_transport_layer_status();  // Extracts the current Transport Layer status.
 
     // Defines the prototype byte-code. Communication errors contain two uint8 values: Communication and
     // TransportLayer status codes.
@@ -130,31 +135,31 @@ void SendCommunicationErrorMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 7; ++i)
+    for (size_t i = 0; i < 7; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
 
-    mock_port.reset();                                      // Resets the mock port
-    comm_class.set_communication_status(65);              // Resets the communication class status.
-    tl_status = comm_class.get_transport_layer_status();  // Re-extracts the current Transport Layer status.
+    mock_port.reset();                                                  // Resets the mock port
+    comm_class.set_communication_status(65);                            // Resets the communication class status.
+    const uint8_t tl_status_2 = comm_class.get_transport_layer_status();  // Re-extracts Transport Layer status.
 
     // Module error message
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
     comm_class.SendCommunicationErrorMessage(module_type, module_id, command, error_code);
-    const uint16_t expected_module[9] = {module_protocol, 1, 2, 3, 4, prototype_code, 65, tl_status, 0};
+    const uint16_t expected_module[9] = {module_protocol, 1, 2, 3, 4, prototype_code, 65, tl_status_2, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 9; ++i)
+    for (size_t i = 0; i < 9; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
 }
 
 // Tests the functioning of the Communication's SendServiceMessage() method for all valid protocols.
-void TestSendServiceMessage()
+void test_send_service_message()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -171,7 +176,7 @@ void TestSendServiceMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 2; ++i)
+    for (size_t i = 0; i < 2; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_reception[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -188,7 +193,7 @@ void TestSendServiceMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 2; ++i)
+    for (size_t i = 0; i < 2; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(expected_identification[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
     }
@@ -207,7 +212,7 @@ void TestSendServiceMessage()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         comm_class.get_communication_status()
     );
-    for (int i = 0; i < 3; ++i)
+    for (size_t i = 0; i < 3; ++i)
     {
         TEST_ASSERT_EQUAL_UINT16(
             expected_module_identification[i],
@@ -217,7 +222,7 @@ void TestSendServiceMessage()
 }
 
 // Tests the functioning of the Communication's ReceiveMessage() method.
-void TestReceiveMessage()
+void test_receive_message()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -325,7 +330,7 @@ void TestReceiveMessage()
         comm_class.get_communication_status()
     );
     TEST_ASSERT_EQUAL_UINT8(1, comm_class.get_kernel_command().return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_kernel_command().command);      // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(2, comm_class.get_kernel_command().command);      // Check command
 
     mock_port.reset();  // Resets the mock port
 
@@ -355,7 +360,7 @@ void TestReceiveMessage()
 }
 
 // Tests the error-handling behavior of the Communication's ReceiveMessage() method.
-void TestReceiveMessageErrors()
+void test_receive_message_errors()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -424,7 +429,7 @@ void TestReceiveMessageErrors()
 }
 
 // Tests the functioning of the Communication's ExtractModuleParameters() method.
-void TestExtractModuleParameters()
+void test_extract_module_parameters()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -501,7 +506,7 @@ void TestExtractModuleParameters()
 }
 
 // Tests the error-handling behavior of the Communication's ExtractModuleParameters() method.
-void TestExtractModuleParametersErrors()
+void test_extract_module_parameters_errors()
 {
     StreamMock<60> mock_port;
     Communication comm_class(mock_port);
@@ -551,24 +556,24 @@ int RunUnityTests()
     UNITY_BEGIN();
 
     // SendDataMessage
-    RUN_TEST(TestSendDataMessage);
+    RUN_TEST(test_send_data_message);
 
     // SendStateMessage
-    RUN_TEST(TestSendStateMessage);
+    RUN_TEST(test_send_state_message);
 
     // SendCommunicationErrorMessage
-    RUN_TEST(SendCommunicationErrorMessage);
+    RUN_TEST(test_send_communication_error_message);
 
     // SendServiceMessage
-    RUN_TEST(TestSendServiceMessage);
+    RUN_TEST(test_send_service_message);
 
     // ReceiveMessage
-    RUN_TEST(TestReceiveMessage);
-    RUN_TEST(TestReceiveMessageErrors);
+    RUN_TEST(test_receive_message);
+    RUN_TEST(test_receive_message_errors);
 
     // ExtractModuleParameters
-    RUN_TEST(TestExtractModuleParameters);
-    RUN_TEST(TestExtractModuleParametersErrors);
+    RUN_TEST(test_extract_module_parameters);
+    RUN_TEST(test_extract_module_parameters_errors);
 
     return UNITY_END();
 }
@@ -592,7 +597,7 @@ defined(__AVR_ATmega32U4__)
 #endif
 
 // This is necessary for the Arduino framework testing to work as expected, which includes teensy. All tests are
-// run inside the setup function as they are intended to be one-shot tests
+// run inside the setup function as they are intended to be one-shot tests.
 void setup()
 {
     // Starts the serial connection.
@@ -602,13 +607,13 @@ void setup()
     // this is less important, since it uses a USB interface which does not reset the board on connection.
     delay(2000);
 
-    // Runs the required tests
+    // Runs the required tests.
     RunUnityTests();
 
     // Stops the serial communication interface.
     Serial.end();
 }
 
-// Nothing here as all tests are done in a one-shot fashion using the 'setup' function above
+// Nothing here as all tests are done in a one-shot fashion using the 'setup' function above.
 void loop()
 {}

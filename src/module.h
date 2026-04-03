@@ -43,8 +43,7 @@ class Module
     public:
         /**
          * @struct ExecutionControlParameters
-         * @brief This structure stores the data that supports executing module-addressed commands sent from the PC
-         * interface.
+         * @brief Stores the data that supports executing module-addressed commands sent from the PC interface.
          *
          * @warning End users should not modify any elements of this structure directly. This structure is modified by
          * the Kernel and certain utility methods inherited from the base Module class.
@@ -55,13 +54,13 @@ class Module
                 uint8_t stage            = 0;      ///< The stage of the currently executed command.
                 bool noblock             = false;  ///< Determines whether the currently executed command is blocking.
                 uint8_t next_command     = 0;      ///< Stores the next command to be executed.
-                bool next_noblock        = false;  ///< Stores the noblock flag for the next command.
-                bool new_command         = false;  ///< Tracks whether next_command is a new or recurrent command.
-                bool run_recurrently     = false;  ///< Tracks whether next_command is recurrent (cyclic).
+                bool next_noblock        = false;  ///< Determines whether the next command is non-blocking.
+                bool new_command         = false;  ///< Determines whether next_command is a new or recurrent command.
+                bool run_recurrently     = false;  ///< Determines whether next_command is recurrent (cyclic).
                 uint32_t recurrent_delay = 0;      ///< The delay, in microseconds, between command repetitions.
                 elapsedMicros recurrent_timer;     ///< Measures recurrent command activation delays.
                 elapsedMicros delay_timer;         ///< Measures delays between command stages.
-        } execution_parameters;                    ///< Stores instance-specific runtime flow control parameters.
+        };
 
         /**
          * @enum kCoreStatusCodes
@@ -101,7 +100,6 @@ class Module
             _module_type(module_type), _module_id(module_id), _communication(communication)
         {}
 
-        // CORE METHODS.
         // These methods are used by the Kernel class to manage the runtime of the custom hardware module instances that
         // inherit from this base class.
 
@@ -212,7 +210,7 @@ class Module
          */
         void ResetExecutionParameters()
         {
-            // Rests the execution_parameters structure back to default values
+            // Resets the execution_parameters structure back to default values
             execution_parameters.command         = 0;
             execution_parameters.stage           = 0;
             execution_parameters.noblock         = false;
@@ -229,7 +227,7 @@ class Module
          * @brief Returns the ID of the instance.
          */
         [[nodiscard]]
-        uint8_t GetModuleID() const
+        uint8_t get_module_id() const
         {
             return _module_id;
         }
@@ -238,7 +236,7 @@ class Module
          * @brief Returns the type (family ID) of the instance.
          */
         [[nodiscard]]
-        uint8_t GetModuleType() const
+        uint8_t get_module_type() const
         {
             return _module_type;
         }
@@ -247,7 +245,7 @@ class Module
          * @brief Returns the combined type and id value of the instance.
          */
         [[nodiscard]]
-        uint16_t GetModuleTypeID() const
+        uint16_t get_module_type_id() const
         {
             return _module_type_id;
         }
@@ -262,7 +260,6 @@ class Module
             SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
         }
 
-        // VIRTUAL METHODS.
         // These methods allow the Kernel class to interface with the custom logic of each custom hardware module
         // instance, integrating them with the rest of the library components. The implementation of these methods
         // relies on the end user as it has to be specific to each custom hardware module.
@@ -275,22 +272,14 @@ class Module
          * Module class to unpack the received custom parameters message into the structure (object) used to store the
          * instance's custom runtime parameters.
          *
-         * @returns bool @b true if new parameters were parsed successfully and @b false otherwise.
-         *
-         * Example method implementation:
-         * @code
-         * uint8_t custom_parameters_object[3] = {}; // Assume this object was created at class instantiation.
-         *
-         * // Reads the data and returns the operation status to the caller (Kernel).
-         * return ExtractParameters(custom_parameters_object);
-         * @endcode
+         * @returns true if new parameters were parsed successfully, false otherwise.
          */
         virtual bool SetCustomParameters() = 0;
 
         /**
          * @brief Executes the instance method associated with the active command.
          *
-         * @note This method should translate the active command returned by the GetActiveCommand()
+         * @note This method should translate the active command returned by the get_active_command()
          * method inherited from the base Module class into the call to the command-specific method that executes the
          * command's logic.
          *
@@ -298,27 +287,7 @@ class Module
          * was recognized and matched to the appropriate method call. The called method should use the inherited
          * SendData() method to report command runtime status to the PC.
          *
-         * @returns bool @b true if the active module command was matched to a specific custom method and @b
-         * false otherwise.
-         *
-         * Example method implementation:
-         * @code
-         * uint8_t active_command = GetActiveCommand();  // Returns the code of the active command.
-         *
-         * // Matches the active command to the appropriate method call.
-         * switch (active_command) {
-         *  case 1:
-         *      command_1();
-         *      return true; // This returns value means the command was recognized, not that it succeeded!
-         *  case 2:
-         *      bool success = command_2(11);
-         *      if (success) command_3();
-         *      return true;
-         *  default:
-         *      // If the command is not recognized, returns 'false'
-         *      return false;
-         * }
-         * @endcode
+         * @returns true if the active module command was matched to a specific custom method, false otherwise.
          */
         virtual bool RunActiveCommand() = 0;
 
@@ -332,21 +301,7 @@ class Module
          * as part of the initial library runtime setup procedure, before the communication interface is fully
          * initialized.
          *
-         * @returns bool @b true if the setup method ran successfully and @b false otherwise.
-         *
-         * Example method implementation:
-         * @code
-         * // Resets custom software assets:
-         * uint8_t custom_parameters_object[3] = {5, 5, 5}; // Assume this object was created at class instantiation.
-         * custom_parameters_object[0] = 0;  // Reset the first byte of the object to zero.
-         * custom_parameters_object[1] = 0;  // Reset the second byte of the object to zero.
-         * custom_parameters_object[2] = 0;  // Reset the third byte of the object to zero.
-         *
-         * // Resets hardware assets:
-         * const uint8_t output_pin = 12;
-         * pinMode(output_pin, OUTPUT);  // Sets the output pin as output.
-         * return true;
-         * @endcode
+         * @returns true if the setup method ran successfully, false otherwise.
          */
         virtual bool SetupModule() = 0;
 
@@ -354,20 +309,6 @@ class Module
         virtual ~Module() = default;
 
     protected:
-        /// Stores the instance's type (family) identifier code.
-        const uint8_t _module_type;
-
-        /// Stores the instance's unique identifier code.
-        const uint8_t _module_id;
-
-        /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
-        /// active at the same time.
-        const uint16_t _module_type_id = _module_type << 8 | _module_id;
-
-        /// The Communication instance used to send module runtime data to the PC.
-        Communication& _communication;
-
-        // UTILITY METHODS.
         // These methods are designed to help end users with writing custom module classes. They are not accessed by
         // the Kernel class and are not required for integrating the custom module with the rest of the library. It is
         // highly recommended to use these utility methods where appropriate, as they are required for the custom
@@ -378,7 +319,7 @@ class Module
          * @brief Returns the active (running) command's code or 0, if there are no active commands.
          */
         [[nodiscard]]
-        uint8_t GetActiveCommand() const
+        uint8_t get_active_command() const
         {
             return execution_parameters.command;
         }
@@ -414,7 +355,7 @@ class Module
          * commands.
          */
         [[nodiscard]]
-        uint8_t GetCommandStage() const
+        uint8_t get_command_stage() const
         {
             // If there is an actively executed command, returns its stage
             if (execution_parameters.command != 0) return execution_parameters.stage;
@@ -463,8 +404,9 @@ class Module
          * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
-         * @returns uint16_t The read analog value.
+         * @returns The read analog value.
          */
+        [[nodiscard]]
         static uint16_t AnalogRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
             uint16_t average_readout;  // Pre-declares the final output readout
@@ -501,8 +443,9 @@ class Module
          * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
-         * @returns bool The read digital value as @b true (HIGH) or @b false (LOW).
+         * @returns The read digital value as true (HIGH) or false (LOW).
          */
+        [[nodiscard]]
         static bool DigitalRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
             bool digital_readout;  // Pre-declares the final output readout
@@ -639,13 +582,30 @@ class Module
          * @tparam ObjectType The type of the object used to store the PC-addressable module's parameters.
          * @param storage_object The object used to store the PC-addressable module's parameters.
          *
-         * @return @bool True if the parameters were successfully unpacked, false otherwise.
+         * @returns true if the parameters were successfully unpacked, false otherwise.
          */
         template <typename ObjectType>
         bool ExtractParameters(ObjectType& storage_object)
         {
             return _communication.ExtractModuleParameters(storage_object);
         }
+
+    private:
+        /// Stores the instance's type (family) identifier code.
+        const uint8_t _module_type;
+
+        /// Stores the instance's unique identifier code.
+        const uint8_t _module_id;
+
+        /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
+        /// active at the same time.
+        const uint16_t _module_type_id = _module_type << 8 | _module_id;
+
+        /// The Communication instance used to send module runtime data to the PC.
+        Communication& _communication;
+
+        /// Stores instance-specific runtime flow control parameters.
+        ExecutionControlParameters execution_parameters;
 };
 
 #endif  //AXMC_MODULE_H
