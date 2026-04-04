@@ -321,7 +321,503 @@ namespace axmc_communication_assets
         kFifteenUint64s  = 163,  ///< An array of 15 unsigned 64-bit integers.
         kFifteenInt64s   = 164,  ///< An array of 15 signed 64-bit integers.
         kFifteenFloat64s = 165,  ///< An array of 15 double-precision 64-bit floating-point numbers.
+
+        // Extended prototypes (codes 166-255)
+
+        // bool extended (16 bytes to 248 bytes)
+        kSixteenBools              = 166,  ///< An array of 16 8-bit booleans.
+        kTwentyFourBools           = 167,  ///< An array of 24 8-bit booleans.
+        kThirtyTwoBools            = 168,  ///< An array of 32 8-bit booleans.
+        kFortyBools                = 169,  ///< An array of 40 8-bit booleans.
+        kFortyEightBools           = 170,  ///< An array of 48 8-bit booleans.
+        kFiftyTwoBools             = 171,  ///< An array of 52 8-bit booleans.
+        kTwoHundredFortyEightBools = 172,  ///< An array of 248 8-bit booleans.
+
+        // uint8_t extended (16 bytes to 248 bytes)
+        kSixteenUint8s               = 173,  ///< An array of 16 unsigned 8-bit integers.
+        kEighteenUint8s              = 174,  ///< An array of 18 unsigned 8-bit integers.
+        kTwentyUint8s                = 175,  ///< An array of 20 unsigned 8-bit integers.
+        kTwentyTwoUint8s             = 176,  ///< An array of 22 unsigned 8-bit integers.
+        kTwentyFourUint8s            = 177,  ///< An array of 24 unsigned 8-bit integers.
+        kTwentyEightUint8s           = 178,  ///< An array of 28 unsigned 8-bit integers.
+        kThirtyTwoUint8s             = 179,  ///< An array of 32 unsigned 8-bit integers.
+        kThirtySixUint8s             = 180,  ///< An array of 36 unsigned 8-bit integers.
+        kFortyUint8s                 = 181,  ///< An array of 40 unsigned 8-bit integers.
+        kFortyFourUint8s             = 182,  ///< An array of 44 unsigned 8-bit integers.
+        kFortyEightUint8s            = 183,  ///< An array of 48 unsigned 8-bit integers.
+        kFiftyTwoUint8s              = 184,  ///< An array of 52 unsigned 8-bit integers.
+        kSixtyFourUint8s             = 185,  ///< An array of 64 unsigned 8-bit integers.
+        kNinetySixUint8s             = 186,  ///< An array of 96 unsigned 8-bit integers.
+        kOneHundredTwentyEightUint8s = 187,  ///< An array of 128 unsigned 8-bit integers.
+        kOneHundredNinetyTwoUint8s   = 188,  ///< An array of 192 unsigned 8-bit integers.
+        kTwoHundredFortyFourUint8s   = 189,  ///< An array of 244 unsigned 8-bit integers.
+        kTwoHundredFortyEightUint8s  = 190,  ///< An array of 248 unsigned 8-bit integers.
+
+        // int8_t extended (16 bytes to 248 bytes)
+        kSixteenInt8s              = 191,  ///< An array of 16 signed 8-bit integers.
+        kTwentyFourInt8s           = 192,  ///< An array of 24 signed 8-bit integers.
+        kThirtyTwoInt8s            = 193,  ///< An array of 32 signed 8-bit integers.
+        kFortyInt8s                = 194,  ///< An array of 40 signed 8-bit integers.
+        kFortyEightInt8s           = 195,  ///< An array of 48 signed 8-bit integers.
+        kFiftyTwoInt8s             = 196,  ///< An array of 52 signed 8-bit integers.
+        kNinetyTwoInt8s            = 197,  ///< An array of 92 signed 8-bit integers.
+        kOneHundredThirtyTwoInt8s  = 198,  ///< An array of 132 signed 8-bit integers.
+        kOneHundredSeventyTwoInt8s = 199,  ///< An array of 172 signed 8-bit integers.
+        kTwoHundredTwelveInt8s     = 200,  ///< An array of 212 signed 8-bit integers.
+        kTwoHundredFortyFourInt8s  = 201,  ///< An array of 244 signed 8-bit integers.
+        kTwoHundredFortyEightInt8s = 202,  ///< An array of 248 signed 8-bit integers.
+
+        // uint16_t extended (32 bytes to 248 bytes)
+        kSixteenUint16s              = 203,  ///< An array of 16 unsigned 16-bit integers.
+        kTwentyUint16s               = 204,  ///< An array of 20 unsigned 16-bit integers.
+        kTwentyFourUint16s           = 205,  ///< An array of 24 unsigned 16-bit integers.
+        kTwentySixUint16s            = 206,  ///< An array of 26 unsigned 16-bit integers.
+        kThirtyTwoUint16s            = 207,  ///< An array of 32 unsigned 16-bit integers.
+        kFortyEightUint16s           = 208,  ///< An array of 48 unsigned 16-bit integers.
+        kSixtyFourUint16s            = 209,  ///< An array of 64 unsigned 16-bit integers.
+        kNinetySixUint16s            = 210,  ///< An array of 96 unsigned 16-bit integers.
+        kOneHundredTwentyTwoUint16s  = 211,  ///< An array of 122 unsigned 16-bit integers.
+        kOneHundredTwentyFourUint16s = 212,  ///< An array of 124 unsigned 16-bit integers.
+
+        // int16_t extended (32 bytes to 248 bytes)
+        kSixteenInt16s              = 213,  ///< An array of 16 signed 16-bit integers.
+        kTwentyInt16s               = 214,  ///< An array of 20 signed 16-bit integers.
+        kTwentyFourInt16s           = 215,  ///< An array of 24 signed 16-bit integers.
+        kTwentySixInt16s            = 216,  ///< An array of 26 signed 16-bit integers.
+        kThirtyTwoInt16s            = 217,  ///< An array of 32 signed 16-bit integers.
+        kFortyEightInt16s           = 218,  ///< An array of 48 signed 16-bit integers.
+        kSixtyFourInt16s            = 219,  ///< An array of 64 signed 16-bit integers.
+        kNinetySixInt16s            = 220,  ///< An array of 96 signed 16-bit integers.
+        kOneHundredTwentyTwoInt16s  = 221,  ///< An array of 122 signed 16-bit integers.
+        kOneHundredTwentyFourInt16s = 222,  ///< An array of 124 signed 16-bit integers.
+
+        // uint32_t extended (64 bytes to 248 bytes)
+        kSixteenUint32s    = 223,  ///< An array of 16 unsigned 32-bit integers.
+        kTwentyUint32s     = 224,  ///< An array of 20 unsigned 32-bit integers.
+        kTwentyFourUint32s = 225,  ///< An array of 24 unsigned 32-bit integers.
+        kThirtyTwoUint32s  = 226,  ///< An array of 32 unsigned 32-bit integers.
+        kFortyEightUint32s = 227,  ///< An array of 48 unsigned 32-bit integers.
+        kSixtyTwoUint32s   = 228,  ///< An array of 62 unsigned 32-bit integers.
+
+        // int32_t extended (64 bytes to 248 bytes)
+        kSixteenInt32s    = 229,  ///< An array of 16 signed 32-bit integers.
+        kTwentyInt32s     = 230,  ///< An array of 20 signed 32-bit integers.
+        kTwentyFourInt32s = 231,  ///< An array of 24 signed 32-bit integers.
+        kThirtyTwoInt32s  = 232,  ///< An array of 32 signed 32-bit integers.
+        kFortyEightInt32s = 233,  ///< An array of 48 signed 32-bit integers.
+        kSixtyTwoInt32s   = 234,  ///< An array of 62 signed 32-bit integers.
+
+        // float extended (64 bytes to 248 bytes)
+        kSixteenFloat32s    = 235,  ///< An array of 16 single-precision 32-bit floating-point numbers.
+        kTwentyFloat32s     = 236,  ///< An array of 20 single-precision 32-bit floating-point numbers.
+        kTwentyFourFloat32s = 237,  ///< An array of 24 single-precision 32-bit floating-point numbers.
+        kThirtyTwoFloat32s  = 238,  ///< An array of 32 single-precision 32-bit floating-point numbers.
+        kFortyEightFloat32s = 239,  ///< An array of 48 single-precision 32-bit floating-point numbers.
+        kSixtyTwoFloat32s   = 240,  ///< An array of 62 single-precision 32-bit floating-point numbers.
+
+        // uint64_t extended (128 bytes to 248 bytes)
+        kSixteenUint64s    = 241,  ///< An array of 16 unsigned 64-bit integers.
+        kTwentyUint64s     = 242,  ///< An array of 20 unsigned 64-bit integers.
+        kTwentyFourUint64s = 243,  ///< An array of 24 unsigned 64-bit integers.
+        kThirtyOneUint64s  = 244,  ///< An array of 31 unsigned 64-bit integers.
+
+        // int64_t extended (128 bytes to 248 bytes)
+        kSixteenInt64s    = 245,  ///< An array of 16 signed 64-bit integers.
+        kTwentyInt64s     = 246,  ///< An array of 20 signed 64-bit integers.
+        kTwentyFourInt64s = 247,  ///< An array of 24 signed 64-bit integers.
+        kThirtyOneInt64s  = 248,  ///< An array of 31 signed 64-bit integers.
+
+        // double extended (128 bytes to 248 bytes)
+        kSixteenFloat64s    = 249,  ///< An array of 16 double-precision 64-bit floating-point numbers.
+        kTwentyFloat64s     = 250,  ///< An array of 20 double-precision 64-bit floating-point numbers.
+        kTwentyFourFloat64s = 251,  ///< An array of 24 double-precision 64-bit floating-point numbers.
+        kThirtyOneFloat64s  = 252,  ///< An array of 31 double-precision 64-bit floating-point numbers.
     };
+
+    // AVR-compatible type traits for compile-time array introspection. Mirrors std:: counterparts to serve as drop-in
+    // replacements on platforms that lack <type_traits>.
+
+    /// @brief Determines whether a type is a C-style array. False by default.
+    template <typename T>
+    struct is_array
+    {
+            static constexpr bool value = false;
+    };
+
+    /// @brief Partial specialization that activates for bounded C-style arrays.
+    template <typename T, size_t N>
+    struct is_array<T[N]>
+    {
+            static constexpr bool value = true;
+    };
+
+    /// @brief Convenient variable template for is_array.
+    template <typename T>
+    constexpr bool is_array_v = is_array<T>::value;  // NOLINT(*-dynamic-static-initializers)
+
+    /// @brief Retrieves the number of elements in a C-style array. Zero for non-array types.
+    template <typename T>
+    struct array_extent
+    {
+            static constexpr size_t value = 0;
+    };
+
+    /// @brief Partial specialization that retrieves the element count of a bounded C-style array.
+    template <typename T, size_t N>
+    struct array_extent<T[N]>
+    {
+            static constexpr size_t value = N;
+    };
+
+    /// @brief Convenient variable template for array_extent.
+    template <typename T>
+    constexpr size_t array_extent_v = array_extent<T>::value;  // NOLINT(*-dynamic-static-initializers)
+
+    /// @brief Retrieves the element type of C-style array. Identity for non-array types.
+    template <typename T>
+    struct remove_extent
+    {
+            using type = T;
+    };
+
+    /// @brief Partial specialization that strips the array extent to yield the element type.
+    template <typename T, size_t N>
+    struct remove_extent<T[N]>
+    {
+            using type = T;
+    };
+
+    /// @brief Convenient alias template for remove_extent.
+    template <typename T>
+    using remove_extent_t = typename remove_extent<T>::type;
+
+    /**
+     * @brief Maps a scalar element type to a row index in the prototype lookup table.
+     *
+     * @tparam T The scalar type to resolve. Must be one of: bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t,
+     * int32_t, float, uint64_t, int64_t, or double.
+     * @returns The row index (0-10) corresponding to the element type.
+     */
+    template <typename T>
+    constexpr uint8_t PrototypeTypeIndex()
+    {
+        using axtlmc_shared_assets::is_same_v;
+
+        // Validates the type to produce a clear compile error for unsupported types.
+        static_assert(
+            is_same_v<T, bool> || is_same_v<T, uint8_t> || is_same_v<T, int8_t> || is_same_v<T, uint16_t> ||
+                is_same_v<T, int16_t> || is_same_v<T, uint32_t> || is_same_v<T, int32_t> || is_same_v<T, float> ||
+                is_same_v<T, uint64_t> || is_same_v<T, int64_t> || is_same_v<T, double>,
+            "Unsupported element type for prototype resolution. Supported types: bool, uint8_t, int8_t, uint16_t, "
+            "int16_t, uint32_t, int32_t, float, uint64_t, int64_t, double."
+        );
+
+        // Uses a ternary chain instead of if-constexpr for compatibility with older constexpr implementations.
+        return is_same_v<T, bool>     ? 0
+             : is_same_v<T, uint8_t>  ? 1
+             : is_same_v<T, int8_t>   ? 2
+             : is_same_v<T, uint16_t> ? 3
+             : is_same_v<T, int16_t>  ? 4
+             : is_same_v<T, uint32_t> ? 5
+             : is_same_v<T, int32_t>  ? 6
+             : is_same_v<T, float>    ? 7
+             : is_same_v<T, uint64_t> ? 8
+             : is_same_v<T, int64_t>  ? 9
+                                      : 10;  // double (guaranteed by static_assert above)
+    }
+
+    /**
+     * @brief Compile-time lookup table that maps (element count, element type) to kPrototypes enum codes.
+     *
+     * Rows correspond to element counts 1 through 248 (index = count - 1).
+     * Columns correspond to element types (see PrototypeTypeIndex): bool(0), uint8_t(1), int8_t(2),
+     * uint16_t(3), int16_t(4), uint32_t(5), int32_t(6), float(7), uint64_t(8), int64_t(9), double(10).
+     * A value of 0 indicates that the (type, count) pair has no assigned prototype code.
+     */
+    // NOLINTBEGIN(*-avoid-c-arrays, *-magic-numbers)
+    constexpr uint8_t kPrototypeLookup[248][11] = {
+        {1,   2,   3,   7,   8,   17,  18,  19,  39,  40,  41 }, // count = 1
+        {4,   5,   6,   15,  16,  36,  37,  38,  77,  78,  79 }, // count = 2
+        {9,   10,  11,  26,  27,  58,  59,  60,  94,  95,  96 }, // count = 3
+        {12,  13,  14,  34,  35,  74,  75,  76,  109, 110, 111}, // count = 4
+        {20,  21,  22,  48,  49,  84,  85,  86,  118, 119, 120}, // count = 5
+        {23,  24,  25,  56,  57,  91,  92,  93,  127, 128, 129}, // count = 6
+        {28,  29,  30,  67,  68,  101, 102, 103, 136, 137, 138}, // count = 7
+        {31,  32,  33,  72,  73,  106, 107, 108, 142, 143, 144}, // count = 8
+        {42,  43,  44,  80,  81,  112, 113, 114, 145, 146, 147}, // count = 9
+        {45,  46,  47,  82,  83,  115, 116, 117, 148, 149, 150}, // count = 10
+        {50,  51,  52,  87,  88,  121, 122, 123, 151, 152, 153}, // count = 11
+        {53,  54,  55,  89,  90,  124, 125, 126, 154, 155, 156}, // count = 12
+        {61,  62,  63,  97,  98,  130, 131, 132, 157, 158, 159}, // count = 13
+        {64,  65,  66,  99,  100, 133, 134, 135, 160, 161, 162}, // count = 14
+        {69,  70,  71,  104, 105, 139, 140, 141, 163, 164, 165}, // count = 15
+        {166, 173, 191, 203, 213, 223, 229, 235, 241, 245, 249}, // count = 16
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   174, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 18
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   175, 0,   204, 214, 224, 230, 236, 242, 246, 250}, // count = 20
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   176, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 22
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {167, 177, 192, 205, 215, 225, 231, 237, 243, 247, 251}, // count = 24
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   206, 216, 0,   0,   0,   0,   0,   0  }, // count = 26
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   178, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 28
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   244, 248, 252}, // count = 31
+        {168, 179, 193, 207, 217, 226, 232, 238, 0,   0,   0  }, // count = 32
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   180, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 36
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {169, 181, 194, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 40
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   182, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 44
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {170, 183, 195, 208, 218, 227, 233, 239, 0,   0,   0  }, // count = 48
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {171, 184, 196, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 52
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   228, 234, 240, 0,   0,   0  }, // count = 62
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   185, 0,   209, 219, 0,   0,   0,   0,   0,   0  }, // count = 64
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   197, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 92
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   186, 0,   210, 220, 0,   0,   0,   0,   0,   0  }, // count = 96
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   211, 221, 0,   0,   0,   0,   0,   0  }, // count = 122
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   212, 222, 0,   0,   0,   0,   0,   0  }, // count = 124
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   187, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 128
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   198, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 132
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   199, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 172
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   188, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 192
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   200, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 212
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   189, 201, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 244
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {172, 190, 202, 0,   0,   0,   0,   0,   0,   0,   0  }  // count = 248
+    };
+
+    // NOLINTEND(*-avoid-c-arrays, *-magic-numbers)
+
+    /**
+     * @brief Resolves the kPrototypes enum value for the given C++ type at compile time.
+     *
+     * Supports all 11 scalar types (bool through double) and C-style arrays of those types at
+     * supported element counts up to the 248-byte payload cap. A lookup result of 0 indicates an
+     * unsupported (type, count) pair and triggers a static_assert. uint8_t arrays offer the densest
+     * count coverage and can serve as a generic bytes buffer for sending arbitrary packed structures.
+     *
+     * @tparam ObjectType The type of the data object to resolve. Must be a supported scalar or a
+     * bounded C-style array of a supported scalar at a supported element count.
+     * @returns The kPrototypes enum value corresponding to the object type.
+     */
+    template <typename ObjectType>
+    constexpr kPrototypes ResolvePrototype()
+    {
+        // Validates that the (element type, count) pair has a registered prototype code.
+        static_assert(
+            !is_array_v<ObjectType> ||
+                (array_extent_v<ObjectType> >= 1 && array_extent_v<ObjectType> <= 248 &&
+                 kPrototypeLookup[array_extent_v<ObjectType> - 1][PrototypeTypeIndex<remove_extent_t<ObjectType>>()] !=
+                     0),
+            "Unsupported array element count for this type. "
+            "Use a supported count or cast to uint8_t[N]."
+        );
+
+        // For arrays, remove_extent_t yields the element type and array_extent_v the count.
+        // For scalars, remove_extent_t is the identity and count defaults to 1.
+        return static_cast<kPrototypes>(kPrototypeLookup[(is_array_v<ObjectType> ? array_extent_v<ObjectType> : 1) - 1]
+                                                        [PrototypeTypeIndex<remove_extent_t<ObjectType>>()]);
+    }
 
     /**
      * @struct RepeatedModuleCommand

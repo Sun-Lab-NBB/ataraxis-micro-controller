@@ -32,14 +32,12 @@ void test_send_data_message()
     constexpr uint8_t event_code  = 221;  // Example event code
     constexpr uint8_t test_object = 255;  // Test object
 
-    // Defines the prototype and prototype byte-code. This test uses kOneUint8, but this principle is the same for all
-    // valid prototype codes.
-    constexpr auto prototype      = axmc_communication_assets::kPrototypes::kOneUint8;
+    // The prototype byte-code is auto-resolved from the object type. For uint8_t, the expected code is kOneUint8.
     constexpr auto prototype_code = static_cast<uint8_t>(axmc_communication_assets::kPrototypes::kOneUint8);
 
     // Kernel test
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
-    communication_class.SendDataMessage(command, event_code, prototype, test_object);
+    communication_class.SendDataMessage(command, event_code, test_object);
     constexpr uint16_t expected_kernel[6] = {kernel_protocol, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -54,7 +52,7 @@ void test_send_data_message()
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
-    communication_class.SendDataMessage(module_type, module_id, command, event_code, prototype, test_object);
+    communication_class.SendDataMessage(module_type, module_id, command, event_code, test_object);
     constexpr uint16_t expected_module[8] =
         {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
@@ -558,10 +556,64 @@ void test_extract_module_parameters_errors()
     );
 }
 
+// Verifies compile-time prototype resolution for representative type/count combinations.
+void test_resolve_prototype()
+{
+    using namespace axmc_communication_assets;
+
+    // Scalar types
+    static_assert(ResolvePrototype<bool>() == kPrototypes::kOneBool, "bool -> kOneBool");
+    static_assert(ResolvePrototype<uint8_t>() == kPrototypes::kOneUint8, "uint8_t -> kOneUint8");
+    static_assert(ResolvePrototype<int8_t>() == kPrototypes::kOneInt8, "int8_t -> kOneInt8");
+    static_assert(ResolvePrototype<uint16_t>() == kPrototypes::kOneUint16, "uint16_t -> kOneUint16");
+    static_assert(ResolvePrototype<int16_t>() == kPrototypes::kOneInt16, "int16_t -> kOneInt16");
+    static_assert(ResolvePrototype<uint32_t>() == kPrototypes::kOneUint32, "uint32_t -> kOneUint32");
+    static_assert(ResolvePrototype<int32_t>() == kPrototypes::kOneInt32, "int32_t -> kOneInt32");
+    static_assert(ResolvePrototype<float>() == kPrototypes::kOneFloat32, "float -> kOneFloat32");
+    static_assert(ResolvePrototype<uint64_t>() == kPrototypes::kOneUint64, "uint64_t -> kOneUint64");
+    static_assert(ResolvePrototype<int64_t>() == kPrototypes::kOneInt64, "int64_t -> kOneInt64");
+    static_assert(ResolvePrototype<double>() == kPrototypes::kOneFloat64, "double -> kOneFloat64");
+
+    // Array types (representative samples)
+    static_assert(ResolvePrototype<uint8_t[2]>() == kPrototypes::kTwoUint8s, "uint8_t[2] -> kTwoUint8s");
+    static_assert(ResolvePrototype<uint16_t[3]>() == kPrototypes::kThreeUint16s, "uint16_t[3] -> kThreeUint16s");
+    static_assert(ResolvePrototype<float[4]>() == kPrototypes::kFourFloat32s, "float[4] -> kFourFloat32s");
+    static_assert(ResolvePrototype<double[15]>() == kPrototypes::kFifteenFloat64s, "double[15] -> kFifteenFloat64s");
+    static_assert(ResolvePrototype<bool[8]>() == kPrototypes::kEightBools, "bool[8] -> kEightBools");
+
+    // Extended prototypes — platform cap counts
+    static_assert(ResolvePrototype<bool[52]>() == kPrototypes::kFiftyTwoBools, "bool[52]");
+    static_assert(ResolvePrototype<bool[248]>() == kPrototypes::kTwoHundredFortyEightBools, "bool[248]");
+    static_assert(ResolvePrototype<uint8_t[52]>() == kPrototypes::kFiftyTwoUint8s, "uint8_t[52]");
+    static_assert(ResolvePrototype<uint8_t[128]>() == kPrototypes::kOneHundredTwentyEightUint8s, "uint8_t[128]");
+    static_assert(ResolvePrototype<uint8_t[248]>() == kPrototypes::kTwoHundredFortyEightUint8s, "uint8_t[248]");
+    static_assert(ResolvePrototype<int8_t[52]>() == kPrototypes::kFiftyTwoInt8s, "int8_t[52]");
+    static_assert(ResolvePrototype<int8_t[248]>() == kPrototypes::kTwoHundredFortyEightInt8s, "int8_t[248]");
+    static_assert(ResolvePrototype<uint16_t[26]>() == kPrototypes::kTwentySixUint16s, "uint16_t[26]");
+    static_assert(ResolvePrototype<uint16_t[124]>() == kPrototypes::kOneHundredTwentyFourUint16s, "uint16_t[124]");
+    static_assert(ResolvePrototype<uint32_t[62]>() == kPrototypes::kSixtyTwoUint32s, "uint32_t[62]");
+    static_assert(ResolvePrototype<float[62]>() == kPrototypes::kSixtyTwoFloat32s, "float[62]");
+    static_assert(ResolvePrototype<uint64_t[31]>() == kPrototypes::kThirtyOneUint64s, "uint64_t[31]");
+    static_assert(ResolvePrototype<double[31]>() == kPrototypes::kThirtyOneFloat64s, "double[31]");
+
+    // Extended prototypes — intermediate counts
+    static_assert(ResolvePrototype<uint8_t[36]>() == kPrototypes::kThirtySixUint8s, "uint8_t[36]");
+    static_assert(ResolvePrototype<int8_t[132]>() == kPrototypes::kOneHundredThirtyTwoInt8s, "int8_t[132]");
+    static_assert(ResolvePrototype<int16_t[48]>() == kPrototypes::kFortyEightInt16s, "int16_t[48]");
+    static_assert(ResolvePrototype<int32_t[48]>() == kPrototypes::kFortyEightInt32s, "int32_t[48]");
+    static_assert(ResolvePrototype<int64_t[24]>() == kPrototypes::kTwentyFourInt64s, "int64_t[24]");
+
+    // If all static_asserts pass, the test trivially succeeds at runtime.
+    TEST_ASSERT_TRUE(true);
+}
+
 // Specifies the test functions executed at runtime.
 int RunUnityTests()
 {
     UNITY_BEGIN();
+
+    // ResolvePrototype (compile-time verification)
+    RUN_TEST(test_resolve_prototype);
 
     // SendDataMessage
     RUN_TEST(test_send_data_message);

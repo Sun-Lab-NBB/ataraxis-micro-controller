@@ -122,6 +122,9 @@ class Communication
         /**
          * @brief Sends the input event code and data object to the PC.
          *
+         * The prototype code for the wire protocol is resolved automatically from the C++ type of the data object at
+         * compile time via ResolvePrototype.
+         *
          * @warning Use the SendStateMessage() method to communicate the event-code without any additional data for
          * faster transmission.
          *
@@ -130,8 +133,6 @@ class Communication
          * @param module_id The ID of the specific module instance that sent the message.
          * @param command The command executed by the module that sent the message.
          * @param event_code The event that triggered the message.
-         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
-         * enumeration members.
          * @param object The data object to be sent along with the message.
          *
          * @returns true if the message is sent, false otherwise.
@@ -142,7 +143,6 @@ class Communication
             const uint8_t module_id,
             const uint8_t command,
             const uint8_t event_code,
-            const kPrototypes prototype,
             const ObjectType& object
         )
         {
@@ -153,14 +153,14 @@ class Communication
                 "the size of the ModuleData header sent with the object."
             );
 
-            // Constructs the message header.
+            // Constructs the message header. The prototype code is resolved at compile time from ObjectType.
             const ModuleData message {
                 static_cast<uint8_t>(kProtocols::kModuleData),
                 module_type,
                 module_id,
                 command,
                 event_code,
-                static_cast<uint8_t>(prototype)
+                static_cast<uint8_t>(ResolvePrototype<ObjectType>())
             };
 
             // Writes the message to the transmission buffer.
@@ -184,22 +184,18 @@ class Communication
         /**
          * @brief Sends the input event code and data object to the PC as a Kernel-addressed message.
          *
+         * The prototype code for the wire protocol is resolved automatically from the C++ type of the data object at
+         * compile time via ResolvePrototype.
+         *
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param command The command the Kernel was executing when it sent the message.
          * @param event_code The event that triggered the message.
-         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
-         * enumeration members.
          * @param object The data object to be sent along with the message.
          *
          * @returns true if the message is sent, false otherwise.
          */
         template <typename ObjectType>
-        bool SendDataMessage(
-            const uint8_t command,
-            const uint8_t event_code,
-            const kPrototypes prototype,
-            const ObjectType& object
-        )
+        bool SendDataMessage(const uint8_t command, const uint8_t event_code, const ObjectType& object)
         {
             // Ensures that the input fits inside the message payload buffer.
             static_assert(
@@ -208,12 +204,12 @@ class Communication
                 "the size of the KernelData header sent with the object."
             );
 
-            // Constructs the message header.
+            // Constructs the message header. The prototype code is resolved at compile time from ObjectType.
             const KernelData message {
                 static_cast<uint8_t>(kProtocols::kKernelData),
                 command,
                 event_code,
-                static_cast<uint8_t>(prototype)
+                static_cast<uint8_t>(ResolvePrototype<ObjectType>())
             };
 
             // Writes the message to the transmission buffer.
@@ -320,7 +316,7 @@ class Communication
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
-            SendDataMessage(module_type, module_id, command, error_code, kPrototypes::kTwoUint8s, errors);
+            SendDataMessage(module_type, module_id, command, error_code, errors);
 
             // As a fallback in case the error message does not reach the connected system, sets the class status to
             // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
@@ -343,7 +339,7 @@ class Communication
 
             // Attempts sending the error message. Does not evaluate the status of sending the error message to avoid
             // recursions.
-            SendDataMessage(command, error_code, kPrototypes::kTwoUint8s, errors);
+            SendDataMessage(command, error_code, errors);
 
             // As a fallback in case the error message does not reach the connected system, sets the class status to
             // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially

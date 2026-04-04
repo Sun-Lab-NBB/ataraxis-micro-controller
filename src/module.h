@@ -18,7 +18,6 @@
 #include <Arduino.h>
 #include <digitalWriteFast.h>
 #include <elapsedMillis.h>
-#include "axmc_shared_assets.h"
 #include "communication.h"
 
 /**
@@ -508,34 +507,31 @@ class Module
         /**
          * @brief Packages and sends the provided event_code and data object to the PC.
          *
+         * The prototype code for the wire protocol is resolved automatically from the C++ type of the data object
+         * at compile time. Supports all 11 scalar types and C-style arrays at type-specific element counts up to
+         * the 248-byte payload cap. See the Supported SendData Types section of the README for the complete table
+         * of supported types and array sizes.
+         *
          * @warning If sending the data fails for any reason, this method automatically emits an error message. Since
          * that error message may itself fail to be sent, the method also statically activates the built-in LED of the
          * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
          * using this method to avoid interference!
          *
-         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
-         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
-         * than the data-containing version.
+         * @note If the message is intended to communicate only the event code, do not provide the data object.
+         * SendData() has an overloaded version specialized for sending event codes that is more efficient than the
+         * data-containing version.
          *
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param event_code The event that triggered the data transmission.
-         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
-         * enumeration members.
          * @param object The data object to be sent along with the message.
          */
-        template <typename ObjectType = void>
-        void SendData(const uint8_t event_code, const kPrototypes prototype, const ObjectType& object)
+        template <typename ObjectType>
+        void SendData(const uint8_t event_code, const ObjectType& object)
         {
             // Packages and sends the data to the connected system via the Communication class. If the message was sent,
             // ends the runtime
-            if (_communication.SendDataMessage(
-                    _module_type,
-                    _module_id,
-                    _execution_parameters.command,
-                    event_code,
-                    prototype,
-                    object
-                ))
+            if (_communication
+                    .SendDataMessage(_module_type, _module_id, _execution_parameters.command, event_code, object))
                 return;
 
             // If the message was not sent, calls a method that attempts to send a communication error message to the
