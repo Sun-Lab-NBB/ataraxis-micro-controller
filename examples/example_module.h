@@ -36,8 +36,8 @@ class TestModule final : public Module
                 uint16_t echo_value   = 666;      ///< The value sent to the PC as part of the Echo() command's runtime.
         } PACKED_STRUCT parameters;
 
-        /// Defines the state codes used by the class when communicating with the PC. Each code must be unique within the
-        /// module class and use values between 51 and 250 to avoid clashing with system-reserved codes.
+        /// Defines the state codes used by the class when communicating with the PC. Each code must be unique within
+        /// the module class and use values between 51 and 250 to avoid clashing with system-reserved codes.
         enum class kStates : uint8_t
         {
             kHigh = 52,  ///< The managed digital pin is currently set to output a HIGH signal.
@@ -127,7 +127,7 @@ class TestModule final : public Module
         /// Sends the current value of the 'echo_value' parameter to the PC.
         void Echo()
         {
-            SendData(static_cast<uint8_t>(kStates::kEcho), kPrototypes::kOneUint16, parameters.echo_value);
+            SendData(static_cast<uint8_t>(kStates::kEcho), parameters.echo_value);
             CompleteCommand();
         }
 };

@@ -352,6 +352,32 @@ methods. Also, see the [TestModule](./examples/example_module.h) for the demonst
 methods when implementing custom hardware module, most notably those relating to sending the data to the PC and using
 the stage-based command design pattern.
 
+#### Supported SendData Types
+
+The `SendData()` method automatically resolves the wire protocol prototype code from the C++ type of the data 
+argument at compile time. All 11 scalar types are supported as single values. C-style arrays of those types are 
+supported at the element counts listed below. `uint8_t` arrays have the densest coverage and can serve as a generic 
+bytes buffer for sending arbitrary packed structures via `uint8_t[sizeof(MyStruct)]`. Unsupported counts produce a 
+compile-time error.
+
+| Type       | Size | Supported Element Counts                                                         | Max Bytes |
+|------------|------|----------------------------------------------------------------------------------|-----------|
+| `bool`     | 1 B  | 1-15, 16, 24, 32, 40, 48, 52, 248                                                | 248       |
+| `uint8_t`  | 1 B  | 1-15, 16, 18, 20, 22, 24, 28, 32, 36, 40, 44, 48, 52, 64, 96, 128, 192, 244, 248 | 248       |
+| `int8_t`   | 1 B  | 1-15, 16, 24, 32, 40, 48, 52, 92, 132, 172, 212, 244, 248                        | 248       |
+| `uint16_t` | 2 B  | 1-15, 16, 20, 24, 26, 32, 48, 64, 96, 122, 124                                   | 248       |
+| `int16_t`  | 2 B  | 1-15, 16, 20, 24, 26, 32, 48, 64, 96, 122, 124                                   | 248       |
+| `uint32_t` | 4 B  | 1-15, 16, 20, 24, 32, 48, 62                                                     | 248       |
+| `int32_t`  | 4 B  | 1-15, 16, 20, 24, 32, 48, 62                                                     | 248       |
+| `float`    | 4 B  | 1-15, 16, 20, 24, 32, 48, 62                                                     | 248       |
+| `uint64_t` | 8 B  | 1-15, 16, 20, 24, 31                                                             | 248       |
+| `int64_t`  | 8 B  | 1-15, 16, 20, 24, 31                                                             | 248       |
+| `double`   | 8 B  | 1-15, 16, 20, 24, 31                                                             | 248       |
+
+The maximum data payload is 248 bytes on Teensy (8192-byte serial buffer), 244 bytes on Due (256-byte buffer), and 
+52 bytes on Mega (64-byte buffer). The `SendDataMessage` static_assert catches oversized objects at compile time for 
+each platform.
+
 ___
 
 ## API Documentation

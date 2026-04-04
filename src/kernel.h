@@ -145,11 +145,7 @@ class Kernel
                         _modules[i]->get_module_id(),
                     };
 
-                    SendData(
-                        static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError),
-                        kPrototypes::kTwoUint8s,
-                        error_object
-                    );
+                    SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError), error_object);
 
                     // Returns without completing the setup. This 'bricks' the controller requiring firmware reset
                     // before it can re-attempt the setup process and receive data from the PC.
@@ -249,11 +245,7 @@ class Kernel
                                 _modules[static_cast<size_t>(target_module)]->get_module_type(),
                                 _modules[static_cast<size_t>(target_module)]->get_module_id(),
                             };
-                            SendData(
-                                static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError),
-                                kPrototypes::kTwoUint8s,
-                                error_object
-                            );
+                            SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError), error_object);
                         }
 
                         // If the parameters were set correctly, notifies the PC.
@@ -329,7 +321,6 @@ class Kernel
                         // PC. Includes the invalid protocol value in the message.
                         SendData(
                             static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
-                            kPrototypes::kOneUint8,
                             _communication.get_protocol_code()
                         );
                         break;
@@ -349,11 +340,7 @@ class Kernel
             if (_keepalive_enabled && (_since_previous_keepalive > _keepalive_interval))
             {
                 // Sends an error message to the PC
-                SendData(
-                    static_cast<uint8_t>(kKernelStatusCodes::kKeepAliveTimeout),
-                    kPrototypes::kOneUint32,
-                    _keepalive_interval
-                );
+                SendData(static_cast<uint8_t>(kKernelStatusCodes::kKeepAliveTimeout), _keepalive_interval);
 
                 // Resets the microcontroller runtime to default parameters, effectively clearing all command buffers
                 // and hardware states.
@@ -431,21 +418,19 @@ class Kernel
          * board to visually communicate the encountered runtime error. Do not use the LED-connected pin or LED when
          * using this method to avoid interference!
          *
-         * @note If the message is intended to communicate only the event code, do not provide the prototype or the
-         * data object. SendData() has an overloaded version specialized for sending event codes that is more efficient
-         * than the data-containing version.
+         * @note If the message is intended to communicate only the event code, do not provide the data object.
+         * SendData() has an overloaded version specialized for sending event codes that is more efficient than the
+         * data-containing version.
          *
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param event_code The event that triggered the data transmission.
-         * @param prototype The type of the data object transmitted with the message. Must be one of the kPrototypes
-         * enumeration members.
          * @param object The data object to be sent along with the message.
          */
         template <typename ObjectType>
-        void SendData(const uint8_t event_code, const kPrototypes prototype, const ObjectType& object)
+        void SendData(const uint8_t event_code, const ObjectType& object)
         {
             // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
-            if (_communication.SendDataMessage(_kernel_command, event_code, prototype, object)) return;
+            if (_communication.SendDataMessage(_kernel_command, event_code, object)) return;
 
             // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
             _communication.SendCommunicationErrorMessage(
@@ -575,7 +560,7 @@ class Kernel
             // Otherwise, sends an error message to the PC and returns -1 to indicate that the target module was not
             // found.
             const uint8_t errors[2] = {target_type, target_id};
-            SendData(static_cast<uint8_t>(kKernelStatusCodes::kTargetModuleNotFound), kPrototypes::kTwoUint8s, errors);
+            SendData(static_cast<uint8_t>(kKernelStatusCodes::kTargetModuleNotFound), errors);
             return -1;
         }
 
