@@ -65,7 +65,8 @@ class Module
          *
          * @note To support consistent status code reporting, this enumeration reserves values 0 through 50. All custom
          * status codes should use values 51 through 250. This prevents the status codes derived from this enumeration
-         * from clashing with custom status codes.
+         * from clashing with custom status codes. Additionally, all custom event codes defined by each Module-derived
+         * class must be unique within that class to ensure unambiguous event identification by the PC.
          *
          * @attention This enumeration only covers status codes used by non-virtual methods inherited from the base
          * Module class. These status codes are considered 'system-reserved' and are handled implicitly by the

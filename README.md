@@ -3,9 +3,9 @@
 Provides the framework for integrating custom hardware modules with a centralized PC control interface.
 
 [![PlatformIO Registry](https://tinyurl.com/bdhdc2d8)](https://tinyurl.com/mrj7h9an)
-![c++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=C%2B%2B&logoColor=white)
-![arduino](https://img.shields.io/badge/Arduino-00878F?logo=arduino&logoColor=fff&style=plastic)
-![license](https://img.shields.io/badge/license-Apache%202.0-blue)
+![C++](https://img.shields.io/badge/C%2B%2B-blue?logo=cplusplus&logoColor=white&labelColor=grey)
+![Arduino](https://img.shields.io/badge/Arduino-blue?logo=Arduino&logoColor=white&labelColor=grey)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 ___
 
@@ -16,6 +16,8 @@ microcontrollers with the [centralized PC interface](https://github.com/Sun-Lab-
 implemented in Python. To do so, the library defines a shared API that can be integrated into 
 user-defined modules by subclassing the (base) Module class. It also provides the Kernel class that manages runtime 
 task scheduling, and the Communication class, which handles high-throughput bidirectional communication with the PC.
+This library is part of the [Ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) framework for AI-assisted scientific
+hardware control.
 
 ___
 
@@ -38,12 +40,17 @@ ___
 - [Dependencies](#dependencies)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Quickstart](#quickstart)
+  - [User-Defined Variables](#user-defined-variables)
+  - [Keepalive](#keepalive)
+  - [Custom Hardware Modules](#custom-hardware-modules)
+  - [Implementing Custom Hardware Modules](#implementing-custom-hardware-modules)
 - [API Documentation](#api-documentation)
 - [Developers](#developers)
 - [Versioning](#versioning)
 - [Authors](#authors)
 - [License](#license)
-- [Acknowledgements](#Acknowledgments)
+- [Acknowledgments](#acknowledgments)
 
 ___
 
@@ -53,7 +60,7 @@ ___
   [Platformio](https://platformio.org/install). This library is explicitly designed to be uploaded via Platformio and
   will likely not work with any other IDE or Framework.
 
-***Note!*** Developers should see the [Developers](#developers) section for information on installing additional
+***Note,*** developers should see the [Developers](#developers) section for information on installing additional
 development dependencies.
 
 ___
@@ -62,21 +69,21 @@ ___
 
 ### Source
 
-Note, installation from source is ***highly discouraged*** for anyone who is not an active project developer.
+***Note,*** installation from source is ***highly discouraged*** for anyone who is not an active project developer.
 
 1. Download this repository to the local machine using the preferred method, such as git-cloning. Use one of the 
-   [stable releases](https://github.com/Sun-Lab-NBB/ataraxis-micro-controller/releases).
+   [stable releases](https://github.com/Sun-Lab-NBB/ataraxis-micro-controller/tags).
 2. Unpack the downloaded tarball and move all 'src' contents into the appropriate destination
    ('include,' 'src,' or 'libs') directory of the project that needs to use this library.
-3. Add `include <kernel.h>`, `include <communication.h>`, and `include <module.h>` at the top of the main.cpp file and 
-   `include <module.h>` at the top of each custom hardware module header file.
+3. Add `#include <kernel.h>`, `#include <communication.h>`, and `#include <module.h>` at the top of the main.cpp file
+   and `#include <module.h>` at the top of each custom hardware module header file.
 
 ### Platformio
 
-1. Navigate to the project’s platformio.ini file and add the following line to the target environment specification:
-   ```lib_deps = inkaros/ataraxis-micro-controller@^3.0.0```.
-2. Add `include <kernel.h>`, `include <communication.h>`, and `include <module.h>` at the top of the main.cpp file and
-   `include <module.h>` at the top of each custom hardware module header file.
+1. Navigate to the project's platformio.ini file and add the following line to the target environment specification:
+   `lib_deps = inkaros/ataraxis-micro-controller@^3.0.0`.
+2. Add `#include <kernel.h>`, `#include <communication.h>`, and `#include <module.h>` at the top of the main.cpp file
+   and `#include <module.h>` at the top of each custom hardware module header file.
 
 ___
 
@@ -144,6 +151,10 @@ void loop()
 }
 ```
 
+***Note,*** the Kernel uses the microcontroller's built-in LED for error indication. If the LED is constantly ON after
+`Setup()` completes, the controller experienced a communication error when sending data to the PC. If the LED blinks
+with approximately 2-second periodicity, the Kernel failed the setup sequence due to a module setup error.
+
 ### User-Defined Variables
 This library is designed to flexibly support many different use patterns. To do so, it intentionally avoids hardcoding
 certain metadata variables that allow the PC interface to individuate and address the managed microcontroller and 
@@ -160,7 +171,7 @@ and the PC.**
 - `Module Type` for each hardware module instance. This is a unique code from 1 to 255 that identifies the family 
    (class) of each module instance. For example, all solenoid valves may use the type-code '1,' while all voltage 
    sensors may use the type-code '2.' The type-codes do not have any inherent meaning. Their interpretation depends 
-   entirely on the end-user’s preference when implementing the hardware module and its PC interface.
+   entirely on the end-user's preference when implementing the hardware module and its PC interface.
 
 - `Module ID` for each hardware module instance. This code has to be unique within the module type (family) and is used 
    to identify specific module instances. For example, if two voltage sensors (type code '2') are used at the same 
@@ -170,16 +181,16 @@ and the PC.**
 A major runtime safety feature of this library is the support for keepalive messaging. When enabled, the Kernel instance
 expects the PC to send a 'keepalive' command at regular intervals, specified by the `keepalive_interval` Kernel 
 constructor argument. If the Kernel does not receive the keepalive message for **two consecutive interval windows**, 
-it aborts the runtime by resetting the microcontroller’s hardware and software to the default state and sends an error 
+it aborts the runtime by resetting the microcontroller's hardware and software to the default state and sends an error 
 message to the PC.
 
 The keepalive functionality is **disabled** (set to 0) by default, but it is recommended to enable it for most use 
 cases. See the [API documentation for the Kernel class](#api-documentation) for more details on configuring the 
 keepalive messaging.
 
-***Note!*** The appropriate keepalive interval depends on the communication speed and the CPU frequency of the 
+***Note,*** the appropriate keepalive interval depends on the communication speed and the CPU frequency of the 
 microcontroller. For a fast microcontroller (teensy4.1) that uses the USB communication interface, an appropriate 
-keepalive interval is typically measured in milliseconds (100 to 500). For a slower microcontroller (arduino mega) with 
+keepalive interval is typically measured in milliseconds (100 to 500). For a slower microcontroller (Arduino mega) with 
 a UART communication interface using the baudrate of 115200, the appropriate keepalive interval is typically measured 
 in seconds (2 to 5).
 
@@ -187,7 +198,7 @@ in seconds (2 to 5).
 For this library, any external hardware that communicates with Arduino or Teensy microcontroller pins is a hardware 
 module. For example, a 3d-party voltage sensor that emits an analog signal detected by an Arduino microcontroller is a 
 module. A rotary encoder that sends digital interrupt signals to 3 digital pins of a Teensy microcontroller is a 
-module. A solenoid valve gated by HIGH signal sent from an Arduino microcontroller’s digital pin is a module.
+module. A solenoid valve gated by HIGH signal sent from an Arduino microcontroller's digital pin is a module.
 
 The library expects that the logic that governs how the microcontroller interacts with these modules is 
 provided by a C++ class, the 'software' portion of the hardware module. Typically, this class contains the methods for 
@@ -201,7 +212,7 @@ compatible hardware modules.
 All modules intended to be accessible through this library have to follow the implementation guidelines described in the
 [example module header file](./examples/example_module.h). Specifically, **all custom modules have to subclass the 
 Module class from this library and overload all pure virtual methods**. Additionally, it is highly advised to implement 
-the module’s custom command logic using the **stage-based design pattern** shown in the example. Note, all examples 
+the module's custom command logic using the **stage-based design pattern** shown in the example. Note, all examples 
 featured in this guide are taken directly from the [example_module.h](./examples/example_module.h) and the 
 [module_integration.cpp](./examples/module_integration.cpp).
 
@@ -211,41 +222,49 @@ module class implemented using this library must have a companion ModuleInterfac
 These two classes act as the endpoints of the PC-Microcontroller interface, while other library assets abstract the 
 intermediate steps that connect the PC interface class with the microcontroller hardware logic class.
 
+***Warning!*** Custom parameter structures ***must*** use the `PACKED_STRUCT` macro to ensure correct byte-level
+serialization between the microcontroller and the PC. Without packing, compiler-inserted padding causes data
+mismatches. For example: `} PACKED_STRUCT parameters;`. See the
+[example module](./examples/example_module.h) for the complete pattern.
+
+***Note,*** custom event and state codes used by modules when communicating with the PC must use values between 51 and
+250 to avoid clashing with system-reserved codes. Each code must be unique within the module class.
+
 ***Do not directly access the Kernel or Communication classes when implementing custom hardware modules.*** The base 
 Module class allows accessing all necessary library assets through the inherited utility methods. See the 
 'protected static functions' section of the Module class [API documentation](#api-documentation) for more details about 
-the available utility methods
+the available utility methods.
 
 #### Concurrent (Non-Blocking) Execution
-A major feature of the library is that it allows maximizing the microcontroller’s throughput by partially overlapping 
+A major feature of the library is that it allows maximizing the microcontroller's throughput by partially overlapping 
 the execution of multiple commands under certain conditions. Specifically, it allows executing other commands while 
 waiting for a time-based delay in the currently executed command. This feature is especially relevant for higher-end 
 microcontrollers, such as Teensy 4.0+, that can execute many instructions during a multi-millisecond delay interval.
 
-During each cycle of the microcontroller’s main `loop()` function, the Kernel sequentially instructs each managed module
+During each cycle of the microcontroller's main `loop()` function, the Kernel sequentially instructs each managed module
 instance to execute its active command. Typically, the module runs through the command, delaying code execution as 
 necessary, and resulting in the microcontroller doing nothing during the delay. With this library, commands can use the 
 `WaitForMicros` utility method together with the **stage-based design pattern** showcased by the 
-[TestModule’s Pulse command](./examples/example_module.h) to allow other modules to run their commands while the module 
+[TestModule's Pulse command](./examples/example_module.h) to allow other modules to run their commands while the module 
 waits for the delay to expire.
 
-**Warning!** The non-blocking mode is most effective when used with delays that tolerate a degree of imprecision or on 
-microcontrollers that have a very high CPU clock speed. Additionally, to support non-blocking runtimes, all 
+***Warning!*** The non-blocking mode is most effective when used with delays that tolerate a degree of imprecision or 
+on microcontrollers that have a very high CPU clock speed. Additionally, to support non-blocking runtimes, all 
 modules used at the same time must support non-blocking execution for all commands. Overall, the decision of whether to
 use the non-blocking mode often requires practical testing under the intended runtime conditions and may not be suitable
 for all use cases.
 
-**Note!** While this library only supports non-blocking execution for time-based delays natively, advanced users can 
+***Note,*** while this library only supports non-blocking execution for time-based delays natively, advanced users can 
 follow the same design principles to implement non-blocking sensor-based delays when implementing custom command logic.
 
-#### Virtual methods
+#### Virtual Methods
 These methods provide the inherited API that integrates any custom hardware module with the centralized control 
 interface running on the companion host-computer (PC). Specifically, the Kernel calls these methods during runtime to 
 interface with each managed module instance.
 
 #### SetCustomParameters
-This method enables the Kernel to unpack and save the module’s runtime parameters, when updated parameter values are 
-received from the PC. The primary purpose of this virtual method is to tell the Kernel where to unpack the module’s
+This method enables the Kernel to unpack and save the module's runtime parameters, when updated parameter values are 
+received from the PC. The primary purpose of this virtual method is to tell the Kernel where to unpack the module's
 parameter data.
 
 For most use cases, the method can be implemented with a single call to the ExtractParameters() utility method 
@@ -257,19 +276,19 @@ bool SetCustomParameters() override
 }
 ```
 
-The `parameters` object is typically a structure that stores the instance’s PC-addressable runtime parameters. 
+The `parameters` object is typically a structure that stores the instance's PC-addressable runtime parameters. 
 The `ExtractParameters()` utility method, reads the data received from the PC and uses it to overwrite the memory of 
 the provided object.
 
-### RunActiveCommand
-This method enables the Kernel to execute the managed module’s logic in response to receiving module-addressed commands 
+#### RunActiveCommand
+This method enables the Kernel to execute the managed module's logic in response to receiving module-addressed commands 
 from the PC. Specifically, the Kernel receives and queues the commands to be executed and then calls this method for 
-each managed module to run the queued command’s logic. The primary purpose of this method is to translate the active 
-command code into the call to the command’s logic method.
+each managed module to run the queued command's logic. The primary purpose of this method is to translate the active 
+command code into the call to the command's logic method.
 
 For most use cases, this method can be implemented with a simple switch statement:
 ```
-switch (static_cast<kCommands>(GetActiveCommand()))
+switch (static_cast<kCommands>(get_active_command()))
 {
     // Active command matches the code for the Pulse command
     case kCommands::kPulse:
@@ -284,15 +303,15 @@ switch (static_cast<kCommands>(GetActiveCommand()))
 }
 ```
 
-The switch uses the `GetActiveCommand()` method, inherited from the base Module class, to retrieve the code of the 
+The switch uses the `get_active_command()` method, inherited from the base Module class, to retrieve the code of the 
 currently active command. It is recommended to use an enumeration to map valid command codes to meaningful names 
 addressable in code, like it is done with the `kCommands` enumeration in the demonstration above. 
 
-**Note!** The method ***has*** to return `true` if it recognizes the command and return `false` if it does not. The 
+***Note,*** the method ***has*** to return `true` if it recognizes the command and return `false` if it does not. The 
 returned value of this method ***only*** communicates whether the command was recognized. It should ***not*** be used 
-to track the runtime status (success / failure) of the called command’s method.
+to track the runtime status (success / failure) of the called command's method.
 
-### SetupModule
+#### SetupModule
 This method enables the Kernel to set up the hardware and software assets for each managed module instance. This is 
 done from the global `setup()` function, which is executed by the Arduino and Teensy microcontrollers after firmware 
 reupload. This is also done in response to the PC requesting the controller to be reset to the default state. The 
@@ -322,7 +341,7 @@ the runtimes that need to be able to fail, the method supports returning `false`
 failed. If this method returns `false`, the Kernel deadlocks the microcontroller in the error state until the 
 microcontroller firmware is reuploaded to fix the setup error.
 
-### Utility Methods
+#### Utility Methods
 To further simplify implementing custom hardware modules, the base Module class exposes a collection of utility methods.
 These methods provide an easy-to-use API for safely accessing internal attributes and properties of the superclass, 
 simplifying the interaction between the superclass (Module) and the custom logic of each hardware module that inherits 
@@ -344,18 +363,19 @@ ___
 
 ## Developers
 
-This section provides installation, dependency, and build-system instructions for project developers.
+This section provides installation, dependency, and build-system instructions for the developers that want to modify
+the source code of this library.
 
 ### Installing the Project
 
 1. Install [Platformio](https://platformio.org/install/integration) either as a standalone IDE or as an IDE plugin.
 2. Download this repository to the local machine using the preferred method, such as git-cloning.
 3. If the downloaded distribution is stored as a compressed archive, unpack it using the appropriate decompression tool.
-4. ```cd``` to the root directory of the prepared project distribution.
-5. Run ```pio project init ``` to initialize the project on the local machine. See
+4. `cd` to the root directory of the prepared project distribution.
+5. Run `pio project init` to initialize the project on the local machine. See
    [Platformio API documentation](https://docs.platformio.org/en/latest/core/userguide/project/cmd_init.html) for
    more details on initializing and configuring projects with platformio.
-6. If using an IDE that does not natively support platformio integration, call the ```pio project metadata``` command
+6. If using an IDE that does not natively support platformio integration, call the `pio project metadata` command
    to generate the metadata to integrate the project with the IDE. Note; most mainstream IDEs do not require or benefit
    from this step.
 
@@ -368,21 +388,21 @@ with support for `teensy 4.1`, `arduino due`, and `arduino mega (R3)` platforms.
 In addition to installing Platformio and main project dependencies, install the following dependencies:
 
 - [Tox](https://tox.wiki/en/4.15.0/user_guide.html) and [Doxygen](https://www.doxygen.nl/manual/install.html) to build
-  the API documentation for the project. Note; both dependencies have to be available on the local system’s path.
+  the API documentation for the project. Note; both dependencies have to be available on the local system's path.
 
 ### Development Automation
 
 Unlike other Ataraxis libraries, the automation for this library is primarily provided via the
-[Platformio’s command line interface](https://docs.platformio.org/en/latest/core/userguide/index.html).
+[PlatformIO's command line interface](https://docs.platformio.org/en/latest/core/userguide/index.html).
 Additionally, this project uses [tox](https://tox.wiki/en/latest/user_guide.html) for certain automation tasks not
 directly covered by platformio, such as API documentation generation. Check the [tox.ini file](tox.ini) for details
-about the available pipelines and their implementation. Alternatively, call ```tox list``` from the root directory of
+about the available pipelines and their implementation. Alternatively, call `tox list` from the root directory of
 the project to see the list of available tasks.
 
-**Note!** All pull requests for this project have to successfully complete the `tox`, `pio check`, and `pio test` tasks
-before being submitted.
+***Note,*** all pull requests for this project have to successfully complete the `tox`, `pio check`, and `pio test`
+tasks before being submitted.
 
----
+___
 
 ## Versioning
 
@@ -390,25 +410,23 @@ This project uses [semantic versioning](https://semver.org/). See the
 [tags on this repository](https://github.com/Sun-Lab-NBB/ataraxis-micro-controller/tags) for the available project
 releases.
 
----
+___
 
 ## Authors
 
 - Ivan Kondratyev ([Inkaros](https://github.com/Inkaros))
 - Jasmine Si
 
----
+___
 
 ## License
 
 This project is licensed under the Apache 2.0 License: see the [LICENSE](LICENSE) file for details.
 
----
+___
 
 ## Acknowledgments
 
 - All Sun lab [members](https://neuroai.github.io/sunlab/people) for providing the inspiration and comments during the
   development of this library.
 - The creators of all other dependencies and projects listed in the [platformio.ini](platformio.ini) file.
-
----
