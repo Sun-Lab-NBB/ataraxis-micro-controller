@@ -140,14 +140,17 @@ logic. The library targets Arduino and Teensy microcontrollers within the
   `module_id`, and `Communication` reference. Three pure virtual methods: `SetupModule()` (hardware initialization),
   `SetCustomParameters()` (unpack PC parameters), and `RunActiveCommand()` (execute active command). Manages command
   execution state via `ExecutionControlParameters` struct tracking active command, stage, non-blocking mode, queued
-  command, and recurrent execution with configurable cycle delay. Protected utility methods: `QueueCommand()`,
-  `ResolveActiveCommand()`, `CompleteCommand()`, `AbortCommand()`, `AdvanceCommandStage()`, `WaitForMicros()`,
+  command, and recurrent execution with configurable cycle delay. Public methods used by Kernel:
+  `QueueCommand()`, `ResolveActiveCommand()`, `ResetCommandQueue()`, `ResetExecutionParameters()`,
+  `SendCommandActivationError()`. Protected utility methods for subclass use: `get_active_command()`,
+  `get_command_stage()`, `CompleteCommand()`, `AbortCommand()`, `AdvanceCommandStage()`, `WaitForMicros()`,
   `SendData()`, `ExtractParameters()`, `AnalogRead()`, `DigitalRead()`.
-- **Shared assets** (`axmc_shared_assets.h`): Namespace `axmc_shared_assets` containing `kCommunicationStatusCodes`
-  enum, `kProtocols` enum (13 message types), `kPrototypes` enum (252 prototype codes), all `PACKED_STRUCT` message
-  structures, the `kPrototypeLookup` compile-time 2D lookup table, `ResolvePrototype<T>()` template function, and
-  reimplemented type traits for Arduino Mega compatibility (`is_array`, `array_extent`, `remove_extent`,
-  `PrototypeTypeIndex`).
+- **Shared assets** (`axmc_shared_assets.h`): Two namespaces. `axmc_shared_assets` contains
+  `kCommunicationStatusCodes` enum. `axmc_communication_assets` contains `kProtocols` enum (13 message types),
+  `kPrototypes` enum (252 prototype codes), all `PACKED_STRUCT` message structures, the `kPrototypeLookup`
+  compile-time 2D lookup table, `ResolvePrototype<T>()` template function, and reimplemented type traits for
+  Arduino Mega compatibility (`is_array`, `array_extent`, `remove_extent`, `PrototypeTypeIndex`). Both namespaces
+  are brought into scope via `using namespace` in the library's source files.
 
 ### Core components
 
@@ -158,7 +161,7 @@ logic. The library targets Arduino and Teensy microcontrollers within the
 | `Module`                     | `module.h`             | Abstract base class for custom hardware modules             |
 | `kProtocols`                 | `axmc_shared_assets.h` | 13 message protocol codes for PC-microcontroller exchange   |
 | `kPrototypes`                | `axmc_shared_assets.h` | 252 data prototype codes for type-safe serialization        |
-| `kPrototypeLookup`           | `axmc_shared_assets.h` | Compile-time 2D table mapping (type, count) to prototypes   |
+| `kPrototypeLookup`           | `axmc_shared_assets.h` | Compile-time 2D table mapping (count, type) to prototypes   |
 | `ResolvePrototype<T>()`      | `axmc_shared_assets.h` | Compile-time prototype resolution from C++ types            |
 | `ExecutionControlParameters` | `module.h`             | Command execution state tracking (stage, queue, recurrence) |
 
