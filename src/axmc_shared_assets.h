@@ -6,7 +6,6 @@
 #ifndef AXMC_SHARED_ASSETS_H
 #define AXMC_SHARED_ASSETS_H
 
-// Dependencies
 #include <Arduino.h>
 #include "axtlmc_shared_assets.h"
 

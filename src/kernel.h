@@ -247,9 +247,11 @@ class Kernel
                             };
                             SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError), error_object);
                         }
-
-                        // If the parameters were set correctly, notifies the PC.
-                        SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet));
+                        else
+                        {
+                            // If the parameters were set correctly, notifies the PC.
+                            SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet));
+                        }
                         break;
 
                     case kProtocols::kKernelCommand:

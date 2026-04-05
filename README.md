@@ -99,18 +99,18 @@ the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp imp
 ```
 // Dependencies
 #include "../examples/example_module.h"  // Since there is an overlap with the general 'examples', uses the local path.
-#include "Arduino.h"
+#include <Arduino.h>
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
 
 // Specifies the unique identifier for the test microcontroller
-constexpr uint8_t kControllerID = 222;
+static constexpr uint8_t kControllerID = 222;
 
 // Keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the PC to send
 // keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it assumes that the
 // microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
-constexpr uint32_t kKeepaliveInterval = 5000;  // Sets the keepalive interval to 5 seconds.
+static constexpr uint32_t kKeepaliveInterval = 5000;  // Sets the keepalive interval to 5 seconds.
 
 // Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
 // outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
@@ -130,7 +130,7 @@ TestModule<6> test_module_2(1, 2, axmc_communication);
 Module* modules[] = {&test_module_1, &test_module_2};
 
 // Instantiates the Kernel class. The Kernel has to be instantiated last.
-Kernel axmc_kernel(kControllerID, axmc_communication,  modules, kKeepaliveInterval);
+Kernel axmc_kernel(kControllerID, axmc_communication, modules, kKeepaliveInterval);
 
 // This function is only executed once. Since Kernel manages the setup for each module, there is no need to set up each
 // module's hardware individually.
