@@ -45,6 +45,7 @@ ___
   - [Keepalive](#keepalive)
   - [Custom Hardware Modules](#custom-hardware-modules)
   - [Implementing Custom Hardware Modules](#implementing-custom-hardware-modules)
+  - [AI-Assisted Module Implementation](#ai-assisted-module-implementation)
 - [API Documentation](#api-documentation)
 - [Developers](#developers)
 - [Versioning](#versioning)
@@ -378,6 +379,26 @@ The maximum data payload is 248 bytes on Teensy (8192-byte serial buffer), 244 b
 52 bytes on Mega (64-byte buffer). The `SendDataMessage` static_assert catches oversized objects at compile time for 
 each platform.
 
+### AI-Assisted Module Implementation
+
+This library supports AI-assisted implementation of custom hardware modules through Claude Code skills distributed
+via the [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The **microcontroller** plugin provides
+the `firmware-module` skill, which guides the creation of Module subclasses covering:
+
+- Module base class inheritance and constructor pattern.
+- SetupModule, SetCustomParameters, and RunActiveCommand implementation.
+- Command handler patterns: immediate, multi-stage with non-blocking delay, and sensor polling.
+- Runtime parameter structures with `PACKED_STRUCT` macro.
+- Event and status code conventions.
+- Sending data to the PC via `SendData()` overloads.
+- main.cpp integration with Communication, Module, and Kernel wiring.
+
+#### Plugin Installation
+
+Claude Code skill assets for implementing custom hardware modules are distributed through the
+[ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace as part of the **microcontroller** plugin. Install the
+plugin from the marketplace to make module implementation skills available to compatible AI coding agents.
+
 ___
 
 ## API Documentation
@@ -427,6 +448,20 @@ the project to see the list of available tasks.
 
 ***Note,*** all pull requests for this project have to successfully complete the `tox`, `pio check`, and `pio test`
 tasks before being submitted.
+
+### AI-Assisted Development
+
+Claude Code skills and AI development assets for this project are distributed through the
+[ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace across two plugins:
+
+- **microcontroller** plugin: Provides microcontroller-specific skills for firmware module implementation, including
+  Module subclass scaffolding, stage-based command patterns, and parameter structure guidance. Install this plugin to
+  make all module implementation skills available.
+- **automation** plugin: Provides shared development skills that enforce Sun Lab coding conventions (C++ style,
+  README style, commit messages, API documentation) and general-purpose codebase exploration tools.
+
+Install both plugins from the marketplace to make all associated skills and development tools available to compatible
+AI coding agents.
 
 ___
 
