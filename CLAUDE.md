@@ -19,6 +19,7 @@ You MUST invoke the appropriate style skill before performing ANY of the followi
 | Writing or modifying C++ code          | `/cpp-style`       |
 | Writing or modifying README files      | `/readme-style`    |
 | Writing or modifying Sphinx docs files | `/api-docs`        |
+| Writing or modifying `tox.ini`         | `/tox-config`      |
 | Writing git commit messages            | `/commit`          |
 | Writing or modifying skill files       | `/skill-design`    |
 
@@ -94,15 +95,27 @@ the corresponding change in `ataraxis-communication-interface`, and vice versa.
 
 ## Available skills
 
+All skills are distributed through the [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The skills
+below are the ones relevant to this C++ PlatformIO firmware library (the `automation` plugin plus the `microcontroller`
+plugin's `firmware-module`). The Python/C# style skills (`/python-style`, `/pyproject-style`, `/csharp-style`) and the
+`communication`/`video` plugin skills target other repositories and are omitted here.
+
 | Skill                    | Description                                                                    |
 |--------------------------|--------------------------------------------------------------------------------|
 | `/explore-codebase`      | Perform in-depth codebase exploration at session start                         |
+| `/explore-dependencies`  | Build a live API snapshot of installed ataraxis dependencies                   |
 | `/firmware-module`       | Guide creation of custom hardware Module subclasses                            |
 | `/cpp-style`             | Apply Ataraxis framework C++ coding conventions (REQUIRED for all C++ changes) |
 | `/readme-style`          | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
-| `/api-docs`              | Apply Ataraxis framework API documentation conventions                         |
+| `/api-docs`              | Apply Ataraxis framework Sphinx documentation conventions (REQUIRED for docs)  |
+| `/tox-config`            | Apply Ataraxis framework tox.ini conventions (REQUIRED for tox.ini changes)    |
+| `/project-layout`        | Apply Ataraxis framework project directory structure conventions               |
 | `/commit`                | Draft Ataraxis framework style-compliant git commit messages                   |
+| `/pr`                    | Draft a style-compliant pull request summary for the active branch             |
+| `/release`               | Draft style-compliant release notes from merged pull requests                  |
 | `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions             |
+| `/audit-facts`           | Audit documentation for factual accuracy against the source code               |
+| `/audit-style`           | Audit files for style and convention compliance                                |
 
 ## Project context
 
@@ -182,7 +195,8 @@ logic. The library targets Arduino and Teensy microcontrollers within the
 - **Status code returns**: All operations return enum status codes rather than throwing exceptions, consistent with
   embedded C++ patterns.
 - **Platform-conditional compilation**: `elapsedMillis` dependency is included only for non-Teensy boards; Teensy
-  provides native `elapsedMicros`. Buffer sizes vary by platform (Teensy: 248 bytes, Due: 244 bytes, Mega: 52 bytes).
+  provides native `elapsedMicros`. Maximum data payload sizes vary by platform (Teensy: 248 bytes, Due: 244 bytes,
+  Mega: 52 bytes); the underlying serial buffers are larger (8192/256/64 bytes on Teensy/Due/Mega).
 - **`using namespace axmc_shared_assets;`** in source files is intentional for readability in the embedded context.
 - **LED error indication**: `LED_BUILTIN` is used as a fallback error channel when serial communication has failed.
 - **Module core status codes 0-3 are reserved** by the base `Module` class. Custom module status codes must use the
@@ -259,7 +273,8 @@ tox -e docs                      # Build Sphinx API documentation (Doxygen + Bre
 
 **Important considerations:**
 
-- Maximum payload size varies by platform: Teensy (248 bytes), Due (244 bytes), Mega (52 bytes)
+- Maximum data payload size varies by platform: Teensy (248 bytes), Due (244 bytes), Mega (52 bytes). These are the
+  data-object limits (`kMaximumPayloadSize - sizeof(ModuleData)`), not the raw serial buffer sizes (8192/256/64 bytes)
 - The reimplemented type traits in `axmc_shared_assets.h` exist because Arduino Mega lacks `<type_traits>`
 - `library.json` controls what gets exported to the PlatformIO registry — `main.cpp` is explicitly excluded
 - Controller ID 0 is reserved; valid range is 1-255
