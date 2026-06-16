@@ -52,8 +52,12 @@ void setup()
     // for the target board (for example, 115200 for Teensy 4.1).
     Serial.begin(115200);
 
-    // Configures the analog read resolution to 12 bits (0-4095) for any modules that perform analog reads.
+    // Configures the analog read resolution to 12 bits (0-4095) for any modules that perform analog reads. AVR boards
+    // (for example, Arduino Mega) have a fixed 10-bit ADC and do not provide analogReadResolution(), so the call is
+    // compiled only for architectures that support adjustable analog resolution.
+#if !defined(__AVR__)
     analogReadResolution(12);
+#endif
 
     // Sets up the hardware and software for the Kernel and all managed modules.
     axmc_kernel.Setup();
