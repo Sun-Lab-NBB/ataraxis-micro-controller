@@ -1,5 +1,6 @@
 /**
  * @file
+ *
  * @brief Provides the assets shared between all library components.
  */
 
@@ -436,66 +437,66 @@ namespace axmc_communication_assets
     // AVR-compatible type traits for compile-time array introspection. Mirrors std:: counterparts to serve as drop-in
     // replacements on platforms that lack <type_traits>.
 
-    /// @brief Determines whether a type is a C-style array. False by default.
+    ///Determines whether a type is a C-style array. False by default.
     template <typename T>
     struct is_array
     {
             static constexpr bool value = false;
     };
 
-    /// @brief Partial specialization that activates for bounded C-style arrays.
+    ///Partial specialization that activates for bounded C-style arrays.
     template <typename T, size_t N>
     struct is_array<T[N]>
     {
             static constexpr bool value = true;
     };
 
-    /// @brief Convenient variable template for is_array.
+    ///Convenient variable template for is_array.
     template <typename T>
     constexpr bool is_array_v = is_array<T>::value;  // NOLINT(*-dynamic-static-initializers)
 
-    /// @brief Retrieves the number of elements in a C-style array. Zero for non-array types.
+    ///Retrieves the number of elements in a C-style array. Zero for non-array types.
     template <typename T>
     struct array_extent
     {
             static constexpr size_t value = 0;
     };
 
-    /// @brief Partial specialization that retrieves the element count of a bounded C-style array.
+    ///Partial specialization that retrieves the element count of a bounded C-style array.
     template <typename T, size_t N>
     struct array_extent<T[N]>
     {
             static constexpr size_t value = N;
     };
 
-    /// @brief Convenient variable template for array_extent.
+    ///Convenient variable template for array_extent.
     template <typename T>
     constexpr size_t array_extent_v = array_extent<T>::value;  // NOLINT(*-dynamic-static-initializers)
 
-    /// @brief Retrieves the element type of C-style array. Identity for non-array types.
+    ///Retrieves the element type of C-style array. Identity for non-array types.
     template <typename T>
     struct remove_extent
     {
             using type = T;
     };
 
-    /// @brief Partial specialization that strips the array extent to yield the element type.
+    ///Partial specialization that strips the array extent to yield the element type.
     template <typename T, size_t N>
     struct remove_extent<T[N]>
     {
             using type = T;
     };
 
-    /// @brief Convenient alias template for remove_extent.
+    ///Convenient alias template for remove_extent.
     template <typename T>
     using remove_extent_t = typename remove_extent<T>::type;
 
     /**
-     * @brief Maps a scalar element type to a row index in the prototype lookup table.
+     * @brief Maps a scalar element type to a column index in the prototype lookup table.
      *
      * @tparam T The scalar type to resolve. Must be one of: bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t,
      * int32_t, float, uint64_t, int64_t, or double.
-     * @returns The row index (0-10) corresponding to the element type.
+     * @returns The column index (0-10) corresponding to the element type.
      */
     template <typename T>
     constexpr uint8_t PrototypeTypeIndex()
@@ -885,12 +886,12 @@ namespace axmc_communication_assets
      */
     struct ModuleData
     {
-            uint8_t protocol;     ///< The message protocol used by this structure.
-            uint8_t module_type;  ///< The type (family) code of the module that sent the data message.
-            uint8_t module_id;    ///< The ID of the specific module instance within the broader module family.
-            uint8_t command;      ///< The command the Module was executing when it sent the data message.
-            uint8_t event;        ///< The event that prompted the data transmission.
-            uint8_t prototype;    ///< The prototype code for the data object transmitted with the message.
+            uint8_t protocol    = 0;  ///< The message protocol used by this structure.
+            uint8_t module_type = 0;  ///< The type (family) code of the module that sent the data message.
+            uint8_t module_id   = 0;  ///< The ID of the specific module instance within the broader module family.
+            uint8_t command     = 0;  ///< The command the Module was executing when it sent the data message.
+            uint8_t event       = 0;  ///< The event that prompted the data transmission.
+            uint8_t prototype   = 0;  ///< The prototype code for the data object transmitted with the message.
     } PACKED_STRUCT;
 
     /**
@@ -901,10 +902,10 @@ namespace axmc_communication_assets
      */
     struct KernelData
     {
-            uint8_t protocol;   ///< The message protocol used by this structure.
-            uint8_t command;    ///< The command the Kernel was executing when it sent the data message.
-            uint8_t event;      ///< The event that prompted the data transmission.
-            uint8_t prototype;  ///< The prototype code for the data object transmitted with the message.
+            uint8_t protocol  = 0;  ///< The message protocol used by this structure.
+            uint8_t command   = 0;  ///< The command the Kernel was executing when it sent the data message.
+            uint8_t event     = 0;  ///< The event that prompted the data transmission.
+            uint8_t prototype = 0;  ///< The prototype code for the data object transmitted with the message.
     } PACKED_STRUCT;
 
     /**
@@ -916,11 +917,11 @@ namespace axmc_communication_assets
      */
     struct ModuleState
     {
-            uint8_t protocol;     ///< The message protocol used by this structure.
-            uint8_t module_type;  ///< The type (family) code of the module that sent the data message.
-            uint8_t module_id;    ///< The ID of the specific module instance within the broader module family.
-            uint8_t command;      ///< The command the Module was executing when it sent the data message.
-            uint8_t event;        ///< The event that prompted the data transmission.
+            uint8_t protocol    = 0;  ///< The message protocol used by this structure.
+            uint8_t module_type = 0;  ///< The type (family) code of the module that sent the data message.
+            uint8_t module_id   = 0;  ///< The ID of the specific module instance within the broader module family.
+            uint8_t command     = 0;  ///< The command the Module was executing when it sent the data message.
+            uint8_t event       = 0;  ///< The event that prompted the data transmission.
     } PACKED_STRUCT;
 
     /**
@@ -932,9 +933,9 @@ namespace axmc_communication_assets
      */
     struct KernelState
     {
-            uint8_t protocol;  ///< The message protocol used by this structure.
-            uint8_t command;   ///< The command the Kernel was executing when it sent the data message.
-            uint8_t event;     ///< The event that prompted the data transmission.
+            uint8_t protocol = 0;  ///< The message protocol used by this structure.
+            uint8_t command  = 0;  ///< The command the Kernel was executing when it sent the data message.
+            uint8_t event    = 0;  ///< The event that prompted the data transmission.
     } PACKED_STRUCT;
 
 }  // namespace axmc_communication_assets

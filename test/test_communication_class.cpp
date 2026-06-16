@@ -1,6 +1,8 @@
 /**
  * @file
- * @brief Verifies the behavior of the Communication class send, receive, and parameter extraction methods.
+ *
+ * @brief Verifies the behavior of the Communication class send, receive, and parameter extraction methods, along with
+ * compile-time prototype resolution.
  */
 
 #include <Arduino.h>
@@ -11,6 +13,9 @@
 #include "crc_processor.h"
 #include "stream_mock.h"
 
+/// The byte capacity of the mock serial stream used to back the Communication instance in each test.
+static constexpr uint16_t kTestBufferSize = 60;
+
 // This function is called automatically before each test function. Currently not used.
 void setUp()
 {}
@@ -19,10 +24,10 @@ void setUp()
 void tearDown()
 {}
 
-// Tests the functioning of the Communication's SendDataMessage() method.
+// Verifies the Communication's SendDataMessage() method.
 void test_send_data_message()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
 
     // Defines static message payload components.
@@ -45,10 +50,10 @@ void test_send_data_message()
     );
     for (size_t i = 0; i < 6; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
@@ -61,14 +66,14 @@ void test_send_data_message()
     );
     for (size_t i = 0; i < 8; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);
     }
 }
 
-// Tests the functioning of the Communication's SendStateMessage() method.
+// Verifies the Communication's SendStateMessage() method.
 void test_send_state_message()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
 
     // Defines static message payload components.
@@ -86,10 +91,10 @@ void test_send_state_message()
     );
     for (size_t i = 0; i < 4; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState);
@@ -101,14 +106,14 @@ void test_send_state_message()
     );
     for (size_t i = 0; i < 6; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);
     }
 }
 
-// Tests the functioning of the Communication's SendCommunicationErrorMessage() method.
+// Verifies the Communication's SendCommunicationErrorMessage() method.
 void test_send_communication_error_message()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
 
     // Defines static payload components.
@@ -137,10 +142,10 @@ void test_send_communication_error_message()
     );
     for (size_t i = 0; i < 7; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();                                 // Resets the mock port
+    mock_port.reset();
     communication_class.set_communication_status(65);  // Resets the communication class status.
 
     // Re-extracts the Transport Layer status.
@@ -156,14 +161,14 @@ void test_send_communication_error_message()
     );
     for (size_t i = 0; i < 9; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_module[i], mock_port.tx_buffer[i + 3]);
     }
 }
 
-// Tests the functioning of the Communication's SendServiceMessage() method for all valid protocols.
+// Verifies the Communication's SendServiceMessage() method for all valid protocols.
 void test_send_service_message()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
 
     constexpr uint8_t service_code = 111;  // Uses the same test service code for all messages.
@@ -180,10 +185,10 @@ void test_send_service_message()
     );
     for (size_t i = 0; i < 2; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_reception[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_reception[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // ControllerIdentification message
     constexpr uint16_t expected_identification[2] = {
@@ -199,10 +204,10 @@ void test_send_service_message()
     );
     for (size_t i = 0; i < 2; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(expected_identification[i], mock_port.tx_buffer[i + 3]);  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_identification[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // ModuleIdentification message
     constexpr uint16_t module_type_id                    = 300;
@@ -220,17 +225,14 @@ void test_send_service_message()
     );
     for (size_t i = 0; i < 3; ++i)
     {
-        TEST_ASSERT_EQUAL_UINT16(
-            expected_module_identification[i],
-            mock_port.tx_buffer[i + 3]
-        );  // Verifies the message data
+        TEST_ASSERT_EQUAL_UINT16(expected_module_identification[i], mock_port.tx_buffer[i + 3]);
     }
 }
 
-// Tests the functioning of the Communication's ReceiveMessage() method.
+// Verifies the Communication's ReceiveMessage() method.
 void test_receive_message()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
     COBSProcessor cobs_class;
@@ -242,7 +244,7 @@ void test_receive_message()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies RepeatedModuleCommand reception.
     uint8_t test_buffer_1[16] = {129, 10, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -261,14 +263,14 @@ void test_receive_message()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         communication_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_repeated_module_command().module_type);   // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_repeated_module_command().module_id);     // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(4, communication_class.get_repeated_module_command().return_code);   // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(5, communication_class.get_repeated_module_command().command);       // Check command
-    TEST_ASSERT_FALSE(communication_class.get_repeated_module_command().noblock);                // Check noblock
-    TEST_ASSERT_EQUAL_UINT32(0, communication_class.get_repeated_module_command().cycle_delay);  // Check cycle_delay
+    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_repeated_module_command().module_type);
+    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_repeated_module_command().module_id);
+    TEST_ASSERT_EQUAL_UINT8(4, communication_class.get_repeated_module_command().return_code);
+    TEST_ASSERT_EQUAL_UINT8(5, communication_class.get_repeated_module_command().command);
+    TEST_ASSERT_FALSE(communication_class.get_repeated_module_command().noblock);
+    TEST_ASSERT_EQUAL_UINT32(0, communication_class.get_repeated_module_command().cycle_delay);
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies OneOffModuleCommand reception.
     uint8_t test_buffer_2[12] = {129, 6, 0, 2, 0, 1, 2, 3, 1, 0, 0, 0};
@@ -287,15 +289,15 @@ void test_receive_message()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         communication_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(0, communication_class.get_one_off_module_command().module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_one_off_module_command().module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_one_off_module_command().return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_one_off_module_command().command);      // Check command
-    TEST_ASSERT_TRUE(communication_class.get_one_off_module_command().noblock);                // Check noblock
+    TEST_ASSERT_EQUAL_UINT8(0, communication_class.get_one_off_module_command().module_type);
+    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_one_off_module_command().module_id);
+    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_one_off_module_command().return_code);
+    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_one_off_module_command().command);
+    TEST_ASSERT_TRUE(communication_class.get_one_off_module_command().noblock);
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
-    // Verifies DequeModuleCommand reception.
+    // Verifies DequeueModuleCommand reception.
     uint8_t test_buffer_3[10] = {129, 4, 0, 3, 1, 2, 3, 0, 0, 0};
 
     // Packages test message data into the mock reception buffer.
@@ -312,11 +314,11 @@ void test_receive_message()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         communication_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_module_dequeue().module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_module_dequeue().module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_module_dequeue().return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_module_dequeue().module_type);
+    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_module_dequeue().module_id);
+    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_module_dequeue().return_code);
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies KernelCommand reception.
     uint8_t test_buffer_4[9] = {129, 3, 0, 4, 1, 2, 0, 0, 0};
@@ -335,10 +337,10 @@ void test_receive_message()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         communication_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_kernel_command().return_code);  // Check return_code
-    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_kernel_command().command);      // Check command
+    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_kernel_command().return_code);
+    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_kernel_command().command);
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies ModuleParameters reception. Note, this only verifies the header of the message. Parameter extraction is
     // verified by a different test function.
@@ -358,17 +360,17 @@ void test_receive_message()
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageReceived),
         communication_class.get_communication_status()
     );
-    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_module_parameters_header().module_type);  // Check module_type
-    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_module_parameters_header().module_id);    // Check module_id
-    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_module_parameters_header().return_code);  // Check return_code
+    TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_module_parameters_header().module_type);
+    TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_module_parameters_header().module_id);
+    TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_module_parameters_header().return_code);
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 }
 
-// Tests the error-handling behavior of the Communication's ReceiveMessage() method.
+// Verifies the error-handling behavior of the Communication's ReceiveMessage() method.
 void test_receive_message_errors()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
     COBSProcessor cobs_class;
@@ -390,7 +392,7 @@ void test_receive_message_errors()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies that receiving a message with an invalid protocol code correctly raises kInvalidProtocol. Note,
     // protocols used by the outgoing messages (such as KernelData) are also considered invalid.
@@ -412,7 +414,7 @@ void test_receive_message_errors()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies that receiving an incomplete message (message that deviates from its mandated layout) correctly raises
     // kParsingError.
@@ -434,10 +436,10 @@ void test_receive_message_errors()
     );
 }
 
-// Tests the functioning of the Communication's ExtractModuleParameters() method.
+// Verifies the Communication's ExtractModuleParameters() method.
 void test_extract_module_parameters()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
     COBSProcessor cobs_class;
@@ -473,7 +475,7 @@ void test_extract_module_parameters()
     };
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data, extract_data, sizeof(expected_data));
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies that extracting parameter data into a structure works as expected
     uint8_t test_buffer_2[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
@@ -511,10 +513,10 @@ void test_extract_module_parameters()
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data_2, test_structure.data, sizeof(expected_data_2));
 }
 
-// Tests the error-handling behavior of the Communication's ExtractModuleParameters() method.
+// Verifies the error-handling behavior of the Communication's ExtractModuleParameters() method.
 void test_extract_module_parameters_errors()
 {
-    StreamMock<60> mock_port;
+    StreamMock<kTestBufferSize> mock_port;
     Communication communication_class(mock_port);
     CRCProcessor<uint16_t> crc_class(0x1021, 0xFFFF, 0x0000);
     COBSProcessor cobs_class;
@@ -541,14 +543,14 @@ void test_extract_module_parameters_errors()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();  // Resets the mock port
+    mock_port.reset();
 
     // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of the parameters
     // block inside the serial buffer raises a kParameterMismatch error.
     communication_class.set_protocol_code(5);  // Manually sets the protocol code to kModuleParameters
 
     // Prototype is larger than stored data size
-    uint8_t invalid_prototype_2[12] = {};  // Prototype is smaller than stored data size
+    uint8_t invalid_prototype_2[12] = {};
     TEST_ASSERT_FALSE(communication_class.ExtractModuleParameters(invalid_prototype_2));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParameterMismatch),
@@ -642,17 +644,17 @@ int RunUnityTests()
 
 // For Arduino Due, the maximum non-doubled stable rate is 5.25 Mbps at 84 MHz cpu clock.
 #if defined(ARDUINO_SAM_DUE)
-#define SERIAL_BAUD_RATE 5250000
+static constexpr uint32_t kSerialBaudRate = 5250000;
 
 // For Uno, Mega, and other 16 MHz AVR boards, the maximum stable non-doubled rate is 1 Mbps.
 #elif defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_MEGA2560) || defined(ARDUINO_AVR_MEGA) ||  \
     defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__) || defined(__AVR_ATmega2560__) || \
     defined(__AVR_ATmega168__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega16U4__)
-#define SERIAL_BAUD_RATE 1000000
+static constexpr uint32_t kSerialBaudRate = 1000000;
 
 // For all other boards the default 9600 rate is used.
 #else
-#define SERIAL_BAUD_RATE 9600
+static constexpr uint32_t kSerialBaudRate = 9600;
 #endif
 
 // This is necessary for the Arduino framework testing to work as expected, which includes teensy. All tests are
@@ -660,7 +662,7 @@ int RunUnityTests()
 void setup()
 {
     // Starts the serial connection.
-    Serial.begin(SERIAL_BAUD_RATE);
+    Serial.begin(kSerialBaudRate);
 
     // Waits ~2 seconds before the Unity test runner establishes connection with a board Serial interface. For teensy,
     // this is less important, since it uses a USB interface which does not reset the board on connection.

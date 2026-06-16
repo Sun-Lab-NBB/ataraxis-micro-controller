@@ -59,7 +59,7 @@ ___
 
 - An IDE or Framework capable of uploading microcontroller software that supports
   [Platformio](https://platformio.org/install). This library is explicitly designed to be uploaded via Platformio and
-  will likely not work with any other IDE or Framework.
+  likely does not work with any other IDE or Framework.
 
 ***Note,*** developers should see the [Developers](#developers) section for information on installing additional
 development dependencies.
@@ -92,7 +92,7 @@ ___
 
 ### Quickstart
 This section demonstrates how to use custom hardware modules compatible with this library. See 
-[this section](#implementing-custom-hardware-modules) for instructions on how to implement custom hardware module 
+[Implementing Custom Hardware Modules](#implementing-custom-hardware-modules) for instructions on how to implement custom hardware module 
 classes. Note, the example below should be run together with the 
 [companion python interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface#quickstart) example. See 
 the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp implementation of this example:
@@ -214,7 +214,7 @@ All modules intended to be accessible through this library have to follow the im
 [example module header file](./examples/example_module.h). Specifically, **all custom modules have to subclass the 
 Module class from this library and overload all pure virtual methods**. Additionally, it is highly advised to implement 
 the module's custom command logic using the **stage-based design pattern** shown in the example. Note, all examples 
-featured in this guide are taken directly from the [example_module.h](./examples/example_module.h) and the 
+featured in this guide are adapted from the [example_module.h](./examples/example_module.h) and the 
 [module_integration.cpp](./examples/module_integration.cpp).
 
 The library is intended to be used together with the 
@@ -231,9 +231,9 @@ mismatches. For example: `} PACKED_STRUCT parameters;`. See the
 ***Note,*** custom event and state codes used by modules when communicating with the PC must use values between 51 and
 250 to avoid clashing with system-reserved codes. Each code must be unique within the module class.
 
-***Do not directly access the Kernel or Communication classes when implementing custom hardware modules.*** The base 
+***Warning!*** Do not directly access the Kernel or Communication classes when implementing custom hardware modules. The base 
 Module class allows accessing all necessary library assets through the inherited utility methods. See the 
-'protected static functions' section of the Module class [API documentation](#api-documentation) for more details about 
+'protected member functions' section of the Module class [API documentation](#api-documentation) for more details about 
 the available utility methods.
 
 #### Concurrent (Non-Blocking) Execution
@@ -289,15 +289,15 @@ command code into the call to the command's logic method.
 
 For most use cases, this method can be implemented with a simple switch statement:
 ```
-switch (static_cast<kCommands>(get_active_command()))
+switch (static_cast<kModuleCommands>(get_active_command()))
 {
     // Active command matches the code for the Pulse command
-    case kCommands::kPulse:
+    case kModuleCommands::kPulse:
         Pulse();      // Executes the command logic
         return true;  // Notifies the Kernel that command was recognized and executed
        
     // Active command matches the code for the Echo command
-    case kCommands::kEcho: Echo(); return true;
+    case kModuleCommands::kEcho: Echo(); return true;
     
     // Active command does not match any valid command code
     default: return false;  // Notifies the Kernel that the command was not recognized
@@ -306,7 +306,7 @@ switch (static_cast<kCommands>(get_active_command()))
 
 The switch uses the `get_active_command()` method, inherited from the base Module class, to retrieve the code of the 
 currently active command. It is recommended to use an enumeration to map valid command codes to meaningful names 
-addressable in code, like it is done with the `kCommands` enumeration in the demonstration above. 
+addressable in code, like it is done with the `kModuleCommands` enumeration in the demonstration above. 
 
 ***Note,*** the method ***has*** to return `true` if it recognizes the command and return `false` if it does not. The 
 returned value of this method ***only*** communicates whether the command was recognized. It should ***not*** be used 
@@ -457,8 +457,8 @@ Claude Code skills and AI development assets for this project are distributed th
 - **microcontroller** plugin: Provides microcontroller-specific skills for firmware module implementation, including
   Module subclass scaffolding, stage-based command patterns, and parameter structure guidance. Install this plugin to
   make all module implementation skills available.
-- **automation** plugin: Provides shared development skills that enforce Sun Lab coding conventions (C++ style,
-  README style, commit messages, API documentation) and general-purpose codebase exploration tools.
+- **automation** plugin: Provides shared development skills that enforce Ataraxis framework coding conventions
+  (C++ style, README style, commit messages, API documentation) and general-purpose codebase exploration tools.
 
 Install both plugins from the marketplace to make all associated skills and development tools available to compatible
 AI coding agents.
