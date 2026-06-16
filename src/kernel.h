@@ -1,9 +1,10 @@
 /**
  * @file
+ *
  * @brief Provides the Kernel class used to manage the runtime of custom hardware modules and
  * integrate them with the companion host-computer (PC) control interface.
  *
- * This class manages PC-microcontroller communication and schedules and executes commands addressed to custom hardware
+ * Manages PC-microcontroller communication and schedules and executes commands addressed to custom hardware
  * modules. Due to the static API exposed by the (base) Module class, from which all custom module instances should
  * inherit, Kernel seamlessly integrates custom hardware modules with the centralized interface running on the
  * host-computer (PC).
@@ -104,7 +105,7 @@ class Kernel
             _modules(module_array),
             _module_count(kModuleNumber),
             _controller_id(controller_id),
-            _keepalive_interval(keepalive_interval * 2),  // Doubles the interval to allow brief communication lapses
+            _keepalive_interval(keepalive_interval * kKeepaliveIntervalMultiplier),
             _communication(communication)
         {
             // While compiling an empty array should not be possible, ensures there is always at least one module to
@@ -127,7 +128,7 @@ class Kernel
          */
         void Setup()
         {
-            _kernel_command = static_cast<uint8_t>(kKernelCommands::kResetController);  // Sets active command code
+            _kernel_command = static_cast<uint8_t>(kKernelCommands::kResetController);
 
             // Ensures that the setup tracker is inactivated before running the rest of the setup code. This is needed
             // to support correct cycling through Setup() calls on Teensy board that do not reset on USB connection
@@ -162,7 +163,7 @@ class Kernel
             // module-derived modifications of the hardware reserved by the Kernel. This method cannot fail.
             SetupKernel();
 
-            _setup_complete = true;  // Sets the setup tracker to indicate that the setup process has been completed.
+            _setup_complete = true;
 
             // Informs the PC that the setup process has been completed.
             SendData(static_cast<uint8_t>(kKernelStatusCodes::kSetupComplete));
@@ -199,18 +200,18 @@ class Kernel
             // LED to visually communicate setup error to the user.
             if (!_setup_complete)
             {
-                digitalWriteFast(LED_BUILTIN, HIGH);  // Turns the LED on
-                delay(2000);                          // Delays for 2 seconds
-                digitalWriteFast(LED_BUILTIN, LOW);   // Turns the LED off
-                delay(2000);                          // Delays for 2 seconds
-                return;                               // Ends cycle. A firmware reset is needed to get out of this loop.
+                digitalWriteFast(LED_BUILTIN, HIGH);
+                delay(kSetupErrorBlinkDelay);
+                digitalWriteFast(LED_BUILTIN, LOW);
+                delay(kSetupErrorBlinkDelay);
+                return;  // Ends cycle. A firmware reset is needed to get out of this loop.
             }
 
             // Continuously parses the data received from the PC until all data is processed.
             _kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);
             while (true)
             {
-                const uint8_t protocol = ReceiveData();  // Attempts to receive the data
+                const uint8_t protocol = ReceiveData();
                 bool break_loop = false;  // A flag used to break the while loop once all available data is received.
                 int16_t target_module;    // Stores the index of the module targeted by Module-addressed command.
                 uint8_t return_code;      // Stores the return code of the received message.
@@ -353,6 +354,12 @@ class Kernel
         }
 
     private:
+        /// The delay, in milliseconds, between consecutive built-in LED toggles when signaling a setup error.
+        static constexpr uint32_t kSetupErrorBlinkDelay = 2000;
+
+        /// The multiplier applied to the requested keepalive interval to tolerate brief communication lapses.
+        static constexpr uint32_t kKeepaliveIntervalMultiplier = 2;
+
         /// Tracks the currently active Kernel command. Used to send data and error messages to the PC.
         uint8_t _kernel_command = static_cast<uint8_t>(kKernelCommands::kStandby);
 

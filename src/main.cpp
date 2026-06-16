@@ -1,9 +1,10 @@
 /**
  * @file
+ *
  * @brief Provides the main entry point that integrates custom hardware modules with the communication interface running
  * on the companion host-computer (PC).
  *
- * This file exactly matches the module_integration.cpp example and is excluded from the compiled library. It is kept
+ * Mirrors the module_integration.cpp example exactly and is excluded from the compiled library. It is kept
  * here to facilitate library development. This example is designed to be executed together with the companion
  * ataraxis-communication-interface library running on the host-computer (PC).
  */
@@ -50,6 +51,9 @@ void setup()
     // Initializes the serial communication. The chosen baud rate must match the host-side monitor speed configured
     // for the target board (for example, 115200 for Teensy 4.1).
     Serial.begin(115200);
+
+    // Configures the analog read resolution to 12 bits (0-4095) for any modules that perform analog reads.
+    analogReadResolution(12);
 
     // Sets up the hardware and software for the Kernel and all managed modules.
     axmc_kernel.Setup();

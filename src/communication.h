@@ -1,9 +1,10 @@
 /**
  * @file
+ *
  * @brief Provides the Communication class that establishes and maintains bidirectional communication with
  * host-computers (PCs) running the ataraxis-communication-interface Python library.
  *
- * This class defines the communication message structures and provides the API used by other library components to
+ * Defines the communication message structures and provides the API used by other library components to
  * exchange data with the interface running on the PC.
  *
  * @note A single shared instance of this class should be created inside the main.cpp file and provided as an
@@ -133,7 +134,7 @@ class Communication
          * @param module_id The ID of the specific module instance that sent the message.
          * @param command The command executed by the module that sent the message.
          * @param event_code The event that triggered the message.
-         * @param object The data object to be sent along with the message.
+         * @param object The data payload appended to the message after the header.
          *
          * @returns true if the message is sent, false otherwise.
          */
@@ -190,7 +191,7 @@ class Communication
          * @tparam ObjectType The type of the data object to be sent along with the message.
          * @param command The command the Kernel was executing when it sent the message.
          * @param event_code The event that triggered the message.
-         * @param object The data object to be sent along with the message.
+         * @param object The data payload appended to the message after the header.
          *
          * @returns true if the message is sent, false otherwise.
          */

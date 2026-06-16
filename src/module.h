@@ -1,9 +1,10 @@
 /**
  * @file
+ *
  * @brief Provides the Module class that exposes the API for integrating user-defined custom hardware
  * modules with other library components and the interface running on the host-computer (PC).
  *
- * This class defines the API interface used by Kernel and Communication classes to interact with any custom hardware
+ * Defines the API interface used by Kernel and Communication classes to interact with any custom hardware
  * module instance that inherits from the base Module class. Additionally, the class provides the utility functions
  * for routine tasks, such as changing pin states, that support the concurrent (non-blocking) runtime of multiple
  * module-derived instances.
@@ -151,7 +152,7 @@ class Module
          * When repeating recurrent commands, the method ensures the recurrent timeout has expired before reactivating
          * the command.
          *
-         * @returns bool @b true if the module has a command to execute and @b false otherwise.
+         * @returns true if the module has a command to execute, false otherwise.
          */
         bool ResolveActiveCommand()
         {
@@ -219,27 +220,21 @@ class Module
             _execution_parameters.delay_timer     = 0;
         }
 
-        /**
-         * @brief Returns the ID of the instance.
-         */
+        /// Returns the ID of the instance.
         [[nodiscard]]
         uint8_t get_module_id() const
         {
             return _module_id;
         }
 
-        /**
-         * @brief Returns the type (family ID) of the instance.
-         */
+        /// Returns the type (family ID) of the instance.
         [[nodiscard]]
         uint8_t get_module_type() const
         {
             return _module_type;
         }
 
-        /**
-         * @brief Returns the combined type and id value of the instance.
-         */
+        /// Returns the combined type and id value of the instance.
         [[nodiscard]]
         uint16_t get_module_type_id() const
         {
@@ -311,9 +306,7 @@ class Module
         // modules to support the full range of features provided by the library, such as non-blocking module command
         // execution.
 
-        /**
-         * @brief Returns the active (running) command's code or 0, if there are no active commands.
-         */
+        /// Returns the active (running) command's code or 0, if there are no active commands.
         [[nodiscard]]
         uint8_t get_active_command() const
         {
@@ -346,10 +339,7 @@ class Module
             _execution_parameters.delay_timer = 0;
         }
 
-        /**
-         * @brief Returns the execution stage of the active (running) command or 0, if there are no active
-         * commands.
-         */
+        /// Returns the execution stage of the active (running) command or 0, if there are no active commands.
         [[nodiscard]]
         uint8_t get_command_stage() const
         {
