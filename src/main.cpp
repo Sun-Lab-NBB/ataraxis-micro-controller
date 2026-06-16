@@ -17,9 +17,10 @@
 /// Specifies the unique identifier for the test microcontroller.
 static constexpr uint8_t kControllerID = 222;
 
-/// Stores the keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the
-/// PC to send keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it
-/// assumes that the microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
+/// Stores the keepalive interval in milliseconds. If this value is greater than 0, the Kernel expects the PC to send
+/// keepalive messages at this interval. The Kernel doubles the interval internally to tolerate brief communication
+/// lapses. If it receives no keepalive message within roughly twice this value, it assumes the PC connection was
+/// lost and re-initializes all modules and the Kernel runtime via Setup(), aborting any active commands.
 static constexpr uint32_t kKeepaliveInterval = 5000;
 
 // Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
@@ -46,7 +47,8 @@ Kernel axmc_kernel(kControllerID, axmc_communication, modules, kKeepaliveInterva
 // module's hardware individually.
 void setup()
 {
-    // Initializes the serial communication.
+    // Initializes the serial communication. The chosen baud rate must match the host-side monitor speed configured
+    // for the target board (for example, 115200 for Teensy 4.1).
     Serial.begin(115200);
 
     // Sets up the hardware and software for the Kernel and all managed modules.

@@ -318,9 +318,9 @@ class Communication
             // recursions.
             SendDataMessage(module_type, module_id, command, error_code, errors);
 
-            // As a fallback in case the error message does not reach the connected system, sets the class status to
-            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
-            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+            // As a fallback in case the error message does not reach the connected system, activates the built-in LED.
+            // The LED is used as a visual indicator for a potentially unhandled runtime error. The Kernel class manages
+            // the indicator inactivation.
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 
@@ -341,9 +341,9 @@ class Communication
             // recursions.
             SendDataMessage(command, error_code, errors);
 
-            // As a fallback in case the error message does not reach the connected system, sets the class status to
-            // the error code and activates the built-in LED. The LED is used as a visual indicator for a potentially
-            // unhandled runtime error. The Kernel class manages the indicator inactivation.
+            // As a fallback in case the error message does not reach the connected system, activates the built-in LED.
+            // The LED is used as a visual indicator for a potentially unhandled runtime error. The Kernel class manages
+            // the indicator inactivation.
             digitalWriteFast(LED_BUILTIN, HIGH);
         }
 

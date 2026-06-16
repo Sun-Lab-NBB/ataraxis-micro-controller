@@ -1,6 +1,7 @@
 /**
  * @file
- * @brief Verifies the behavior of the Communication class send, receive, and parameter extraction methods.
+ * @brief Verifies the behavior of the Communication class send, receive, and parameter extraction methods, along with
+ * compile-time prototype resolution.
  */
 
 #include <Arduino.h>
@@ -548,7 +549,7 @@ void test_extract_module_parameters_errors()
     communication_class.set_protocol_code(5);  // Manually sets the protocol code to kModuleParameters
 
     // Prototype is larger than stored data size
-    uint8_t invalid_prototype_2[12] = {};  // Prototype is smaller than stored data size
+    uint8_t invalid_prototype_2[12] = {};
     TEST_ASSERT_FALSE(communication_class.ExtractModuleParameters(invalid_prototype_2));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParameterMismatch),

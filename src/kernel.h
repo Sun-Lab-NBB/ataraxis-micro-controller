@@ -83,14 +83,16 @@ class Kernel
          * @brief Initializes the necessary assets used to manage the runtime of the input hardware module instances.
          *
          * @param controller_id The unique identifier of the microcontroller that uses this Kernel instance. This
-         * ID code has to be unique for all microcontrollers used at the same time.
+         * ID code has to be unique for all microcontrollers used at the same time. Valid values range from 1 to 255;
+         * the value 0 is reserved.
          * @param communication The shared Communication instance used to bidirectionally communicate with the PC
          * during runtime.
-         * @param module_array The array of pointers to custom hardware module instances. Note, each instance must
-         * inherit from the base Module class.
-         * @param keepalive_interval The interval, in milliseconds, within which the Kernel must receive a keepalive
-         * command from the PC to prevent emergency shutdown. Setting this parameter to 0 disables the keepalive
-         * mechanism.
+         * @param module_array The array of pointers to custom hardware module instances. Each instance must inherit
+         * from the base Module class, and the array must contain at least one instance.
+         * @param keepalive_interval The interval, in milliseconds, used to derive the keepalive timeout. The Kernel
+         * doubles this value to tolerate brief communication lapses, so emergency shutdown occurs after about twice
+         * the supplied interval without a keepalive command from the PC. Setting this parameter to 0 disables the
+         * keepalive mechanism.
          */
         template <const size_t kModuleNumber>
         Kernel(
@@ -116,10 +118,10 @@ class Kernel
         /**
          * @brief Configures the hardware and software assets used by the Kernel and all managed hardware modules.
          *
-         * @warning This is the only method that turns off the built-in LED of the controller board. Seeing
-         * the LED constantly ON (HIGH) after this method's runtime means the controller experienced a communication
-         * error when it tried sending data to the PC. Seeing the LED blinking with ~2-second periodicity indicates that
-         * the Kernel failed the setup sequence.
+         * @warning This method deactivates the built-in LED of the controller board. Seeing the LED constantly ON
+         * (HIGH) after this method's runtime means the controller experienced a communication error when it tried
+         * sending data to the PC. Seeing the LED blink on and off at ~2-second intervals indicates that the Kernel
+         * failed the setup sequence.
          *
          * @note This method has to be called as part of the main setup() function.
          */
@@ -363,8 +365,8 @@ class Kernel
         /// Stores the unique identifier code of the microcontroller that uses the Kernel instance.
         const uint8_t _controller_id;
 
-        /// Stores the maximum period of time, in milliseconds, that can separate two consecutive keepalive messages
-        /// sent from the PC to the microcontroller.
+        /// Stores the effective keepalive timeout, in milliseconds. The constructor sets this to twice the supplied
+        /// interval to tolerate brief communication lapses between consecutive keepalive messages from the PC.
         const uint32_t _keepalive_interval;
 
         /// Tracks the time elapsed since receiving the last keepalive message.

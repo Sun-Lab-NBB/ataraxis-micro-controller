@@ -5,7 +5,7 @@
  * This file demonstrates the process of writing custom hardware module classes that use the AXMC library to integrate
  * with the communication interface running on the host-computer (PC). This implementation showcases one of the many
  * possible module design patterns. The main advantage of the AXMC library is that it is designed to work with any
- * class design and layout, as long as it subclasses the base Module class and overloads the three pure virtual
+ * class design and layout, as long as it subclasses the base Module class and overrides the three pure virtual
  * methods: SetCustomParameters, RunActiveCommand and SetupModule.
  *
  * @note For the best learning experience, it is recommended to review this code side-by-side with the implementation
@@ -33,7 +33,7 @@ class TestModule final : public Module
         {
                 uint32_t on_duration  = 2000000;  ///< The time, in microseconds, to keep the pin HIGH when pulsing.
                 uint32_t off_duration = 2000000;  ///< The time, in microseconds, to keep the pin LOW when pulsing.
-                uint16_t echo_value   = 666;      ///< The value sent to the PC as part of the Echo() command's runtime.
+                uint16_t echo_value   = 123;      ///< The value sent to the PC as part of the Echo() command's runtime.
         } PACKED_STRUCT parameters;
 
         /// Defines the state codes used by the class when communicating with the PC. Each code must be unique within
@@ -48,8 +48,8 @@ class TestModule final : public Module
         /// Defines the codes for the commands that can be executed by the module.
         enum class kCommands : uint8_t
         {
-            kPulse = 1,  ///< Sends a square digital pulse using the managed digital pin.
-            kEcho  = 2,  ///< Sends the 'echo_value' parameter to the PC.
+            kPulse = 1,  ///< Sends a square digital pulse using the managed digital pin across multiple stages.
+            kEcho  = 2,  ///< Sends the 'echo_value' parameter to the PC in a single stage.
         };
 
         /// Initializes the base Module class with the provided type, id, and communication instance.

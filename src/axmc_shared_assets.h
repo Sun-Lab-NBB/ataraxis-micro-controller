@@ -491,11 +491,11 @@ namespace axmc_communication_assets
     using remove_extent_t = typename remove_extent<T>::type;
 
     /**
-     * @brief Maps a scalar element type to a row index in the prototype lookup table.
+     * @brief Maps a scalar element type to a column index in the prototype lookup table.
      *
      * @tparam T The scalar type to resolve. Must be one of: bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t,
      * int32_t, float, uint64_t, int64_t, or double.
-     * @returns The row index (0-10) corresponding to the element type.
+     * @returns The column index (0-10) corresponding to the element type.
      */
     template <typename T>
     constexpr uint8_t PrototypeTypeIndex()

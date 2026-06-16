@@ -48,7 +48,7 @@ class Module
         {
                 uint8_t command          = 0;      ///< Currently executed (in-progress) command.
                 uint8_t stage            = 0;      ///< The stage of the currently executed command.
-                bool noblock             = false;  ///< Determines whether the currently executed command is blocking.
+                bool noblock             = false;  ///< Determines whether the current command is non-blocking.
                 uint8_t next_command     = 0;      ///< Stores the next command to be executed.
                 bool next_noblock        = false;  ///< Determines whether the next command is non-blocking.
                 bool new_command         = false;  ///< Determines whether next_command is a new or recurrent command.
