@@ -59,7 +59,7 @@ ___
 
 - An IDE or Framework capable of uploading microcontroller software that supports
   [Platformio](https://platformio.org/install). This library is explicitly designed to be uploaded via Platformio and
-  will likely not work with any other IDE or Framework.
+  likely does not work with any other IDE or Framework.
 
 ***Note,*** developers should see the [Developers](#developers) section for information on installing additional
 development dependencies.
@@ -92,7 +92,7 @@ ___
 
 ### Quickstart
 This section demonstrates how to use custom hardware modules compatible with this library. See 
-[this section](#implementing-custom-hardware-modules) for instructions on how to implement custom hardware module 
+[Implementing Custom Hardware Modules](#implementing-custom-hardware-modules) for instructions on how to implement custom hardware module 
 classes. Note, the example below should be run together with the 
 [companion python interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface#quickstart) example. See 
 the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp implementation of this example:
@@ -231,7 +231,7 @@ mismatches. For example: `} PACKED_STRUCT parameters;`. See the
 ***Note,*** custom event and state codes used by modules when communicating with the PC must use values between 51 and
 250 to avoid clashing with system-reserved codes. Each code must be unique within the module class.
 
-***Do not directly access the Kernel or Communication classes when implementing custom hardware modules.*** The base 
+***Warning!*** Do not directly access the Kernel or Communication classes when implementing custom hardware modules. The base 
 Module class allows accessing all necessary library assets through the inherited utility methods. See the 
 'protected member functions' section of the Module class [API documentation](#api-documentation) for more details about 
 the available utility methods.

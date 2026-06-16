@@ -54,6 +54,30 @@ This project depends on the following Ataraxis framework library:
 **Why this matters**: Skills and documentation may reference outdated APIs. Always verify against the actual library
 state to prevent integration errors.
 
+## Available skills
+
+All skills are distributed through the [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The skills
+below are the ones relevant to this C++ PlatformIO firmware library (the `automation` plugin plus the `microcontroller`
+plugin's `firmware-module`). The Python/C# style skills (`/python-style`, `/pyproject-style`, `/csharp-style`) and the
+`communication`/`video` plugin skills target other repositories and are omitted here.
+
+| Skill                    | Description                                                                    |
+|--------------------------|--------------------------------------------------------------------------------|
+| `/explore-codebase`      | Perform in-depth codebase exploration at session start                         |
+| `/explore-dependencies`  | Build a live API snapshot of installed ataraxis dependencies                   |
+| `/firmware-module`       | Guide creation of custom hardware Module subclasses                            |
+| `/cpp-style`             | Apply Ataraxis framework C++ coding conventions (REQUIRED for all C++ changes) |
+| `/readme-style`          | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
+| `/api-docs`              | Apply Ataraxis framework Sphinx documentation conventions (REQUIRED for docs)  |
+| `/tox-config`            | Apply Ataraxis framework tox.ini conventions (REQUIRED for tox.ini changes)    |
+| `/project-layout`        | Apply Ataraxis framework project directory structure conventions               |
+| `/commit`                | Draft Ataraxis framework style-compliant git commit messages                   |
+| `/pr`                    | Draft a style-compliant pull request summary for the active branch             |
+| `/release`               | Draft style-compliant release notes from merged pull requests                  |
+| `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions             |
+| `/audit-facts`           | Audit documentation for factual accuracy against the source code               |
+| `/audit-style`           | Audit files for style and convention compliance                                |
+
 ## Companion library synchronization
 
 This library (`ataraxis-micro-controller`) and its Python counterpart (`ataraxis-communication-interface`) implement
@@ -92,30 +116,6 @@ the corresponding change in `ataraxis-communication-interface`, and vice versa.
 - Platform-specific buffer sizes and serial baud rates
 - Test infrastructure, build system, and PlatformIO configuration
 - Arduino/Teensy-specific timing and `elapsedMicros` usage
-
-## Available skills
-
-All skills are distributed through the [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The skills
-below are the ones relevant to this C++ PlatformIO firmware library (the `automation` plugin plus the `microcontroller`
-plugin's `firmware-module`). The Python/C# style skills (`/python-style`, `/pyproject-style`, `/csharp-style`) and the
-`communication`/`video` plugin skills target other repositories and are omitted here.
-
-| Skill                    | Description                                                                    |
-|--------------------------|--------------------------------------------------------------------------------|
-| `/explore-codebase`      | Perform in-depth codebase exploration at session start                         |
-| `/explore-dependencies`  | Build a live API snapshot of installed ataraxis dependencies                   |
-| `/firmware-module`       | Guide creation of custom hardware Module subclasses                            |
-| `/cpp-style`             | Apply Ataraxis framework C++ coding conventions (REQUIRED for all C++ changes) |
-| `/readme-style`          | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
-| `/api-docs`              | Apply Ataraxis framework Sphinx documentation conventions (REQUIRED for docs)  |
-| `/tox-config`            | Apply Ataraxis framework tox.ini conventions (REQUIRED for tox.ini changes)    |
-| `/project-layout`        | Apply Ataraxis framework project directory structure conventions               |
-| `/commit`                | Draft Ataraxis framework style-compliant git commit messages                   |
-| `/pr`                    | Draft a style-compliant pull request summary for the active branch             |
-| `/release`               | Draft style-compliant release notes from merged pull requests                  |
-| `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions             |
-| `/audit-facts`           | Audit documentation for factual accuracy against the source code               |
-| `/audit-style`           | Audit files for style and convention compliance                                |
 
 ## Project context
 
