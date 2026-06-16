@@ -27,7 +27,7 @@ appropriate skill results in style violations.
 
 ## Cross-referenced library verification
 
-This project depends on the following Sun Lab library:
+This project depends on the following Ataraxis framework library:
 
 | Library                     | Import header            | Role                                                 |
 |-----------------------------|--------------------------|------------------------------------------------------|
@@ -94,15 +94,15 @@ the corresponding change in `ataraxis-communication-interface`, and vice versa.
 
 ## Available skills
 
-| Skill                    | Description                                                               |
-|--------------------------|---------------------------------------------------------------------------|
-| `/explore-codebase`      | Perform in-depth codebase exploration at session start                    |
-| `/firmware-module`       | Guide creation of custom hardware Module subclasses                       |
-| `/cpp-style`             | Apply Sun Lab C++ coding conventions (REQUIRED for all C++ changes)       |
-| `/readme-style`          | Apply Sun Lab README conventions (REQUIRED for README changes)            |
-| `/api-docs`              | Apply Sun Lab API documentation conventions                               |
-| `/commit`                | Draft Sun Lab style-compliant git commit messages                         |
-| `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions        |
+| Skill                    | Description                                                                    |
+|--------------------------|--------------------------------------------------------------------------------|
+| `/explore-codebase`      | Perform in-depth codebase exploration at session start                         |
+| `/firmware-module`       | Guide creation of custom hardware Module subclasses                            |
+| `/cpp-style`             | Apply Ataraxis framework C++ coding conventions (REQUIRED for all C++ changes) |
+| `/readme-style`          | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
+| `/api-docs`              | Apply Ataraxis framework API documentation conventions                         |
+| `/commit`                | Draft Ataraxis framework style-compliant git commit messages                   |
+| `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions             |
 
 ## Project context
 

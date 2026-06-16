@@ -457,8 +457,8 @@ Claude Code skills and AI development assets for this project are distributed th
 - **microcontroller** plugin: Provides microcontroller-specific skills for firmware module implementation, including
   Module subclass scaffolding, stage-based command patterns, and parameter structure guidance. Install this plugin to
   make all module implementation skills available.
-- **automation** plugin: Provides shared development skills that enforce Sun Lab coding conventions (C++ style,
-  README style, commit messages, API documentation) and general-purpose codebase exploration tools.
+- **automation** plugin: Provides shared development skills that enforce Ataraxis framework coding conventions
+  (C++ style, README style, commit messages, API documentation) and general-purpose codebase exploration tools.
 
 Install both plugins from the marketplace to make all associated skills and development tools available to compatible
 AI coding agents.
