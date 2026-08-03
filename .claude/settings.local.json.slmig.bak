@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(pip show:*)",
+      "Bash(pio run:*)",
+      "Bash(awk 'length > 120' /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/test/test_communication_class.cpp)",
+      "Bash(awk 'length > 120' /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/src/kernel.h)",
+      "Bash(awk 'length > 120' /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/src/communication.h)",
+      "Bash(wc:*)",
+      "Read(//tmp/**)",
+      "Bash(grep:*)",
+      "Bash(awk 'length > 120' /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/src/module.h)",
+      "Bash(awk 'length > 120' /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/src/main.cpp)",
+      "Bash(awk 'length > 120' /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/examples/example_module.h /home/cyberaxolotl/Desktop/GitHubRepos/ataraxis-micro-controller/examples/module_integration.cpp)",
+      "Bash(clang-format --version)",
+      "Bash(clang-format:*)",
+      "Bash(git -C ~/.claude/plugins/marketplaces/ataraxis/ remote -v)",
+      "Bash(git -C ~/Desktop/GitHubRepos/ataraxis/ remote -v)",
+      "Bash(git -C ~/Desktop/GitHubRepos/ataraxis/ status --short)",
+      "Bash(mkdir -p ~/Desktop/GitHubRepos/ataraxis/plugins/microcontroller/.claude-plugin)",
+      "Bash(mkdir -p ~/Desktop/GitHubRepos/ataraxis/plugins/microcontroller/skills/firmware-module/references)",
+      "Bash(python3:*)",
+      "Bash(pio test:*)",
+      "Bash(python:*)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "sl-migration"
+  ]
+}
