@@ -97,20 +97,20 @@ classes. Note, the example below should be run together with the
 [companion python interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface#quickstart) example. See 
 the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp implementation of this example:
 ```
-// Dependencies
-#include "../examples/example_module.h"  // Since there is an overlap with the general 'examples', uses the local path.
 #include <Arduino.h>
+#include "../examples/example_module.h"
 #include "communication.h"
 #include "kernel.h"
 #include "module.h"
 
-// Specifies the unique identifier for the test microcontroller
+/// Specifies the unique identifier for the test microcontroller.
 static constexpr uint8_t kControllerID = 222;
 
-// Keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the PC to send
-// keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it assumes that the
-// microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
-static constexpr uint32_t kKeepaliveInterval = 5000;  // Sets the keepalive interval to 5 seconds.
+/// Stores the keepalive interval in milliseconds. If this value is greater than 0, the Kernel expects the PC to send
+/// keepalive messages at this interval. The Kernel doubles the interval internally to tolerate brief communication
+/// lapses. If it receives no keepalive message within roughly twice this value, it assumes the PC connection was
+/// lost and re-initializes all modules and the Kernel runtime via Setup(), aborting any active commands.
+static constexpr uint32_t kKeepaliveInterval = 5000;
 
 // Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
 // outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
@@ -136,8 +136,16 @@ Kernel axmc_kernel(kControllerID, axmc_communication, modules, kKeepaliveInterva
 // module's hardware individually.
 void setup()
 {
-    // Initializes the serial communication.
+    // Initializes the serial communication. The chosen baud rate must match the host-side monitor speed configured
+    // for the target board (for example, 115200 for Teensy 4.1).
     Serial.begin(115200);
+
+    // Configures the analog read resolution to 12 bits (0-4095) for any modules that perform analog reads. AVR boards
+    // (for example, Arduino Mega) have a fixed 10-bit ADC and do not provide analogReadResolution(), so the call is
+    // compiled only for architectures that support adjustable analog resolution.
+#if !defined(__AVR__)
+    analogReadResolution(12);
+#endif
 
     // Sets up the hardware and software for the Kernel and all managed modules.
     axmc_kernel.Setup();

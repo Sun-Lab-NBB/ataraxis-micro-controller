@@ -14,14 +14,15 @@ This ensures you:
 
 You MUST invoke the appropriate style skill before performing ANY of the following tasks:
 
-| Task                                   | Skill to invoke    |
-|----------------------------------------|--------------------|
-| Writing or modifying C++ code          | `/cpp-style`       |
-| Writing or modifying README files      | `/readme-style`    |
-| Writing or modifying Sphinx docs files | `/api-docs`        |
-| Writing or modifying `tox.ini`         | `/tox-config`      |
-| Writing git commit messages            | `/commit`          |
-| Writing or modifying skill files       | `/skill-design`    |
+| Task                                                   | Skill to invoke      |
+|--------------------------------------------------------|----------------------|
+| Writing or modifying C++ code                          | `/cpp-style`         |
+| Writing or modifying README files                      | `/readme-style`      |
+| Writing or modifying Sphinx docs files                 | `/api-docs`          |
+| Writing or modifying `tox.ini`                         | `/tox-config`        |
+| Writing or modifying `platformio.ini` / `library.json` | `/platformio-config` |
+| Writing git commit messages                            | `/commit`            |
+| Writing or modifying skill files                       | `/skill-design`      |
 
 Each skill contains a verification checklist that you MUST complete before submitting any work. Failure to invoke the
 appropriate skill results in style violations.
@@ -70,12 +71,16 @@ plugin's `firmware-module`). The Python/C# style skills (`/python-style`, `/pypr
 | `/readme-style`          | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
 | `/api-docs`              | Apply Ataraxis framework Sphinx documentation conventions (REQUIRED for docs)  |
 | `/tox-config`            | Apply Ataraxis framework tox.ini conventions (REQUIRED for tox.ini changes)    |
+| `/platformio-config`     | Apply Ataraxis framework platformio.ini and library.json conventions           |
 | `/project-layout`        | Apply Ataraxis framework project directory structure conventions               |
 | `/commit`                | Draft Ataraxis framework style-compliant git commit messages                   |
 | `/pr`                    | Draft a style-compliant pull request summary for the active branch             |
 | `/release`               | Draft style-compliant release notes from merged pull requests                  |
 | `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions             |
+| `/audit-project`         | Orchestrate the four audits and merge their findings into one report           |
 | `/audit-facts`           | Audit documentation for factual accuracy against the source code               |
+| `/audit-correctness`     | Audit source code for bugs, edge cases, races, and leaks                       |
+| `/audit-performance`     | Audit source code for speed, memory use, and dtype predictability              |
 | `/audit-style`           | Audit files for style and convention compliance                                |
 
 ## Companion library synchronization
@@ -155,9 +160,9 @@ logic. The library targets Arduino and Teensy microcontrollers within the
   execution state via `ExecutionControlParameters` struct tracking active command, stage, non-blocking mode, queued
   command, and recurrent execution with configurable cycle delay. Public methods used by Kernel:
   `QueueCommand()`, `ResolveActiveCommand()`, `ResetCommandQueue()`, `ResetExecutionParameters()`,
-  `SendCommandActivationError()`. Protected utility methods for subclass use: `get_active_command()`,
-  `get_command_stage()`, `CompleteCommand()`, `AbortCommand()`, `AdvanceCommandStage()`, `WaitForMicros()`,
-  `SendData()`, `ExtractParameters()`, `AnalogRead()`, `DigitalRead()`.
+  `SendCommandActivationError()`, `get_module_type()`, `get_module_id()`, `get_module_type_id()`. Protected utility
+  methods for subclass use: `get_active_command()`, `get_command_stage()`, `CompleteCommand()`, `AbortCommand()`,
+  `AdvanceCommandStage()`, `WaitForMicros()`, `SendData()`, `ExtractParameters()`, `AnalogRead()`, `DigitalRead()`.
 - **Shared assets** (`axmc_shared_assets.h`): Two namespaces. `axmc_shared_assets` contains
   `kCommunicationStatusCodes` enum. `axmc_communication_assets` contains `kProtocols` enum (13 message types),
   `kPrototypes` enum (252 prototype codes), all `PACKED_STRUCT` message structures, the `kPrototypeLookup`
@@ -192,8 +197,8 @@ logic. The library targets Arduino and Teensy microcontrollers within the
   assertions catch unsupported type/count combinations during compilation.
 - **PACKED_STRUCT serialization**: All message structures use `PACKED_STRUCT` for byte-level serialization with no
   compiler padding, ensuring binary compatibility with the companion Python library.
-- **Status code returns**: All operations return enum status codes rather than throwing exceptions, consistent with
-  embedded C++ patterns.
+- **Status code returns**: Operations signal outcome through boolean returns and stored status codes rather than
+  throwing exceptions, consistent with embedded C++ patterns.
 - **Platform-conditional compilation**: `elapsedMillis` dependency is included only for non-Teensy boards; Teensy
   provides native `elapsedMicros`. Maximum data payload sizes vary by platform (Teensy: 248 bytes, Due: 244 bytes,
   Mega: 52 bytes); the underlying serial buffers are larger (8192/256/64 bytes on Teensy/Due/Mega).
@@ -240,7 +245,7 @@ tox -e docs                      # Build Sphinx API documentation (Doxygen + Bre
 
 1. Review `src/kernel.h` for the current implementation
 2. Understand the message routing architecture: `ReceiveMessage()` parses protocol, `RunKernelCommand()` handles
-   kernel commands, `RunModuleCommands()` dispatches to modules via `ResolveTargetModule()`
+   kernel commands, `ResolveTargetModule()` addresses module messages, `RunModuleCommands()` executes active commands
 3. All status codes return via `SendServiceMessage()` or `SendDataMessage()` — do not introduce exception handling
 4. Keepalive logic uses a two-window miss threshold; modifying this affects safety guarantees
 5. LED error indication is a fallback — it must remain functional even when serial communication has failed
@@ -266,7 +271,7 @@ tox -e docs                      # Build Sphinx API documentation (Doxygen + Bre
 **Modifying prototype resolution:**
 
 1. Review the `kPrototypes` enum and `kPrototypeLookup` table in `src/axmc_shared_assets.h`
-2. `PrototypeTypeIndex<T>()` maps scalar types to row indices (11 types: bool through double)
+2. `PrototypeTypeIndex<T>()` maps scalar types to column indices (11 types: bool through double)
 3. `ResolvePrototype<T>()` handles both scalar types and C-style arrays via `is_array` trait detection
 4. Adding new prototype entries requires updating both the enum, the lookup table, and the companion Python library
 5. Maximum payload size is constrained by `TransportLayer` buffer sizes (platform-dependent)

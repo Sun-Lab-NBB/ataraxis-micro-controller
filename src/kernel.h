@@ -180,6 +180,9 @@ class Kernel
          * Once all data is received, the method loops over managed modules and executes one command execution stage
          * for each module.
          *
+         * Finally, when keepalive tracking is active and no keepalive command arrives within the timeout, the method
+         * reports the timeout to the PC and reruns Setup(), resetting all managed modules and aborting active commands.
+         *
          * @note This method has to be repeatedly called as part of the main loop() function.
          */
         void RuntimeCycle()
