@@ -739,14 +739,14 @@ namespace axmc_communication_assets
     template <typename T>
     struct is_array
     {
-            static constexpr bool value = false;
+            static constexpr bool value = false;  ///< Determines whether the inspected type is a C-style array.
     };
 
     /// Partial specialization that activates for bounded C-style arrays.
     template <typename T, size_t N>
     struct is_array<T[N]>
     {
-            static constexpr bool value = true;
+            static constexpr bool value = true;  ///< Determines whether the inspected type is a C-style array.
     };
 
     /// Convenient variable template for is_array.
@@ -757,14 +757,14 @@ namespace axmc_communication_assets
     template <typename T>
     struct array_extent
     {
-            static constexpr size_t value = 0;
+            static constexpr size_t value = 0;  ///< The number of elements in the inspected array type.
     };
 
     /// Partial specialization that retrieves the element count of a bounded C-style array.
     template <typename T, size_t N>
     struct array_extent<T[N]>
     {
-            static constexpr size_t value = N;
+            static constexpr size_t value = N;  ///< The number of elements in the inspected array type.
     };
 
     /// Convenient variable template for array_extent.
@@ -775,14 +775,14 @@ namespace axmc_communication_assets
     template <typename T>
     struct remove_extent
     {
-            using type = T;
+            using type = T;  ///< The element type of the inspected array type.
     };
 
     /// Partial specialization that strips the array extent to yield the element type.
     template <typename T, size_t N>
     struct remove_extent<T[N]>
     {
-            using type = T;
+            using type = T;  ///< The element type of the inspected array type.
     };
 
     /// Convenient alias template for remove_extent.
