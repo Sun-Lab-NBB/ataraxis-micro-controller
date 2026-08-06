@@ -4,7 +4,7 @@
 project = 'ataraxis-micro-controller'
 copyright = '2026, Sun (NeuroAI) lab'
 authors = ['Ivan Kondratyev', 'Jasmine Si']
-release = '3.0.1'
+release = '4.0.0'
 
 # -- General configuration ---------------------------------------------------
 extensions = [

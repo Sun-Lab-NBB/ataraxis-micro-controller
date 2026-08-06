@@ -475,7 +475,14 @@ class Kernel
          */
         void SendControllerID() const
         {
-            _communication.SendServiceMessage<kProtocols::kControllerIdentification>(_controller_id);
+            // Sends the identification message to the PC. If the message was sent, ends the runtime.
+            if (_communication.SendServiceMessage<kProtocols::kControllerIdentification>(_controller_id)) return;
+
+            // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
+            _communication.SendCommunicationErrorMessage(
+                _kernel_command,
+                static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
+            );
         }
 
         /**
@@ -486,7 +493,16 @@ class Kernel
         {
             for (size_t i = 0; i < _module_count; ++i)
             {
-                _communication.SendServiceMessage<kProtocols::kModuleIdentification>(_modules[i]->get_module_type_id());
+                const uint16_t module_type_id = _modules[i]->get_module_type_id();
+
+                // Sends the identification message to the PC. If the message was sent, moves on to the next module.
+                if (_communication.SendServiceMessage<kProtocols::kModuleIdentification>(module_type_id)) continue;
+
+                // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
+                _communication.SendCommunicationErrorMessage(
+                    _kernel_command,
+                    static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
+                );
             }
         }
 
@@ -497,7 +513,14 @@ class Kernel
          */
         void SendReceptionCode(const uint8_t reception_code) const
         {
-            _communication.SendServiceMessage<kProtocols::kReceptionCode>(reception_code);
+            // Sends the acknowledgment message to the PC. If the message was sent, ends the runtime.
+            if (_communication.SendServiceMessage<kProtocols::kReceptionCode>(reception_code)) return;
+
+            // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
+            _communication.SendCommunicationErrorMessage(
+                _kernel_command,
+                static_cast<uint8_t>(kKernelStatusCodes::kTransmissionError)
+            );
         }
 
         /**

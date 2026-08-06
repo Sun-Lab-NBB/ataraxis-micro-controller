@@ -35,6 +35,7 @@ namespace axmc_shared_assets
         kParameterMismatch   = 59,  ///< The size of the received parameters structure does not match expectation.
         kParametersExtracted = 60,  ///< Parameter data has been successfully extracted.
         kExtractionForbidden = 61,  ///< Attempted to extract parameters from the message other than ModuleParameters.
+        kTransmissionError   = 62,  ///< The communication interface accepted only a part of the transmitted message.
     };
 }  // namespace axmc_shared_assets
 
