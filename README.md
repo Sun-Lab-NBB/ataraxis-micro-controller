@@ -463,6 +463,8 @@ Claude Code skills and AI development assets for this project are distributed th
   - Runtime parameter structures using the `PACKED_STRUCT` macro.
   - Event and status code conventions.
   - Sending data to the PC via the `SendData()` overloads.
+  - Template-based module design with compile-time pin configuration.
+  - Static assertions for compile-time validation.
   - main.cpp integration wiring the Communication, Module, and Kernel instances together.
 - **automation** plugin: Provides shared development skills that enforce Ataraxis framework coding conventions
   (C++ style, README style, commit messages, API documentation) and general-purpose codebase exploration tools.
