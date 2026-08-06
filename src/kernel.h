@@ -23,6 +23,14 @@
 #include "communication.h"
 #include "module.h"
 
+// The digitalWriteFast library aliases digitalWriteFast and digitalReadFast to the standard Arduino functions on every
+// non-AVR target. Teensy boards ship always-inline register-level implementations of both, so removing the aliases
+// exposes them. The pinModeFast alias is kept, as Teensy provides no fast counterpart for it.
+#if defined(CORE_TEENSY)
+#undef digitalWriteFast
+#undef digitalReadFast
+#endif
+
 using namespace axmc_shared_assets;
 
 /**
@@ -203,10 +211,12 @@ class Kernel
             // LED to visually communicate setup error to the user.
             if (!_setup_complete)
             {
-                digitalWriteFast(LED_BUILTIN, HIGH);
-                delay(kSetupErrorBlinkDelay);
-                digitalWriteFast(LED_BUILTIN, LOW);
-                delay(kSetupErrorBlinkDelay);
+                if (_setup_error_blink_timer >= kSetupErrorBlinkDelay)
+                {
+                    _setup_error_led_state = !_setup_error_led_state;
+                    digitalWriteFast(LED_BUILTIN, _setup_error_led_state);
+                    _setup_error_blink_timer = 0;
+                }
                 return;  // Ends cycle. A firmware reset is needed to get out of this loop.
             }
 
@@ -227,37 +237,41 @@ class Kernel
                     case kProtocols::kUndefined: break_loop = true; break;
 
                     case kProtocols::kModuleParameters:
-                        return_code = _communication.get_module_parameters_header().return_code;
-                        if (return_code) SendReceptionCode(return_code);
-
-                        // For module-addressed commands, attempts to resolve (discover) the addressed module. If this
-                        // method succeeds, it returns an index (>=0) of the target module class inside the _modules
-                        // array
-                        target_module = ResolveTargetModule(
-                            _communication.get_module_parameters_header().module_type,
-                            _communication.get_module_parameters_header().module_id
-                        );
-
-                        // Aborts early if the target module is not found, as indicated by the returned code being
-                        // a negative number (-1).
-                        if (target_module < 0) break;
-
-                        if (!_modules[static_cast<size_t>(target_module)]->SetCustomParameters())
                         {
-                            // If the module fails to process the parameters, as indicated by the API method returning
-                            // 'false', sends an error message to the PC to communicate the error.
-                            const uint8_t error_object[2] = {
-                                _modules[static_cast<size_t>(target_module)]->get_module_type(),
-                                _modules[static_cast<size_t>(target_module)]->get_module_id(),
-                            };
-                            SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError), error_object);
+                            const ModuleParameters& header = _communication.get_module_parameters_header();
+                            return_code                    = header.return_code;
+                            if (return_code) SendReceptionCode(return_code);
+
+                            // For module-addressed commands, attempts to resolve (discover) the addressed module. If
+                            // this method succeeds, it returns an index (>=0) of the target module class inside the
+                            // _modules array
+                            target_module = ResolveTargetModule(header.module_type, header.module_id);
+
+                            // Aborts early if the target module is not found, as indicated by the returned code being
+                            // a negative number (-1).
+                            if (target_module < 0) break;
+
+                            Module* const target = _modules[static_cast<size_t>(target_module)];
+                            if (!target->SetCustomParameters())
+                            {
+                                // If the module fails to process the parameters, as indicated by the API method
+                                // returning 'false', sends an error message to the PC to communicate the error.
+                                const uint8_t error_object[2] = {
+                                    target->get_module_type(),
+                                    target->get_module_id(),
+                                };
+                                SendData(
+                                    static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersError),
+                                    error_object
+                                );
+                            }
+                            else
+                            {
+                                // If the parameters were set correctly, notifies the PC.
+                                SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet));
+                            }
+                            break;
                         }
-                        else
-                        {
-                            // If the parameters were set correctly, notifies the PC.
-                            SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleParametersSet));
-                        }
-                        break;
 
                     case kProtocols::kKernelCommand:
                         return_code = _communication.get_kernel_command().return_code;
@@ -269,59 +283,57 @@ class Kernel
                         break;
 
                     case kProtocols::kDequeueModuleCommand:
-                        return_code = _communication.get_module_dequeue().return_code;
-                        if (return_code) SendReceptionCode(return_code);
-                        target_module = ResolveTargetModule(
-                            _communication.get_module_dequeue().module_type,
-                            _communication.get_module_dequeue().module_id
-                        );
+                        {
+                            const DequeueModuleCommand& message = _communication.get_module_dequeue();
+                            return_code                         = message.return_code;
+                            if (return_code) SendReceptionCode(return_code);
+                            target_module = ResolveTargetModule(message.module_type, message.module_id);
 
-                        // Aborts early if the target module is not found, as indicated by the returned code being
-                        // a negative number (-1).
-                        if (target_module < 0) break;
+                            // Aborts early if the target module is not found, as indicated by the returned code being
+                            // a negative number (-1).
+                            if (target_module < 0) break;
 
-                        // Resets the queue of the target module. Note, this does not abort already running commands:
-                        // they are allowed to finish gracefully.
-                        _modules[static_cast<size_t>(target_module)]->ResetCommandQueue();
-                        break;
+                            // Resets the queue of the target module. Note, this does not abort already running
+                            // commands: they are allowed to finish gracefully.
+                            _modules[static_cast<size_t>(target_module)]->ResetCommandQueue();
+                            break;
+                        }
 
                     case kProtocols::kOneOffModuleCommand:
-                        return_code = _communication.get_one_off_module_command().return_code;
-                        if (return_code) SendReceptionCode(return_code);
+                        {
+                            const OneOffModuleCommand& message = _communication.get_one_off_module_command();
+                            return_code                        = message.return_code;
+                            if (return_code) SendReceptionCode(return_code);
 
-                        target_module = ResolveTargetModule(
-                            _communication.get_one_off_module_command().module_type,
-                            _communication.get_one_off_module_command().module_id
-                        );
+                            target_module = ResolveTargetModule(message.module_type, message.module_id);
 
-                        if (target_module < 0) break;
+                            if (target_module < 0) break;
 
-                        // Uses an overloaded QueueCommand method that always sets the input command as non-recurrent.
-                        _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                            _communication.get_one_off_module_command().command,
-                            _communication.get_one_off_module_command().noblock
-                        );
-                        break;
+                            // Uses an overloaded QueueCommand method that always sets the input command as
+                            // non-recurrent.
+                            _modules[static_cast<size_t>(target_module)]->QueueCommand(
+                                message.command,
+                                message.noblock
+                            );
+                            break;
+                        }
 
                     case kProtocols::kRepeatedModuleCommand:
-                        return_code = _communication.get_repeated_module_command().return_code;
-                        if (return_code) SendReceptionCode(return_code);
+                        {
+                            const RepeatedModuleCommand& message = _communication.get_repeated_module_command();
+                            return_code                          = message.return_code;
+                            if (return_code) SendReceptionCode(return_code);
 
-                        target_module = ResolveTargetModule(
-                            _communication.get_repeated_module_command().module_type,
-                            _communication.get_repeated_module_command().module_id
-                        );
+                            target_module = ResolveTargetModule(message.module_type, message.module_id);
 
-                        if (target_module < 0) break;
+                            if (target_module < 0) break;
 
-                        // Uses the non-overloaded QueueCommand method that always sets the input command to execute
-                        // recurrently.
-                        _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                            _communication.get_repeated_module_command().command,
-                            _communication.get_repeated_module_command().noblock,
-                            _communication.get_repeated_module_command().cycle_delay
-                        );
-                        break;
+                            // Uses the non-overloaded QueueCommand method that always sets the input command to execute
+                            // recurrently.
+                            _modules[static_cast<size_t>(target_module)]
+                                ->QueueCommand(message.command, message.noblock, message.cycle_delay);
+                            break;
+                        }
 
                     default:
                         // If the message protocol is not one of the expected protocols, sends an error message to the
@@ -389,6 +401,12 @@ class Kernel
         /// Determines whether the Setup() method has been called to ensure that the instance is properly configured for
         /// runtime.
         bool _setup_complete = false;
+
+        /// Tracks the time elapsed since the last built-in LED toggle of the setup error blink pattern.
+        elapsedMillis _setup_error_blink_timer;
+
+        /// Determines whether the built-in LED is currently lit as part of the setup error blink pattern.
+        bool _setup_error_led_state = false;
 
         /**
          * @brief If a message sent from the PC is available for reception, decodes it into the Communication's

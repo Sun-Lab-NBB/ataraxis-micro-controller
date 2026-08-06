@@ -21,6 +21,14 @@
 #include <elapsedMillis.h>
 #include "communication.h"
 
+// The digitalWriteFast library aliases digitalWriteFast and digitalReadFast to the standard Arduino functions on every
+// non-AVR target. Teensy boards ship always-inline register-level implementations of both, so removing the aliases
+// exposes them. The pinModeFast alias is kept, as Teensy provides no fast counterpart for it.
+#if defined(CORE_TEENSY)
+#undef digitalWriteFast
+#undef digitalReadFast
+#endif
+
 /**
  * @brief Provides the API used by other library components to integrate any custom hardware module class with
  * the interface running on the companion host-computer (PC).
@@ -379,21 +387,22 @@ class Module
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified analog pin.
          *
-         * @param pin The analog pin to read.
+         * @tparam kPin The analog pin to read.
          * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
          * @returns The read analog value.
          */
+        template <const uint8_t kPin>
         [[nodiscard]]
-        static uint16_t AnalogRead(const uint8_t pin, const uint16_t pool_size = 0)
+        static uint16_t AnalogRead(const uint16_t pool_size = 0)
         {
             uint16_t average_readout;
 
             // Pool size 0 and 1 essentially mean the same: no averaging
             if (pool_size < 2)
             {
-                average_readout = analogRead(pin);
+                average_readout = analogRead(kPin);
             }
             else
             {
@@ -402,7 +411,7 @@ class Module
                 // If averaging is enabled, repeatedly polls the pin the requested number of times.
                 for (auto index = decltype(pool_size) {0}; index < pool_size; index++)
                 {
-                    accumulated_readouts += analogRead(pin);
+                    accumulated_readouts += analogRead(kPin);
                 }
 
                 // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
@@ -417,21 +426,25 @@ class Module
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified digital pin.
          *
-         * @param pin The digital pin to read.
+         * The pin is a template parameter, so the compile-time constant it carries resolves the register-level read
+         * path that AVR and Teensy boards expose. Arduino Due exposes no such path, so it reads through digitalRead.
+         *
+         * @tparam kPin The digital pin to read.
          * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
          * @returns The read digital value as true (HIGH) or false (LOW).
          */
+        template <const uint8_t kPin>
         [[nodiscard]]
-        static bool DigitalRead(const uint8_t pin, const uint16_t pool_size = 0)
+        static bool DigitalRead(const uint16_t pool_size = 0)
         {
             bool digital_readout;
 
             // Reads the physical sensor value.
             if (pool_size < 2)
             {
-                digital_readout = digitalReadFast(pin);
+                digital_readout = digitalReadFast(kPin);
             }
             else
             {
@@ -441,7 +454,7 @@ class Module
                 // the same type as pool_size.
                 for (auto index = decltype(pool_size) {0}; index < pool_size; index++)
                 {
-                    accumulated_readouts += digitalReadFast(pin);
+                    accumulated_readouts += digitalReadFast(kPin);
                 }
 
                 // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
@@ -572,7 +585,8 @@ class Module
 
         /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
         /// active at the same time.
-        const uint16_t _module_type_id = _module_type << 8 | _module_id;
+        const uint16_t _module_type_id =
+            static_cast<uint16_t>(static_cast<uint16_t>(_module_type) << 8U | static_cast<uint16_t>(_module_id));
 
         /// Stores the Communication instance used to send module runtime data to the PC.
         Communication& _communication;

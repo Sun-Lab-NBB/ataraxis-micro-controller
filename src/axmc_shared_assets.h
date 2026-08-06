@@ -960,6 +960,20 @@ namespace axmc_communication_assets
             uint8_t event    = 0;  ///< The event that prompted the data transmission.
     } PACKED_STRUCT;
 
+    /**
+     * @struct ServiceMessage
+     * @brief Communicates a service code to the PC using one of the service message protocols.
+     *
+     * @tparam ObjectType The type of the transmitted service code. The Communication class restricts this to uint8_t,
+     * uint16_t, and uint32_t.
+     */
+    template <typename ObjectType>
+    struct ServiceMessage
+    {
+            uint8_t protocol = 0;  ///< The message protocol used by this structure.
+            ObjectType code  = 0;  ///< The service code communicated to the PC.
+    } PACKED_STRUCT;
+
 }  // namespace axmc_communication_assets
 
 #endif  // AXMC_SHARED_ASSETS_H
