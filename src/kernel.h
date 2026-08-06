@@ -86,9 +86,9 @@ class Kernel
          * @param module_array The array of pointers to custom hardware module instances. Each instance must inherit
          * from the base Module class, and the array must contain at least one instance.
          * @param keepalive_interval The interval, in milliseconds, used to derive the keepalive timeout. The Kernel
-         * doubles this value to tolerate brief communication lapses, so emergency shutdown occurs after about twice
-         * the supplied interval without a keepalive command from the PC. Setting this parameter to 0 disables the
-         * keepalive mechanism.
+         * doubles this value to tolerate brief communication lapses, saturating at the largest representable
+         * millisecond value, so emergency shutdown occurs after about twice the supplied interval without a keepalive
+         * command from the PC. Setting this parameter to 0 disables the keepalive mechanism.
          */
         template <const size_t kModuleNumber>
         Kernel(
@@ -198,7 +198,8 @@ class Kernel
          * are queued for execution and are executed after all available data is received and parsed.
          *
          * Once all data is received, the method loops over managed modules and executes one command execution stage
-         * for each module.
+         * for each module, unless a managed module failed to set up during this cycle, which suspends both loops until
+         * a firmware reset.
          *
          * Finally, when keepalive tracking is active and no keepalive command arrives within the timeout, the method
          * reports the timeout to the PC and reruns Setup(), resetting all managed modules and aborting active commands.
@@ -427,7 +428,8 @@ class Kernel
         const uint8_t _controller_id;
 
         /// Stores the effective keepalive timeout, in milliseconds. The constructor sets this to twice the supplied
-        /// interval to tolerate brief communication lapses between consecutive keepalive messages from the PC.
+        /// interval, saturating at the largest representable value, to tolerate brief communication lapses between
+        /// consecutive keepalive messages from the PC.
         const uint32_t _keepalive_interval;
 
         /// Tracks the time elapsed since receiving the last keepalive message.
@@ -466,8 +468,8 @@ class Kernel
 
             // A message that uses an unsupported protocol gets its own status code, which carries the rejected
             // protocol code to the PC. This is resolved here rather than in the RuntimeCycle protocol switch, as
-            // ReceiveMessage() only surfaces the protocol code for the protocols it knows how to parse, which leaves
-            // that switch unable to observe the rejected code.
+            // ReceiveMessage() returns 'false' for an unsupported protocol, which makes this method return the
+            // kUndefined code and routes that switch into its kUndefined arm.
             if (communication_status == static_cast<uint8_t>(kCommunicationStatusCodes::kInvalidProtocol))
             {
                 SendData(
@@ -588,8 +590,7 @@ class Kernel
             );
         }
 
-        /// Configures the built-in LED for output. Kept separate from SetupKernel(), as the LED backs the fallback
-        /// error channel and therefore has to be usable before the rest of the setup sequence runs.
+        /// Configures the built-in LED for output.
         static void ConfigureIndicatorLed()
         {
             pinModeFast(LED_BUILTIN, OUTPUT);

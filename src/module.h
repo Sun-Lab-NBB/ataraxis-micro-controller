@@ -159,6 +159,9 @@ class Module
          * @warning If the module already has a queued command, this method replaces that command with the input
          * command data.
          *
+         * @note When the replaced command is a recurrent command that is idle between repetitions, this method sends
+         * a completion message for that command to the PC.
+         *
          * @param command The command to execute.
          * @param noblock Determines whether the queued command should run in blocking or non-blocking mode.
          * @param cycle_delay The delay, in microseconds, before repeating (cycling) the command. Only provide this
@@ -193,6 +196,9 @@ class Module
          * @brief Resets the module's command queue.
          *
          * @note Calling this method does not abort already running commands: they are allowed to finish gracefully.
+         *
+         * @note When the queue holds a recurrent command that is idle between repetitions, this method sends a
+         * completion message for that command to the PC.
          */
         void ResetCommandQueue()
         {
@@ -314,9 +320,8 @@ class Module
          * @brief Sends an error message to notify the PC that the instance cannot execute the command with the input
          * code.
          *
-         * Unlike SendCommandActivationError(), this method attributes the message to the input command code rather
-         * than to the active command, so the Kernel can reject a command that was never activated without disturbing
-         * the command the instance is currently executing.
+         * Attributes the message to the input command code rather than to the active command, leaving the command the
+         * instance is currently executing undisturbed.
          *
          * @param command The code of the rejected command.
          */
@@ -328,9 +333,8 @@ class Module
         /**
          * @brief Terminates the active command without notifying the PC that it has been completed.
          *
-         * @warning This method is reserved for the Kernel class, which calls it when the instance fails to recognize
-         * the active command. An unrecognized command has no runtime that could complete itself, so without this step
-         * it would stay active indefinitely, blocking every command queued after it.
+         * @warning The active command is cleared without a completion message, so the caller reports the command's
+         * outcome to the PC.
          */
         void DiscardActiveCommand()
         {
@@ -516,7 +520,7 @@ class Module
          * passed.
          *
          * @param delay_duration The delay duration, in microseconds. Durations at or above kMaximumDelayDuration are
-         * clamped to that value, as the stage delay timer cannot represent a longer interval.
+         * clamped to that value, as the stage delay timer has to exceed the duration for the blocking wait to end.
          */
         [[nodiscard]]
         bool WaitForMicros(const uint32_t delay_duration) const
@@ -616,10 +620,28 @@ class Module
         /// accepted duration one the timer can exceed.
         static constexpr uint32_t kMaximumDelayDuration = UINT32_MAX - 1;
 
+        /// Stores the instance's type (family) identifier code.
+        const uint8_t _module_type;
+
+        /// Stores the instance's unique identifier code.
+        const uint8_t _module_id;
+
+        /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
+        /// active at the same time.
+        const uint16_t _module_type_id =
+            static_cast<uint16_t>(static_cast<uint16_t>(_module_type) << 8U | static_cast<uint16_t>(_module_id));
+
+        /// Stores the Communication instance used to send module runtime data to the PC.
+        Communication& _communication;
+
+        /// Stores instance-specific runtime flow control parameters.
+        ExecutionControlParameters _execution_parameters;
+
         /**
          * @brief Packages and sends the provided event code to the PC, attributing it to the provided command code.
          *
-         * Backs both SendData() and SendCommandRejection(), which differ only in the command code they report.
+         * Backs SendData(), SendCommandRejection(), and ReportRetiredRecurrentCommand(), which differ in the command
+         * and event codes they report.
          *
          * @param command The command code to report as the source of the event.
          * @param event_code The code of the event that triggered the data transmission.
@@ -644,10 +666,10 @@ class Module
          * @brief If the instance holds a recurrent command that is waiting between repetitions, notifies the PC that
          * the command has been completed.
          *
-         * CompleteCommand() reports the retirement of a recurrent command only when the command is mid-execution when
-         * it is canceled or replaced. A recurrent command spends most of its life idle between repetitions, and a
-         * cancellation that lands in that window retires the command without any of its stages running, so this method
-         * supplies the completion message that CompleteCommand() has no opportunity to send.
+         * CompleteCommand() reports the retirement of a recurrent command only when that command is mid-execution at
+         * the moment it is canceled or replaced. A recurrent command spends most of its life idle between
+         * repetitions, and a cancellation that lands in that window retires the command without any of its stages
+         * running. This method supplies the completion message CompleteCommand() has no opportunity to send.
          */
         void ReportRetiredRecurrentCommand() const
         {
@@ -663,23 +685,6 @@ class Module
             // next repetition.
             SendEvent(_execution_parameters.next_command, static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
         }
-
-        /// Stores the instance's type (family) identifier code.
-        const uint8_t _module_type;
-
-        /// Stores the instance's unique identifier code.
-        const uint8_t _module_id;
-
-        /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
-        /// active at the same time.
-        const uint16_t _module_type_id =
-            static_cast<uint16_t>(static_cast<uint16_t>(_module_type) << 8U | static_cast<uint16_t>(_module_id));
-
-        /// Stores the Communication instance used to send module runtime data to the PC.
-        Communication& _communication;
-
-        /// Stores instance-specific runtime flow control parameters.
-        ExecutionControlParameters _execution_parameters;
 };
 
 #endif  // AXMC_MODULE_H
