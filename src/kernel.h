@@ -67,25 +67,12 @@ class Kernel
             kKeepAlive          = 5,  ///< Resets the keepalive watchdog timer, starting a new keepalive cycle.
         };
 
-        /// Returns the currently active Kernel command code.
-        [[nodiscard]]
-        uint8_t get_kernel_command() const
-        {
-            return _kernel_command;
-        }
-
-        /// Sets the currently active Kernel command code.
-        void set_kernel_command(const uint8_t command)
-        {
-            _kernel_command = command;
-        }
-
         /**
          * @brief Initializes the necessary assets used to manage the runtime of the input hardware module instances.
          *
          * @param controller_id The unique identifier of the microcontroller that uses this Kernel instance. This
-         * ID code has to be unique for all microcontrollers used at the same time. Valid values range from 1 to 255;
-         * the value 0 is reserved.
+         * ID code has to be unique for all microcontrollers used at the same time. Valid values range from 1 to 255.
+         * The value 0 is reserved.
          * @param communication The shared Communication instance used to bidirectionally communicate with the PC
          * during runtime.
          * @param module_array The array of pointers to custom hardware module instances. Each instance must inherit
@@ -116,6 +103,19 @@ class Kernel
             );
         }
 
+        /// Returns the currently active Kernel command code.
+        [[nodiscard]]
+        uint8_t get_kernel_command() const
+        {
+            return _kernel_command;
+        }
+
+        /// Sets the currently active Kernel command code.
+        void set_kernel_command(const uint8_t command)
+        {
+            _kernel_command = command;
+        }
+
         /**
          * @brief Configures the hardware and software assets used by the Kernel and all managed hardware modules.
          *
@@ -131,21 +131,21 @@ class Kernel
             _kernel_command = static_cast<uint8_t>(kKernelCommands::kResetController);
 
             // Ensures that the setup tracker is inactivated before running the rest of the setup code. This is needed
-            // to support correct cycling through Setup() calls on Teensy board that do not reset on USB connection
+            // to support correct cycling through Setup() calls on Teensy boards that do not reset on USB connection
             // cycling and to properly handle PC-sent 'reset' commands. As a safety feature, this bricks the
             // controller if any managed module reports a failure to setup.
             _setup_complete = false;
 
             // Loops over each module and calls its SetupModule() virtual method. Note, expects that setup methods
             // generally cannot fail, but supports non-success return codes.
-            for (size_t i = 0; i < _module_count; i++)
+            for (size_t index = 0; index < _module_count; index++)
             {
-                if (!_modules[i]->SetupModule())
+                if (!_modules[index]->SetupModule())
                 {
                     // If the setup fails, sends an error message to notify the PC of the setup failure.
                     const uint8_t error_object[2] = {
-                        _modules[i]->get_module_type(),
-                        _modules[i]->get_module_id(),
+                        _modules[index]->get_module_type(),
+                        _modules[index]->get_module_id(),
                     };
 
                     SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError), error_object);
@@ -156,7 +156,7 @@ class Kernel
                 }
 
                 // Also resets the execution parameters of each module. This step cannot fail.
-                _modules[i]->ResetExecutionParameters();
+                _modules[index]->ResetExecutionParameters();
             }
 
             // Sets up the hardware managed by the Kernel. This is done last to, if necessary, override any
@@ -196,7 +196,7 @@ class Kernel
             if (!_setup_complete && once)
             {
                 SetupKernel();
-                once = false;  // Sets the flag to indicate that the setup was completed.
+                once = false;
             }
 
             // If the method is called before the Setup() method, instead of normal runtime continuously blinks the
@@ -216,8 +216,8 @@ class Kernel
             {
                 const uint8_t protocol = ReceiveData();
                 bool break_loop = false;  // A flag used to break the while loop once all available data is received.
-                int16_t target_module;    // Stores the index of the module targeted by Module-addressed command.
-                uint8_t return_code;      // Stores the return code of the received message.
+                int16_t target_module;    // Stores the index of the module targeted by a Module-addressed command.
+                uint8_t return_code;
 
                 // Uses the message protocol of the returned message to execute appropriate logic to handle the message.
                 switch (static_cast<kProtocols>(protocol))
@@ -242,7 +242,6 @@ class Kernel
                         // a negative number (-1).
                         if (target_module < 0) break;
 
-                        // Calls the Module API method that processes the parameter object included with the message
                         if (!_modules[static_cast<size_t>(target_module)]->SetCustomParameters())
                         {
                             // If the module fails to process the parameters, as indicated by the API method returning
@@ -347,7 +346,6 @@ class Kernel
             // an emergency reset.
             if (_keepalive_enabled && (_since_previous_keepalive > _keepalive_interval))
             {
-                // Sends an error message to the PC
                 SendData(static_cast<uint8_t>(kKernelStatusCodes::kKeepAliveTimeout), _keepalive_interval);
 
                 // Resets the microcontroller runtime to default parameters, effectively clearing all command buffers
@@ -441,9 +439,8 @@ class Kernel
          * @param object The data object to be sent along with the message.
          */
         template <typename ObjectType>
-        void SendData(const uint8_t event_code, const ObjectType& object)
+        void SendData(const uint8_t event_code, const ObjectType& object) const
         {
-            // Packages and sends the data message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendDataMessage(_kernel_command, event_code, object)) return;
 
             // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
@@ -456,14 +453,12 @@ class Kernel
         /**
          * @brief Packages and sends the provided event code to the PC.
          *
-         * This method overloads the SendData() method to optimize transmitting messages that only need to communicate
-         * the event.
+         * Overloads the SendData() method to optimize transmitting messages that only need to communicate the event.
          *
          * @param event_code The code of the event that triggered the data transmission.
          */
         void SendData(const uint8_t event_code) const
         {
-            // Packages and sends the state message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendStateMessage(_kernel_command, event_code)) return;
 
             // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
@@ -473,9 +468,7 @@ class Kernel
             );
         }
 
-        /**
-         * @brief Sends the unique identifier code of the microcontroller that uses this Kernel instance to the PC.
-         */
+        /// Sends the unique identifier code of the microcontroller that uses this Kernel instance to the PC.
         void SendControllerID() const
         {
             // Sends the identification message to the PC. If the message was sent, ends the runtime.
@@ -488,15 +481,13 @@ class Kernel
             );
         }
 
-        /**
-         * @brief Sequentially sends the combined type and ID code for each hardware module instance managed by this
-         * Kernel instance to the PC.
-         */
+        /// Sequentially sends the combined type and ID code for each hardware module instance managed by this Kernel
+        /// instance to the PC.
         void SendModuleTypeIDs() const
         {
-            for (size_t i = 0; i < _module_count; ++i)
+            for (size_t index = 0; index < _module_count; ++index)
             {
-                const uint16_t module_type_id = _modules[i]->get_module_type_id();
+                const uint16_t module_type_id = _modules[index]->get_module_type_id();
 
                 // Sends the identification message to the PC. If the message was sent, moves on to the next module.
                 if (_communication.SendServiceMessage<kProtocols::kModuleIdentification>(module_type_id)) continue;
@@ -516,7 +507,6 @@ class Kernel
          */
         void SendReceptionCode(const uint8_t reception_code) const
         {
-            // Sends the acknowledgment message to the PC. If the message was sent, ends the runtime.
             if (_communication.SendServiceMessage<kProtocols::kReceptionCode>(reception_code)) return;
 
             // Otherwise, attempts to send a communication error to the PC and activates the LED indicator.
@@ -526,9 +516,7 @@ class Kernel
             );
         }
 
-        /**
-         * @brief Sets up the hardware and software assets managed by the Kernel class.
-         */
+        /// Sets up the hardware and software assets managed by the Kernel class.
         void SetupKernel()
         {
             // Configures and deactivates the built-in LED. Currently, this is the only hardware system directly
@@ -536,16 +524,12 @@ class Kernel
             pinModeFast(LED_BUILTIN, OUTPUT);
             digitalWriteFast(LED_BUILTIN, LOW);
 
-            // Disables the keepalive tracking.
             _keepalive_enabled = false;
         }
 
-        /**
-         * @brief Resolves and calls the method associated with the currently active Kernel command.
-         */
+        /// Resolves and calls the method associated with the currently active Kernel command.
         void RunKernelCommand()
         {
-            // Resolves and executes the specific requested command
             _kernel_command = _communication.get_kernel_command().command;
             switch (static_cast<kKernelCommands>(_kernel_command))
             {
@@ -582,15 +566,14 @@ class Kernel
          * @returns A non-negative integer representing the index of the module in the array of managed modules if the
          * addressed module is found. A '-1' value if the target module was not found.
          */
-        int16_t ResolveTargetModule(const uint8_t target_type, const uint8_t target_id)
+        [[nodiscard]]
+        int16_t ResolveTargetModule(const uint8_t target_type, const uint8_t target_id) const
         {
-            // Loops over all managed modules and checks the type and id of each module against the searched parameters.
-            for (size_t i = 0; i < _module_count; i++)
+            for (size_t index = 0; index < _module_count; index++)
             {
-                // If the matching module is found, returns its index in the array of managed modules.
-                if (_modules[i]->get_module_type() == target_type && _modules[i]->get_module_id() == target_id)
+                if (_modules[index]->get_module_type() == target_type && _modules[index]->get_module_id() == target_id)
                 {
-                    return static_cast<int16_t>(i);
+                    return static_cast<int16_t>(index);
                 }
             }
 
@@ -601,27 +584,24 @@ class Kernel
             return -1;
         }
 
-        /**
-         * @brief Resolves and, if necessary, executes the active command for each managed hardware module.
-         */
+        /// Resolves and, if necessary, executes the active command for each managed hardware module.
         void RunModuleCommands() const
         {
-            // Loops over all managed modules
-            for (size_t i = 0; i < _module_count; i++)
+            for (size_t index = 0; index < _module_count; index++)
             {
                 // First, determines which command to run, if any. This relies on the following choice hierarchy:
                 // finish already active commands > execute a newly queued command > repeat a cyclic command.
                 // If this method is able to resolve (activate) a command, it returns 'true'. Otherwise, there is no
                 // command to run. If the module has no active command, aborts the iteration early to conserve CPU
                 // cycles and speed up looping through modules.
-                if (!_modules[i]->ResolveActiveCommand()) continue;
+                if (!_modules[index]->ResolveActiveCommand()) continue;
 
                 // If RunActiveCommand is implemented properly, it returns 'true' if it matches the active command
                 // code to the method to execute and 'false' otherwise. If the method returns 'false', the Kernel calls
                 // an API method to send a predetermined error message to the PC.
-                if (!_modules[i]->RunActiveCommand()) _modules[i]->SendCommandActivationError();
+                if (!_modules[index]->RunActiveCommand()) _modules[index]->SendCommandActivationError();
             }
         }
 };
 
-#endif  //AXMC_KERNEL_H
+#endif  // AXMC_KERNEL_H

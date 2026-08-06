@@ -5,9 +5,9 @@ Provides the framework for integrating custom hardware modules with a centralize
 
 This library is part of the `Ataraxis <https://github.com/Sun-Lab-NBB/ataraxis>`_ framework for AI-assisted scientific
 hardware control, developed in the `Sun (NeuroAI) lab <https://neuroai.github.io/sunlab/>`_ at Cornell University. It
-has a companion library written in Python,
-`ataraxis-communication-interface <https://github.com/Sun-Lab-NBB/ataraxis-communication-interface>`_, that provides the
-PC interface for controlling the hardware modules implemented through this library.
+has a companion library written in Python, `ataraxis-communication-interface
+<https://github.com/Sun-Lab-NBB/ataraxis-communication-interface>`_, that provides the PC interface for controlling the
+hardware modules implemented through this library.
 
 This website only contains the API documentation for the classes and methods offered by this library. See the project
 GitHub repository for installation instructions and library usage examples:

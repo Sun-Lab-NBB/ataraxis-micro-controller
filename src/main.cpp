@@ -5,29 +5,35 @@
  * on the companion host-computer (PC).
  *
  * Mirrors the module_integration.cpp example exactly and is excluded from the compiled library. It is kept
- * here to facilitate library development. This example is designed to be executed together with the companion
- * ataraxis-communication-interface library running on the host-computer (PC).
+ * here to facilitate library development. Runs together with the companion ataraxis-communication-interface library
+ * running on the host-computer (PC).
  */
 
 #include <Arduino.h>
+#include <communication.h>
+#include <kernel.h>
+#include <module.h>
 #include "../examples/example_module.h"
-#include "communication.h"
-#include "kernel.h"
-#include "module.h"
 
 /// Specifies the unique identifier for the test microcontroller.
 static constexpr uint8_t kControllerID = 222;
 
-/// Stores the keepalive interval in milliseconds. If this value is greater than 0, the Kernel expects the PC to send
-/// keepalive messages at this interval. The Kernel doubles the interval internally to tolerate brief communication
-/// lapses. If it receives no keepalive message within roughly twice this value, it assumes the PC connection was
-/// lost and re-initializes all modules and the Kernel runtime via Setup(), aborting any active commands.
+/// Stores the keepalive interval in milliseconds. A value of 0 disables keepalive monitoring.
 static constexpr uint32_t kKeepaliveInterval = 5000;
 
-// Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
-// outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
-// NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
-Communication axmc_communication(Serial);
+/// Specifies the digital pin managed by the second TestModule instance.
+static constexpr uint8_t kSecondModulePin = 6;
+
+/// Specifies the serial port baud rate, which has to match the monitor_speed configured for the target board in
+/// platformio.ini. The value below matches the teensy41 environment, while the due and mega environments use others.
+static constexpr uint32_t kSerialBaudRate = 115200;
+
+/// Specifies the resolution, in bits, requested from boards that support an adjustable analog-to-digital converter.
+static constexpr uint8_t kAnalogReadResolution = 12;
+
+// Initializes the Communication class. Shares this instance with all other classes and manages incoming and outgoing
+// communication with the companion host-computer (PC). The Communication has to be instantiated first.
+Communication axmc_communication(Serial);  // NOLINT(*-interfaces-global-init)
 
 // Creates two instances of the TestModule class. The first argument is the module type (family), which is the same (1)
 // for both, the second argument is the module ID (instance), which is different. The type and id codes do not have
@@ -35,8 +41,8 @@ Communication axmc_communication(Serial);
 // uniquely addressed during runtime.
 TestModule<> test_module_1(1, 1, axmc_communication);
 
-// Also uses the template to override the digital pin controlled by the module instance from the default (5) to 6.
-TestModule<6> test_module_2(1, 2, axmc_communication);
+// Also uses the template parameter to override the digital pin controlled by the module instance.
+TestModule<kSecondModulePin> test_module_2(1, 2, axmc_communication);
 
 // Packages all module instances into an array to be managed by the Kernel class.
 Module* modules[] = {&test_module_1, &test_module_2};
@@ -44,26 +50,23 @@ Module* modules[] = {&test_module_1, &test_module_2};
 // Instantiates the Kernel class. The Kernel has to be instantiated last.
 Kernel axmc_kernel(kControllerID, axmc_communication, modules, kKeepaliveInterval);
 
-// This function is only executed once. Since Kernel manages the setup for each module, there is no need to set up each
-// module's hardware individually.
+/// Runs once at controller startup. Since the Kernel manages the setup for each module, there is no need to set up
+/// each module's hardware individually.
 void setup()
 {
-    // Initializes the serial communication. The chosen baud rate must match the host-side monitor speed configured
-    // for the target board (for example, 115200 for Teensy 4.1).
-    Serial.begin(115200);
+    Serial.begin(kSerialBaudRate);
 
-    // Configures the analog read resolution to 12 bits (0-4095) for any modules that perform analog reads. AVR boards
-    // (for example, Arduino Mega) have a fixed 10-bit ADC and do not provide analogReadResolution(), so the call is
-    // compiled only for architectures that support adjustable analog resolution.
+    // AVR boards (for example, Arduino Mega) have a fixed 10-bit ADC and do not provide analogReadResolution(), so the
+    // resolution is configured only for architectures that support an adjustable ADC.
 #if !defined(__AVR__)
-    analogReadResolution(12);
+    analogReadResolution(kAnalogReadResolution);
 #endif
 
     // Sets up the hardware and software for the Kernel and all managed modules.
     axmc_kernel.Setup();
 }
 
-// This function is executed repeatedly while the microcontroller is powered.
+/// Runs repeatedly while the microcontroller is powered.
 void loop()
 {
     // Since the Kernel instance manages the runtime of all modules, the only method that needs to be called

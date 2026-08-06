@@ -45,10 +45,10 @@ class Communication
          */
         explicit Communication(Stream& communication_port) :
             _transport_layer(
-                communication_port,  // Stream
-                0x1021,              // 16-bit CRC Polynomial
-                0xFFFF,              // Initial CRC value
-                0x0000,              // Final CRC XOR value
+                communication_port,  // communication_port
+                kCRCPolynomial,      // crc_polynomial
+                kCRCInitialValue,    // crc_initial_value
+                kCRCFinalXORValue,   // crc_final_xor_value
                 false                // crc_reflected
             )
         {}
@@ -165,7 +165,6 @@ class Communication
                 static_cast<uint8_t>(ResolvePrototype<ObjectType>())
             };
 
-            // Writes the message to the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(message)) success = false;
             if (success && !_transport_layer.WriteData(object)) success = false;
@@ -219,7 +218,6 @@ class Communication
                 static_cast<uint8_t>(ResolvePrototype<ObjectType>())
             };
 
-            // Writes the message to the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(message)) success = false;
             if (success && !_transport_layer.WriteData(object)) success = false;
@@ -261,7 +259,6 @@ class Communication
             const uint8_t event_code
         )
         {
-            // Constructs the message header.
             const ModuleState
                 message {static_cast<uint8_t>(kProtocols::kModuleState), module_type, module_id, command, event_code};
 
@@ -293,7 +290,6 @@ class Communication
          */
         bool SendStateMessage(const uint8_t command, const uint8_t event_code)
         {
-            // Constructs the message header.
             const KernelState message {static_cast<uint8_t>(kProtocols::kKernelState), command, event_code};
 
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
@@ -399,7 +395,6 @@ class Communication
                 "uint32_t service codes are supported."
             );
 
-            // Packages the input protocol code and the service code into the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(static_cast<uint8_t>(kProtocol))) success = false;
             if (success && !_transport_layer.WriteData(service_code)) success = false;
@@ -438,7 +433,6 @@ class Communication
          */
         bool ReceiveMessage()
         {
-            // Attempts to receive the next available message.
             if (!_transport_layer.ReceiveData())
             {
                 // The reception protocol can 'fail' gracefully if the reception buffer does not have enough bytes to
@@ -515,7 +509,7 @@ class Communication
         template <typename ObjectType, const size_t kObjectSize = sizeof(ObjectType)>
         bool ExtractModuleParameters(ObjectType& destination)
         {
-            // Ensures that the prototype compiles with the limitations of the transport layer. The '-1' accounts for
+            // Ensures that the prototype complies with the limitations of the transport layer. The '-1' accounts for
             // the protocol code that precedes the ModuleParameters header inside the message payload.
             static_assert(
                 kObjectSize > 0 && kObjectSize <= kMaximumPayloadSize - sizeof(ModuleParameters) - 1,
@@ -550,12 +544,21 @@ class Communication
                 return false;
             }
 
-            // Returns with success code.
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParametersExtracted);
             return true;
         }
 
     private:
+        /// Stores the polynomial of the CRC-16 checksum algorithm that verifies the integrity of exchanged messages.
+        /// The PC interface library has to use the same CRC parameters to communicate with this microcontroller.
+        static constexpr uint16_t kCRCPolynomial = 0x1021;
+
+        /// Stores the value to which the CRC-16 checksum is initialized before calculation.
+        static constexpr uint16_t kCRCInitialValue = 0xFFFF;
+
+        /// Stores the value with which the CRC-16 checksum is XORed after calculation.
+        static constexpr uint16_t kCRCFinalXORValue = 0x0000;
+
         /// Stores the number of bytes each transmitted packet reserves for the framing metadata and the 16-bit CRC
         /// checksum postamble.
         static constexpr uint8_t kPacketMetadataSize = 6;
@@ -591,4 +594,4 @@ class Communication
         TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize> _transport_layer;
 };
 
-#endif  //AXMC_COMMUNICATION_H
+#endif  // AXMC_COMMUNICATION_H

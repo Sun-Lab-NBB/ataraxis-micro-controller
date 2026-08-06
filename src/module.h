@@ -26,14 +26,14 @@
  * the interface running on the companion host-computer (PC).
  *
  * Any class that inherits from this base class gains the API used by the Kernel and Communication classes to enable
- * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC)
+ * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC).
  *
  * @warning Every custom module class @b has to inherit from this base class. Follow this instantiation order when
  * writing the main .cpp / .ino file for the controller: Communication → Module(s) → Kernel. See the /examples folder
  * for details.
  *
  * @note Use the utility methods inherited from the base Module class and stage-based command design pattern to ensure
- * that the custom module implementation is compatible with non-blocking runtime mode. See the ReadMe for more
+ * that the custom module implementation is compatible with non-blocking runtime mode. See the README for more
  * information about non-blocking runtime support.
  */
 class Module
@@ -97,8 +97,53 @@ class Module
             _module_type(module_type), _module_id(module_id), _communication(communication)
         {}
 
-        // These methods are used by the Kernel class to manage the runtime of the custom hardware module instances that
-        // inherit from this base class.
+        // Interfaces the Kernel class with the custom logic of each custom hardware module
+        // instance, integrating them with the rest of the library components. The implementation of these methods
+        // relies on the end user as it has to be specific to each custom hardware module.
+
+        /**
+         * @brief Overwrites the memory of the object used to store the instance's runtime parameters with the data
+         * received from the PC.
+         *
+         * @note This method should call the ExtractParameters() method inherited from the base
+         * Module class to unpack the received custom parameters message into the structure (object) used to store the
+         * instance's custom runtime parameters.
+         *
+         * @returns true if new parameters were parsed successfully, false otherwise.
+         */
+        virtual bool SetCustomParameters() = 0;
+
+        /**
+         * @brief Executes the instance method associated with the active command.
+         *
+         * @warning This method should not evaluate whether the command ran successfully, only whether the command
+         * was recognized and matched to the appropriate method call. The called method should use the inherited
+         * SendData() method to report command runtime status to the PC.
+         *
+         * @note This method should translate the active command returned by the get_active_command()
+         * method inherited from the base Module class into the call to the command-specific method that executes the
+         * command's logic.
+         *
+         * @returns true if the active module command was matched to a specific custom method, false otherwise.
+         */
+        virtual bool RunActiveCommand() = 0;
+
+        /**
+         * @brief Sets up the instance's hardware and software assets.
+         *
+         * @note This method should set the initial (default) state of the instance's custom parameter structures and
+         * hardware (pins, timers, etc.).
+         *
+         * @attention Ideally, this method should not contain any logic that can fail or block, as this method is called
+         * as part of the initial library runtime setup procedure, before the communication interface is fully
+         * initialized.
+         *
+         * @returns true if the setup method ran successfully, false otherwise.
+         */
+        virtual bool SetupModule() = 0;
+
+        // Manages the runtime of the custom hardware module instances that inherit from this base class. The Kernel
+        // class calls these methods.
 
         /**
          * @brief Queues the input command to be executed by the Module during the next runtime cycle iteration.
@@ -173,13 +218,13 @@ class Module
                 _execution_parameters.noblock = _execution_parameters.next_noblock;
 
                 // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
-                // should start with stage 1, as stage 0 is reserved for communicating no active commands sate.
+                // should start with stage 1, as stage 0 is reserved for communicating no active commands state.
                 _execution_parameters.stage = 1;
 
                 // Removes the new_command flag to indicate that the new command has been consumed.
                 _execution_parameters.new_command = false;
 
-                return true;  // Returns true to indicate there is a command to run.
+                return true;
             }
 
             // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
@@ -194,7 +239,7 @@ class Module
                 _execution_parameters.command = _execution_parameters.next_command;
                 _execution_parameters.noblock = _execution_parameters.next_noblock;
                 _execution_parameters.stage   = 1;
-                return true;  // Indicates there is a command to run.
+                return true;
             }
 
             // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
@@ -202,12 +247,9 @@ class Module
             return false;
         }
 
-        /**
-         * @brief Resets the module's command queue and aborts any currently running commands.
-         */
+        /// Resets the module's command queue and aborts any currently running commands.
         void ResetExecutionParameters()
         {
-            // Resets the _execution_parameters structure back to default values
             _execution_parameters.command         = 0;
             _execution_parameters.stage           = 0;
             _execution_parameters.noblock         = false;
@@ -241,9 +283,7 @@ class Module
             return _module_type_id;
         }
 
-        /**
-         * @brief Sends an error message to notify the PC that the instance did not recognize the active command.
-         */
+        /// Sends an error message to notify the PC that the instance did not recognize the active command.
         void SendCommandActivationError() const
         {
             // Sends an error message that uses the unrecognized command code as 'command' and a 'not recognized' error
@@ -251,60 +291,14 @@ class Module
             SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
         }
 
-        // These methods allow the Kernel class to interface with the custom logic of each custom hardware module
-        // instance, integrating them with the rest of the library components. The implementation of these methods
-        // relies on the end user as it has to be specific to each custom hardware module.
-
-        /**
-         * @brief Overwrites the memory of the object used to store the instance's runtime parameters with the data
-         * received from the PC.
-         *
-         * @note This method should call the ExtractParameters() method inherited from the base
-         * Module class to unpack the received custom parameters message into the structure (object) used to store the
-         * instance's custom runtime parameters.
-         *
-         * @returns true if new parameters were parsed successfully, false otherwise.
-         */
-        virtual bool SetCustomParameters() = 0;
-
-        /**
-         * @brief Executes the instance method associated with the active command.
-         *
-         * @warning This method should not evaluate whether the command ran successfully, only whether the command
-         * was recognized and matched to the appropriate method call. The called method should use the inherited
-         * SendData() method to report command runtime status to the PC.
-         *
-         * @note This method should translate the active command returned by the get_active_command()
-         * method inherited from the base Module class into the call to the command-specific method that executes the
-         * command's logic.
-         *
-         * @returns true if the active module command was matched to a specific custom method, false otherwise.
-         */
-        virtual bool RunActiveCommand() = 0;
-
-        /**
-         * @brief Sets up the instance's hardware and software assets.
-         *
-         * @note This method should set the initial (default) state of the instance's custom parameter structures and
-         * hardware (pins, timers, etc.).
-         *
-         * @attention Ideally, this method should not contain any logic that can fail or block, as this method is called
-         * as part of the initial library runtime setup procedure, before the communication interface is fully
-         * initialized.
-         *
-         * @returns true if the setup method ran successfully, false otherwise.
-         */
-        virtual bool SetupModule() = 0;
-
         /// Destroys the instance during cleanup.
         virtual ~Module() = default;
 
     protected:
-        // These methods are designed to help end users with writing custom module classes. They are not accessed by
-        // the Kernel class and are not required for integrating the custom module with the rest of the library. It is
-        // highly recommended to use these utility methods where appropriate, as they are required for the custom
-        // modules to support the full range of features provided by the library, such as non-blocking module command
-        // execution.
+        // Helps end users write custom module classes. The Kernel class does not access these methods, and they are
+        // not required for integrating the custom module with the rest of the library. Use them where appropriate, as
+        // they are required for custom modules to support the full range of features the library provides, such as
+        // non-blocking module command execution.
 
         /// Returns the active (running) command's code or 0, if there are no active commands.
         [[nodiscard]]
@@ -343,10 +337,8 @@ class Module
         [[nodiscard]]
         uint8_t get_command_stage() const
         {
-            // If there is an actively executed command, returns its stage
             if (_execution_parameters.command != 0) return _execution_parameters.stage;
 
-            // Otherwise returns 0 to indicate there is no actively running command
             return 0;
         }
 
@@ -373,8 +365,9 @@ class Module
                 SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
             }
 
-            _execution_parameters.command = 0;  // Removes active command code
-            _execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
+            _execution_parameters.command = 0;
+            // Stage 0 is not a valid command stage, so it doubles as the deactivation marker.
+            _execution_parameters.stage = 0;
             _execution_parameters.recurrent_timer =
                 0;  // Resets the recurrent command timer when the command is completed
 
@@ -395,12 +388,11 @@ class Module
         [[nodiscard]]
         static uint16_t AnalogRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
-            uint16_t average_readout;  // Pre-declares the final output readout
+            uint16_t average_readout;
 
             // Pool size 0 and 1 essentially mean the same: no averaging
             if (pool_size < 2)
             {
-                // If averaging is disabled, reads and outputs the acquired value.
                 average_readout = analogRead(pin);
             }
             else
@@ -408,18 +400,18 @@ class Module
                 uint32_t accumulated_readouts = 0;  // Aggregates polled values by self-addition
 
                 // If averaging is enabled, repeatedly polls the pin the requested number of times.
-                for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
+                for (auto index = decltype(pool_size) {0}; index < pool_size; index++)
                 {
-                    accumulated_readouts += analogRead(pin);  // Aggregates readouts
+                    accumulated_readouts += analogRead(pin);
                 }
 
                 // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
-                // boards without an FP module, Teensies technically can handle floating point arithmetic just as
+                // boards without an FP module. Teensies technically can handle floating point arithmetic just as
                 // efficiently. Adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
                 average_readout = static_cast<uint16_t>((accumulated_readouts + pool_size / 2) / pool_size);
             }
 
-            return average_readout;  // Returns the final averaged or raw readout
+            return average_readout;
         }
 
         /**
@@ -434,7 +426,7 @@ class Module
         [[nodiscard]]
         static bool DigitalRead(const uint8_t pin, const uint16_t pool_size = 0)
         {
-            bool digital_readout;  // Pre-declares the final output readout
+            bool digital_readout;
 
             // Reads the physical sensor value.
             if (pool_size < 2)
@@ -447,13 +439,13 @@ class Module
 
                 // If averaging is enabled, repeatedly polls the pin the requested number of times. 'i' always uses
                 // the same type as pool_size.
-                for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
+                for (auto index = decltype(pool_size) {0}; index < pool_size; index++)
                 {
-                    accumulated_readouts += digitalReadFast(pin);  // Aggregates readouts via self-addition
+                    accumulated_readouts += digitalReadFast(pin);
                 }
 
                 // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
-                // boards without an FP module, Teensies technically can handle floating point arithmetic just as
+                // boards without an FP module. Teensies technically can handle floating point arithmetic just as
                 // efficiently. Adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
                 digital_readout = static_cast<bool>((accumulated_readouts + pool_size / 2) / pool_size);
             }
@@ -479,7 +471,6 @@ class Module
             // passed
             if (!_execution_parameters.noblock)
             {
-                // Blocks until delay_duration has passed
                 while (_execution_parameters.delay_timer <= delay_duration);
             }
 
@@ -490,7 +481,6 @@ class Module
                 return true;
             }
 
-            // If the requested duration has not passed, returns false
             return false;
         }
 
@@ -591,4 +581,4 @@ class Module
         ExecutionControlParameters _execution_parameters;
 };
 
-#endif  //AXMC_MODULE_H
+#endif  // AXMC_MODULE_H
