@@ -100,7 +100,7 @@ class Kernel
             _modules(module_array),
             _module_count(kModuleNumber),
             _controller_id(controller_id),
-            _keepalive_interval(keepalive_interval * kKeepaliveIntervalMultiplier),
+            _keepalive_interval(ResolveKeepaliveTimeout(keepalive_interval)),
             _communication(communication)
         {
             // While compiling an empty array should not be possible, ensures there is always at least one module to
@@ -144,6 +144,20 @@ class Kernel
             // controller if any managed module reports a failure to setup.
             _setup_complete = false;
 
+            // Configures the built-in LED before anything that can fail, as the module loop below reports its failures
+            // to the PC and falls back to the LED indicator when that report cannot be delivered. Leaving the pin
+            // unconfigured until SetupKernel() would silence the indicator in exactly that case.
+            ConfigureIndicatorLed();
+
+            // Aborts the active and queued commands of every module before any module hardware is configured. Running
+            // this as a separate pass ensures that a setup failure part-way through the loop below cannot leave a
+            // later module holding an active command, as the suppressed runtime would never be able to finish it.
+            // This step cannot fail.
+            for (size_t index = 0; index < _module_count; index++)
+            {
+                _modules[index]->ResetExecutionParameters();
+            }
+
             // Loops over each module and calls its SetupModule() virtual method. Note, expects that setup methods
             // generally cannot fail, but supports non-success return codes.
             for (size_t index = 0; index < _module_count; index++)
@@ -159,12 +173,10 @@ class Kernel
                     SendData(static_cast<uint8_t>(kKernelStatusCodes::kModuleSetupError), error_object);
 
                     // Returns without completing the setup. This 'bricks' the controller requiring firmware reset
-                    // before it can re-attempt the setup process and receive data from the PC.
+                    // before it can re-attempt the setup process and receive data from the PC. The caller detects this
+                    // outcome through the inactivated setup tracker and suspends the rest of the runtime.
                     return;
                 }
-
-                // Also resets the execution parameters of each module. This step cannot fail.
-                _modules[index]->ResetExecutionParameters();
             }
 
             // Sets up the hardware managed by the Kernel. This is done last to, if necessary, override any
@@ -280,6 +292,15 @@ class Kernel
                         // This method resolves and executes the command logic. It automatically extracts the command
                         // code from the received message stored in the Communication class attribute.
                         RunKernelCommand();
+
+                        // The reset command runs Setup(), which inactivates the setup tracker when a managed module
+                        // fails to set up. Ends the reception loop in that case, as the controller is bricked and must
+                        // not process any further PC messages until its firmware is reset.
+                        if (!_setup_complete) break_loop = true;
+
+                        // Restores the command tracker, so that every message the rest of this reception cycle emits
+                        // reports the data reception command rather than the kernel command that has just finished.
+                        _kernel_command = static_cast<uint8_t>(kKernelCommands::kReceiveData);
                         break;
 
                     case kProtocols::kDequeueModuleCommand:
@@ -309,12 +330,20 @@ class Kernel
 
                             if (target_module < 0) break;
 
+                            Module* const target = _modules[static_cast<size_t>(target_module)];
+
+                            // The command queue reserves the code 0 to mark the absence of a command, so no module can
+                            // execute it. Rejects it the way modules reject every other code they do not support,
+                            // since queueing it would discard the command without any reply reaching the PC.
+                            if (message.command == 0)
+                            {
+                                target->SendCommandRejection(message.command);
+                                break;
+                            }
+
                             // Uses an overloaded QueueCommand method that always sets the input command as
                             // non-recurrent.
-                            _modules[static_cast<size_t>(target_module)]->QueueCommand(
-                                message.command,
-                                message.noblock
-                            );
+                            target->QueueCommand(message.command, message.noblock);
                             break;
                         }
 
@@ -328,20 +357,30 @@ class Kernel
 
                             if (target_module < 0) break;
 
+                            Module* const target = _modules[static_cast<size_t>(target_module)];
+
+                            // The command queue reserves the code 0 to mark the absence of a command, so no module can
+                            // execute it. Rejects it the way modules reject every other code they do not support,
+                            // since queueing it would discard the command without any reply reaching the PC.
+                            if (message.command == 0)
+                            {
+                                target->SendCommandRejection(message.command);
+                                break;
+                            }
+
                             // Uses the non-overloaded QueueCommand method that always sets the input command to execute
                             // recurrently.
-                            _modules[static_cast<size_t>(target_module)]
-                                ->QueueCommand(message.command, message.noblock, message.cycle_delay);
+                            target->QueueCommand(message.command, message.noblock, message.cycle_delay);
                             break;
                         }
 
                     default:
-                        // If the message protocol is not one of the expected protocols, sends an error message to the
-                        // PC. Includes the invalid protocol value in the message.
-                        SendData(
-                            static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
-                            _communication.get_protocol_code()
-                        );
+                        // Every protocol code ReceiveData() can return is addressed by a dedicated arm above, and
+                        // messages that use an unsupported protocol are reported by ReceiveData() itself. This arm
+                        // therefore only satisfies the compiler's enumeration coverage requirement, and it ends the
+                        // reception loop, as reaching it would mean the reception pipeline produced a code this
+                        // switch cannot address.
+                        break_loop = true;
                         break;
                 }
 
@@ -350,8 +389,10 @@ class Kernel
             }
 
             // Once the loop above escapes due to running out of data to receive or a reception error, triggers a method
-            // that sequentially executes Module commands in the blocking or non-blocking manner.
-            RunModuleCommands();
+            // that sequentially executes Module commands in the blocking or non-blocking manner. Skips the execution
+            // if a managed module failed to set up during this cycle, as the controller is bricked at that point and
+            // must not drive any module hardware.
+            if (_setup_complete) RunModuleCommands();
 
             // Keepalive status resolution. If the Kernel is configured to require keepalive messages, and it does not
             // receive a keepalive message within the configured interval, sends an error message to the PC and triggers
@@ -421,12 +462,25 @@ class Kernel
             // received message
             if (_communication.ReceiveMessage()) return _communication.get_protocol_code();
 
-            // Data reception can fail for two broad reasons. The first reason is that one of the classes involved in
-            // data reception encounters an error. If this happens, the error needs to be reported to the PC. However,
-            // it is also not uncommon for the reception method to 'fail' as there is no data to receive. This is not
-            // an error and should be handled as a valid 'no need to do anything' case.
-            if (_communication.get_communication_status() !=
-                static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive))
+            const uint8_t communication_status = _communication.get_communication_status();
+
+            // A message that uses an unsupported protocol gets its own status code, which carries the rejected
+            // protocol code to the PC. This is resolved here rather than in the RuntimeCycle protocol switch, as
+            // ReceiveMessage() only surfaces the protocol code for the protocols it knows how to parse, which leaves
+            // that switch unable to observe the rejected code.
+            if (communication_status == static_cast<uint8_t>(kCommunicationStatusCodes::kInvalidProtocol))
+            {
+                SendData(
+                    static_cast<uint8_t>(kKernelStatusCodes::kInvalidMessageProtocol),
+                    _communication.get_protocol_code()
+                );
+            }
+
+            // Data reception can also fail for two broad reasons. The first reason is that one of the classes involved
+            // in data reception encounters an error. If this happens, the error needs to be reported to the PC.
+            // However, it is also not uncommon for the reception method to 'fail' as there is no data to receive. This
+            // is not an error and should be handled as a valid 'no need to do anything' case.
+            else if (communication_status != static_cast<uint8_t>(kCommunicationStatusCodes::kNoBytesToReceive))
             {
                 // For legitimately failed runtimes, sends an error message to the PC.
                 _communication.SendCommunicationErrorMessage(
@@ -534,12 +588,40 @@ class Kernel
             );
         }
 
+        /// Configures the built-in LED for output. Kept separate from SetupKernel(), as the LED backs the fallback
+        /// error channel and therefore has to be usable before the rest of the setup sequence runs.
+        static void ConfigureIndicatorLed()
+        {
+            pinModeFast(LED_BUILTIN, OUTPUT);
+        }
+
+        /**
+         * @brief Doubles the requested keepalive interval to derive the effective keepalive timeout.
+         *
+         * The result saturates at the largest value the interval tracker can hold. Doubling an interval above half of
+         * that maximum would otherwise wrap around, which silently disables the keepalive watchdog or shortens its
+         * timeout by orders of magnitude.
+         *
+         * @param keepalive_interval The requested keepalive interval, in milliseconds.
+         *
+         * @returns The effective keepalive timeout, in milliseconds.
+         */
+        [[nodiscard]]
+        static constexpr uint32_t ResolveKeepaliveTimeout(const uint32_t keepalive_interval)
+        {
+            // Compares against the halved maximum instead of evaluating the product, as the overflow this guards
+            // against would happen inside the comparison itself.
+            if (keepalive_interval > UINT32_MAX / kKeepaliveIntervalMultiplier) return UINT32_MAX;
+
+            return keepalive_interval * kKeepaliveIntervalMultiplier;
+        }
+
         /// Sets up the hardware and software assets managed by the Kernel class.
         void SetupKernel()
         {
             // Configures and deactivates the built-in LED. Currently, this is the only hardware system directly
             // managed by the Kernel.
-            pinModeFast(LED_BUILTIN, OUTPUT);
+            ConfigureIndicatorLed();
             digitalWriteFast(LED_BUILTIN, LOW);
 
             _keepalive_enabled = false;
@@ -616,8 +698,14 @@ class Kernel
 
                 // If RunActiveCommand is implemented properly, it returns 'true' if it matches the active command
                 // code to the method to execute and 'false' otherwise. If the method returns 'false', the Kernel calls
-                // an API method to send a predetermined error message to the PC.
-                if (!_modules[index]->RunActiveCommand()) _modules[index]->SendCommandActivationError();
+                // an API method to send a predetermined error message to the PC and then discards the command. The
+                // discard is required because an unrecognized command has no runtime that could complete itself, so
+                // leaving it active would wedge the module and re-emit the same error on every runtime cycle.
+                if (!_modules[index]->RunActiveCommand())
+                {
+                    _modules[index]->SendCommandActivationError();
+                    _modules[index]->DiscardActiveCommand();
+                }
             }
         }
 };

@@ -48,7 +48,7 @@ void test_send_data_message()
 
     // Kernel test
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
-    communication_class.SendDataMessage(command, event_code, test_object);
+    TEST_ASSERT_TRUE(communication_class.SendDataMessage(command, event_code, test_object));
     constexpr uint16_t expected_kernel[6] = {kernel_protocol, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -63,7 +63,7 @@ void test_send_data_message()
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
-    communication_class.SendDataMessage(module_type, module_id, command, event_code, test_object);
+    TEST_ASSERT_TRUE(communication_class.SendDataMessage(module_type, module_id, command, event_code, test_object));
     constexpr uint16_t expected_module[8] =
         {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
@@ -89,7 +89,7 @@ void test_send_state_message()
     constexpr uint8_t event_code  = 221;  // Example event code
 
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelState);
-    communication_class.SendStateMessage(command, event_code);
+    TEST_ASSERT_TRUE(communication_class.SendStateMessage(command, event_code));
     constexpr uint16_t expected_kernel[4] = {kernel_protocol, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -104,7 +104,7 @@ void test_send_state_message()
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState);
-    communication_class.SendStateMessage(module_type, module_id, command, event_code);
+    TEST_ASSERT_TRUE(communication_class.SendStateMessage(module_type, module_id, command, event_code));
     constexpr uint16_t expected_module[6] = {module_protocol, module_type, module_id, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -184,7 +184,9 @@ void test_send_service_message()
         static_cast<uint8_t>(axmc_communication_assets::kProtocols::kReceptionCode),
         service_code
     };
-    communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code);
+    TEST_ASSERT_TRUE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code)
+    );
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         communication_class.get_communication_status()
@@ -201,8 +203,10 @@ void test_send_service_message()
         static_cast<uint8_t>(axmc_communication_assets::kProtocols::kControllerIdentification),
         service_code
     };
-    communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(
-        service_code
+    TEST_ASSERT_TRUE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(
+            service_code
+        )
     );
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -222,8 +226,10 @@ void test_send_service_message()
         44,
         1
     };
-    communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(
-        module_type_id
+    TEST_ASSERT_TRUE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(
+            module_type_id
+        )
     );
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -511,7 +517,7 @@ void test_extract_module_parameters()
 
     // Receives the message, extracts and verifies parameter data.
     communication_class.ReceiveMessage();
-    communication_class.ExtractModuleParameters(extract_data);
+    TEST_ASSERT_TRUE(communication_class.ExtractModuleParameters(extract_data));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
         communication_class.get_communication_status()
@@ -548,7 +554,7 @@ void test_extract_module_parameters()
 
     // Calls ExtractModuleParameters(), expecting a successful extraction.
     communication_class.ReceiveMessage();
-    communication_class.ExtractModuleParameters(test_structure);
+    TEST_ASSERT_TRUE(communication_class.ExtractModuleParameters(test_structure));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
         communication_class.get_communication_status()

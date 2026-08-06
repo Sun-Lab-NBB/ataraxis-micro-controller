@@ -166,6 +166,9 @@ class Module
          */
         void QueueCommand(const uint8_t command, const bool noblock, const uint32_t cycle_delay)
         {
+            // Retires the recurrent command this one replaces, if it is waiting between repetitions.
+            ReportRetiredRecurrentCommand();
+
             _execution_parameters.next_command    = command;
             _execution_parameters.next_noblock    = noblock;
             _execution_parameters.run_recurrently = true;
@@ -176,6 +179,9 @@ class Module
         /// Overloads the QueueCommand() method for queueing non-cyclic commands.
         void QueueCommand(const uint8_t command, const bool noblock)
         {
+            // Retires the recurrent command this one replaces, if it is waiting between repetitions.
+            ReportRetiredRecurrentCommand();
+
             _execution_parameters.next_command    = command;
             _execution_parameters.next_noblock    = noblock;
             _execution_parameters.run_recurrently = false;
@@ -190,6 +196,9 @@ class Module
          */
         void ResetCommandQueue()
         {
+            // Retires the recurrent command this reset cancels, if it is waiting between repetitions.
+            ReportRetiredRecurrentCommand();
+
             _execution_parameters.next_command    = 0;
             _execution_parameters.next_noblock    = false;
             _execution_parameters.run_recurrently = false;
@@ -238,9 +247,11 @@ class Module
             // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
             // number of microseconds has passed, re-activates the previously executed command. Note, the
             // next_command != 0 check is here to support correct behavior in response to Dequeue command, which sets
-            // the next_command field to 0 and should be able to abort cyclic and non-cyclic command execution.
+            // the next_command field to 0 and should be able to abort cyclic and non-cyclic command execution. The
+            // elapsed-time check is inclusive, as the timer and the delay share the same 32-bit width, so a strict
+            // comparison would make the largest representable delay unreachable and stop the command from repeating.
             if (_execution_parameters.run_recurrently &&
-                _execution_parameters.recurrent_timer > _execution_parameters.recurrent_delay &&
+                _execution_parameters.recurrent_timer >= _execution_parameters.recurrent_delay &&
                 _execution_parameters.next_command != 0)
             {
                 // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
@@ -297,6 +308,35 @@ class Module
             // Sends an error message that uses the unrecognized command code as 'command' and a 'not recognized' error
             // code as the event.
             SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
+        }
+
+        /**
+         * @brief Sends an error message to notify the PC that the instance cannot execute the command with the input
+         * code.
+         *
+         * Unlike SendCommandActivationError(), this method attributes the message to the input command code rather
+         * than to the active command, so the Kernel can reject a command that was never activated without disturbing
+         * the command the instance is currently executing.
+         *
+         * @param command The code of the rejected command.
+         */
+        void SendCommandRejection(const uint8_t command) const
+        {
+            SendEvent(command, static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
+        }
+
+        /**
+         * @brief Terminates the active command without notifying the PC that it has been completed.
+         *
+         * @warning This method is reserved for the Kernel class, which calls it when the instance fails to recognize
+         * the active command. An unrecognized command has no runtime that could complete itself, so without this step
+         * it would stay active indefinitely, blocking every command queued after it.
+         */
+        void DiscardActiveCommand()
+        {
+            _execution_parameters.command = 0;
+            // Stage 0 is not a valid command stage, so it doubles as the deactivation marker.
+            _execution_parameters.stage = 0;
         }
 
         /// Destroys the instance during cleanup.
@@ -475,21 +515,27 @@ class Module
          * delay has passed or function as a non-blocking check for whether the required duration of microseconds has
          * passed.
          *
-         * @param delay_duration The delay duration, in microseconds.
+         * @param delay_duration The delay duration, in microseconds. Durations at or above kMaximumDelayDuration are
+         * clamped to that value, as the stage delay timer cannot represent a longer interval.
          */
         [[nodiscard]]
         bool WaitForMicros(const uint32_t delay_duration) const
         {
+            // Clamps the requested duration to the largest interval the 32-bit stage timer can exceed. Without this
+            // step, a duration equal to the timer's maximum representable value would make the blocking loop below a
+            // tautology, hanging the controller until it is power-cycled.
+            const uint32_t bounded_duration = min(delay_duration, kMaximumDelayDuration);
+
             // If the caller command is executed in blocking mode, blocks in-place until the requested duration has
             // passed
             if (!_execution_parameters.noblock)
             {
-                while (_execution_parameters.delay_timer <= delay_duration);
+                while (_execution_parameters.delay_timer <= bounded_duration);
             }
 
             // Evaluates whether the requested number of microseconds has passed. If the duration was enforced above,
             // this check will always be true.
-            if (_execution_parameters.delay_timer >= delay_duration)
+            if (_execution_parameters.delay_timer >= bounded_duration)
             {
                 return true;
             }
@@ -547,19 +593,7 @@ class Module
          */
         void SendData(const uint8_t event_code) const
         {
-            // Packages and sends the data to the connected system via the Communication class. If the message was
-            // sent, ends the runtime
-            if (_communication.SendStateMessage(_module_type, _module_id, _execution_parameters.command, event_code))
-                return;
-
-            // If the message was not sent, calls a method that attempts to send a communication error message to the
-            // PC and turns on the built-in LED to visually indicate the error.
-            _communication.SendCommunicationErrorMessage(
-                _module_type,
-                _module_id,
-                _execution_parameters.command,
-                static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
-            );
+            SendEvent(_execution_parameters.command, event_code);
         }
 
         /**
@@ -577,6 +611,59 @@ class Module
         }
 
     private:
+        /// Stores the largest stage delay, in microseconds, that WaitForMicros() accepts. The stage delay timer is a
+        /// 32-bit microsecond counter, so this is one below its maximum representable value, which keeps every
+        /// accepted duration one the timer can exceed.
+        static constexpr uint32_t kMaximumDelayDuration = UINT32_MAX - 1;
+
+        /**
+         * @brief Packages and sends the provided event code to the PC, attributing it to the provided command code.
+         *
+         * Backs both SendData() and SendCommandRejection(), which differ only in the command code they report.
+         *
+         * @param command The command code to report as the source of the event.
+         * @param event_code The code of the event that triggered the data transmission.
+         */
+        void SendEvent(const uint8_t command, const uint8_t event_code) const
+        {
+            // Packages and sends the data to the connected system via the Communication class. If the message was
+            // sent, ends the runtime
+            if (_communication.SendStateMessage(_module_type, _module_id, command, event_code)) return;
+
+            // If the message was not sent, calls a method that attempts to send a communication error message to the
+            // PC and turns on the built-in LED to visually indicate the error.
+            _communication.SendCommunicationErrorMessage(
+                _module_type,
+                _module_id,
+                command,
+                static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
+            );
+        }
+
+        /**
+         * @brief If the instance holds a recurrent command that is waiting between repetitions, notifies the PC that
+         * the command has been completed.
+         *
+         * CompleteCommand() reports the retirement of a recurrent command only when the command is mid-execution when
+         * it is canceled or replaced. A recurrent command spends most of its life idle between repetitions, and a
+         * cancellation that lands in that window retires the command without any of its stages running, so this method
+         * supplies the completion message that CompleteCommand() has no opportunity to send.
+         */
+        void ReportRetiredRecurrentCommand() const
+        {
+            // Does nothing unless a recurrent command is queued and is not currently executing. A command that is
+            // executing reports its own completion through CompleteCommand().
+            if (_execution_parameters.command != 0 || !_execution_parameters.run_recurrently ||
+                _execution_parameters.next_command == 0)
+            {
+                return;
+            }
+
+            // Reports the queued command's code, as the active command field is empty while the command waits for its
+            // next repetition.
+            SendEvent(_execution_parameters.next_command, static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
+        }
+
         /// Stores the instance's type (family) identifier code.
         const uint8_t _module_type;
 
