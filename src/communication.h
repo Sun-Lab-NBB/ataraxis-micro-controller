@@ -48,7 +48,8 @@ class Communication
                 communication_port,  // Stream
                 0x1021,              // 16-bit CRC Polynomial
                 0xFFFF,              // Initial CRC value
-                0x0000               // Final CRC XOR value
+                0x0000,              // Final CRC XOR value
+                false                // crc_reflected
             )
         {}
 
@@ -176,8 +177,13 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC.
-            _transport_layer.SendData();
+            // Sends the buffered data to the PC. Transmission fails if the interface accepts only part of the packet.
+            if (!_transport_layer.SendData())
+            {
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
+                return false;
+            }
+
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
@@ -225,8 +231,13 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC.
-            _transport_layer.SendData();
+            // Sends the buffered data to the PC. Transmission fails if the interface accepts only part of the packet.
+            if (!_transport_layer.SendData())
+            {
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
+                return false;
+            }
+
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
@@ -261,8 +272,13 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC.
-            _transport_layer.SendData();
+            // Sends the buffered data to the PC. Transmission fails if the interface accepts only part of the packet.
+            if (!_transport_layer.SendData())
+            {
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
+                return false;
+            }
+
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
@@ -287,8 +303,13 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC.
-            _transport_layer.SendData();
+            // Sends the buffered data to the PC. Transmission fails if the interface accepts only part of the packet.
+            if (!_transport_layer.SendData())
+            {
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
+                return false;
+            }
+
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
@@ -390,8 +411,13 @@ class Communication
                 return false;
             }
 
-            // If the data was written to the buffer, sends it to the PC.
-            _transport_layer.SendData();
+            // Sends the buffered data to the PC. Transmission fails if the interface accepts only part of the packet.
+            if (!_transport_layer.SendData())
+            {
+                _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kTransmissionError);
+                return false;
+            }
+
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kMessageSent);
             return true;
         }
@@ -489,11 +515,13 @@ class Communication
         template <typename ObjectType, const size_t kObjectSize = sizeof(ObjectType)>
         bool ExtractModuleParameters(ObjectType& destination)
         {
-            // Ensures that the prototype compiles with the limitations of the transport layer.
+            // Ensures that the prototype compiles with the limitations of the transport layer. The '-1' accounts for
+            // the protocol code that precedes the ModuleParameters header inside the message payload.
             static_assert(
-                kObjectSize > 0 && kObjectSize <= 250,
+                kObjectSize > 0 && kObjectSize <= kMaximumPayloadSize - sizeof(ModuleParameters) - 1,
                 "Unable to extract the target module's parameters as the method has received an invalid "
-                "'destination' input. A valid destination object must have a size between 1 and 250 bytes."
+                "'destination' input. A valid destination object must fit inside the message payload buffer "
+                "alongside the ModuleParameters header and the protocol code."
             );
 
             // Ensures this method cannot be called (successfully) unless the message currently stored in the reception
@@ -528,10 +556,15 @@ class Communication
         }
 
     private:
+        /// Stores the number of bytes each transmitted packet reserves for the framing metadata and the 16-bit CRC
+        /// checksum postamble.
+        static constexpr uint8_t kPacketMetadataSize = 6;
+
         /// Defines the maximum possible size for the received and transmitted payloads. Reuses the
         /// kSerialBufferSize constant defined inside transport_layer.h to determine the serial buffer size of the
         /// host microcontroller.
-        static constexpr uint8_t kMaximumPayloadSize = min(kSerialBufferSize - 6, 254);
+        static constexpr uint8_t kMaximumPayloadSize =
+            min(kSerialBufferSize - kPacketMetadataSize, kBufferLayout::kMaximumPayloadSize);
 
         /// Stores the runtime status of the most recently called method.
         uint8_t _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kStandby);

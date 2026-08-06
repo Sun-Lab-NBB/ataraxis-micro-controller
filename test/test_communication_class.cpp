@@ -16,6 +16,10 @@
 /// The byte capacity of the mock serial stream used to back the Communication instance in each test.
 static constexpr uint16_t kTestBufferSize = 60;
 
+/// The byte capacity of the mock serial stream used to truncate outgoing packets. Any packet the Communication class
+/// produces exceeds this capacity, which forces the stream to accept only a part of the packet.
+static constexpr uint16_t kTruncatingBufferSize = 4;
+
 // This function is called automatically before each test function. Currently not used.
 void setUp()
 {}
@@ -53,7 +57,7 @@ void test_send_data_message()
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
@@ -94,7 +98,7 @@ void test_send_state_message()
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState);
@@ -145,7 +149,7 @@ void test_send_communication_error_message()
         TEST_ASSERT_EQUAL_UINT16(expected_kernel[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();
+    mock_port.Reset();
     communication_class.set_communication_status(65);  // Resets the communication class status.
 
     // Re-extracts the Transport Layer status.
@@ -188,7 +192,7 @@ void test_send_service_message()
         TEST_ASSERT_EQUAL_UINT16(expected_reception[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // ControllerIdentification message
     constexpr uint16_t expected_identification[2] = {
@@ -207,7 +211,7 @@ void test_send_service_message()
         TEST_ASSERT_EQUAL_UINT16(expected_identification[i], mock_port.tx_buffer[i + 3]);
     }
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // ModuleIdentification message
     constexpr uint16_t module_type_id                    = 300;
@@ -229,6 +233,51 @@ void test_send_service_message()
     }
 }
 
+// Verifies that the Communication class reports a transmission error when the serial interface truncates the packet.
+void test_send_message_transmission_error()
+{
+    StreamMock<kTruncatingBufferSize> mock_port;
+    Communication communication_class(mock_port);
+
+    // Defines static message payload components.
+    constexpr uint8_t module_type = 112;  // Example module type
+    constexpr uint8_t module_id   = 12;   // Example module ID
+    constexpr uint8_t command     = 88;   // Example command code
+    constexpr uint8_t event_code  = 221;  // Example event code
+    constexpr uint8_t test_object = 255;  // Test object
+
+    // State message test
+    TEST_ASSERT_FALSE(communication_class.SendStateMessage(command, event_code));
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kTransmissionError),
+        communication_class.get_communication_status()
+    );
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axtlmc_shared_assets::kTransportStatusCodes::kPacketPartiallySent),
+        communication_class.get_transport_layer_status()
+    );
+
+    mock_port.Reset();
+
+    // Data message test
+    TEST_ASSERT_FALSE(communication_class.SendDataMessage(module_type, module_id, command, event_code, test_object));
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kTransmissionError),
+        communication_class.get_communication_status()
+    );
+
+    mock_port.Reset();
+
+    // Service message test
+    TEST_ASSERT_FALSE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(event_code)
+    );
+    TEST_ASSERT_EQUAL_UINT8(
+        static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kTransmissionError),
+        communication_class.get_communication_status()
+    );
+}
+
 // Verifies the Communication's ReceiveMessage() method.
 void test_receive_message()
 {
@@ -244,7 +293,7 @@ void test_receive_message()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies RepeatedModuleCommand reception.
     uint8_t test_buffer_1[16] = {129, 10, 0, 1, 2, 3, 4, 5, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -270,7 +319,7 @@ void test_receive_message()
     TEST_ASSERT_FALSE(communication_class.get_repeated_module_command().noblock);
     TEST_ASSERT_EQUAL_UINT32(0, communication_class.get_repeated_module_command().cycle_delay);
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies OneOffModuleCommand reception.
     uint8_t test_buffer_2[12] = {129, 6, 0, 2, 0, 1, 2, 3, 1, 0, 0, 0};
@@ -295,7 +344,7 @@ void test_receive_message()
     TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_one_off_module_command().command);
     TEST_ASSERT_TRUE(communication_class.get_one_off_module_command().noblock);
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies DequeueModuleCommand reception.
     uint8_t test_buffer_3[10] = {129, 4, 0, 3, 1, 2, 3, 0, 0, 0};
@@ -318,7 +367,7 @@ void test_receive_message()
     TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_module_dequeue().module_id);
     TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_module_dequeue().return_code);
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies KernelCommand reception.
     uint8_t test_buffer_4[9] = {129, 3, 0, 4, 1, 2, 0, 0, 0};
@@ -340,7 +389,7 @@ void test_receive_message()
     TEST_ASSERT_EQUAL_UINT8(1, communication_class.get_kernel_command().return_code);
     TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_kernel_command().command);
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies ModuleParameters reception. Note, this only verifies the header of the message. Parameter extraction is
     // verified by a different test function.
@@ -364,7 +413,7 @@ void test_receive_message()
     TEST_ASSERT_EQUAL_UINT8(2, communication_class.get_module_parameters_header().module_id);
     TEST_ASSERT_EQUAL_UINT8(3, communication_class.get_module_parameters_header().return_code);
 
-    mock_port.reset();
+    mock_port.Reset();
 }
 
 // Verifies the error-handling behavior of the Communication's ReceiveMessage() method.
@@ -392,7 +441,7 @@ void test_receive_message_errors()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies that receiving a message with an invalid protocol code correctly raises kInvalidProtocol. Note,
     // protocols used by the outgoing messages (such as KernelData) are also considered invalid.
@@ -414,7 +463,7 @@ void test_receive_message_errors()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies that receiving an incomplete message (message that deviates from its mandated layout) correctly raises
     // kParsingError.
@@ -475,7 +524,7 @@ void test_extract_module_parameters()
     };
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data, extract_data, sizeof(expected_data));
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies that extracting parameter data into a structure works as expected
     uint8_t test_buffer_2[16] = {129, 10, 0, 5, 2, 3, 4, 9, 1, 2, 3, 4, 5, 0, 0, 0};
@@ -543,7 +592,7 @@ void test_extract_module_parameters_errors()
         communication_class.get_communication_status()
     );
 
-    mock_port.reset();
+    mock_port.Reset();
 
     // Verifies that calling ExtractParameters() with a prototype whose size does not match the size of the parameters
     // block inside the serial buffer raises a kParameterMismatch error.
@@ -628,6 +677,9 @@ int RunUnityTests()
 
     // SendServiceMessage
     RUN_TEST(test_send_service_message);
+
+    // Transmission error handling
+    RUN_TEST(test_send_message_transmission_error);
 
     // ReceiveMessage
     RUN_TEST(test_receive_message);

@@ -82,7 +82,7 @@ ___
 ### Platformio
 
 1. Navigate to the project's platformio.ini file and add the following line to the target environment specification:
-   `lib_deps = inkaros/ataraxis-micro-controller@^3.0.0`.
+   `lib_deps = inkaros/ataraxis-micro-controller@^4.0.0`.
 2. Add `#include <kernel.h>`, `#include <communication.h>`, and `#include <module.h>` at the top of the main.cpp file
    and `#include <module.h>` at the top of each custom hardware module header file.
 
