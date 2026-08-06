@@ -13,9 +13,9 @@ ___
 
 This library allows integrating custom hardware modules of any complexity managed by the Arduino or Teensy 
 microcontrollers with the [centralized PC interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface) 
-implemented in Python. To do so, the library defines a shared API that can be integrated into 
-user-defined modules by subclassing the (base) Module class. It also provides the Kernel class that manages runtime 
-task scheduling, and the Communication class, which handles high-throughput bidirectional communication with the PC.
+implemented in Python. To do so, the library defines a shared API that can be integrated into user-defined modules by
+subclassing the (base) Module class. It also provides the Kernel class that manages runtime task scheduling, and the
+Communication class, which handles high-throughput bidirectional communication with the PC.
 This library is part of the [Ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) framework for AI-assisted scientific
 hardware control.
 
@@ -24,7 +24,7 @@ ___
 ## Features
 
 - Supports all recent Arduino and Teensy architectures and platforms.
-- Provides an easy-to-implement API that integrates any hardware with the centralized host-computer (PC) 
+- Provides an API that integrates any hardware with the centralized host-computer (PC)
   [interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface) written in Python.
 - Abstracts communication and runtime task scheduling, allowing end users to focus on implementing the logic of their 
   custom hardware modules.
@@ -45,7 +45,6 @@ ___
   - [Keepalive](#keepalive)
   - [Custom Hardware Modules](#custom-hardware-modules)
   - [Implementing Custom Hardware Modules](#implementing-custom-hardware-modules)
-  - [AI-Assisted Module Implementation](#ai-assisted-module-implementation)
 - [API Documentation](#api-documentation)
 - [Developers](#developers)
 - [Versioning](#versioning)
@@ -57,12 +56,13 @@ ___
 
 ## Dependencies
 
-- An IDE or Framework capable of uploading microcontroller software that supports
-  [Platformio](https://platformio.org/install). This library is explicitly designed to be uploaded via Platformio and
-  likely does not work with any other IDE or Framework.
+This library requires an IDE or framework capable of uploading microcontroller software that supports
+[Platformio](https://platformio.org/install). The library is explicitly designed to be uploaded via Platformio and
+likely does not work with any other IDE or framework.
 
-***Note,*** developers should see the [Developers](#developers) section for information on installing additional
-development dependencies.
+For users, all other library dependencies are resolved automatically by Platformio from the `lib_deps` declared in
+the target environment. For developers, see the [Developers](#developers) section for information on installing
+additional development dependencies.
 
 ___
 
@@ -74,8 +74,8 @@ ___
 
 1. Download this repository to the local machine using the preferred method, such as git-cloning. Use one of the 
    [stable releases](https://github.com/Sun-Lab-NBB/ataraxis-micro-controller/tags).
-2. Unpack the downloaded tarball and move all 'src' contents into the appropriate destination
-   ('include,' 'src,' or 'libs') directory of the project that needs to use this library.
+2. Unpack the downloaded tarball and move all 'src' contents into the appropriate destination ('include,' 'src,' or
+   'libs') directory of the project that needs to use this library.
 3. Add `#include <kernel.h>`, `#include <communication.h>`, and `#include <module.h>` at the top of the main.cpp file
    and `#include <module.h>` at the top of each custom hardware module header file.
 
@@ -91,31 +91,37 @@ ___
 ## Usage
 
 ### Quickstart
-This section demonstrates how to use custom hardware modules compatible with this library. See 
-[Implementing Custom Hardware Modules](#implementing-custom-hardware-modules) for instructions on how to implement custom hardware module 
-classes. Note, the example below should be run together with the 
-[companion python interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface#quickstart) example. See 
+
+See [Implementing Custom Hardware Modules](#implementing-custom-hardware-modules) for instructions on how to implement
+custom hardware module classes. Note, the example below should be run together with the
+[companion Python interface](https://github.com/Sun-Lab-NBB/ataraxis-communication-interface#quickstart) example. See
 the [module_integration.cpp](./examples/module_integration.cpp) for the .cpp implementation of this example:
 ```
-// Dependencies
-#include "../examples/example_module.h"  // Since there is an overlap with the general 'examples', uses the local path.
 #include <Arduino.h>
-#include "communication.h"
-#include "kernel.h"
-#include "module.h"
+#include <communication.h>
+#include <kernel.h>
+#include <module.h>
+#include "example_module.h"
 
-// Specifies the unique identifier for the test microcontroller
+/// Specifies the unique identifier for the test microcontroller.
 static constexpr uint8_t kControllerID = 222;
 
-// Keepalive interval in milliseconds. If the keepalive interval is greater than 0, the Kernel expects the PC to send
-// keepalive messages at that interval. If the Kernel does not receive a keepalive message in time, it assumes that the
-// microcontroller-PC communication has been lost and resets the microcontroller, aborting the runtime.
-static constexpr uint32_t kKeepaliveInterval = 5000;  // Sets the keepalive interval to 5 seconds.
+/// Stores the keepalive interval in milliseconds. A value of 0 disables keepalive monitoring.
+static constexpr uint32_t kKeepaliveInterval = 5000;
 
-// Initializes the Communication class. This class instance is shared by all other classes and manages incoming and
-// outgoing communication with the companion host-computer (PC). The Communication has to be instantiated first.
-// NOLINTNEXTLINE(cppcoreguidelines-interfaces-global-init)
-Communication axmc_communication(Serial);
+/// Specifies the digital pin managed by the second TestModule instance.
+static constexpr uint8_t kSecondModulePin = 6;
+
+/// Specifies the serial port baud rate, which has to match the monitor_speed configured for the target board in
+/// platformio.ini. The value below matches the teensy41 environment, while the due and mega environments use others.
+static constexpr uint32_t kSerialBaudRate = 115200;
+
+/// Specifies the resolution, in bits, requested from boards that support an adjustable analog-to-digital converter.
+static constexpr uint8_t kAnalogReadResolution = 12;
+
+// Initializes the Communication class. Shares this instance with all other classes and manages incoming and outgoing
+// communication with the companion host-computer (PC). The Communication has to be instantiated first.
+Communication axmc_communication(Serial);  // NOLINT(*-interfaces-global-init)
 
 // Creates two instances of the TestModule class. The first argument is the module type (family), which is the same (1)
 // for both, the second argument is the module ID (instance), which is different. The type and id codes do not have
@@ -123,8 +129,8 @@ Communication axmc_communication(Serial);
 // uniquely addressed during runtime.
 TestModule<> test_module_1(1, 1, axmc_communication);
 
-// Also uses the template to override the digital pin controlled by the module instance from the default (5) to 6.
-TestModule<6> test_module_2(1, 2, axmc_communication);
+// Also uses the template parameter to override the digital pin controlled by the module instance.
+TestModule<kSecondModulePin> test_module_2(1, 2, axmc_communication);
 
 // Packages all module instances into an array to be managed by the Kernel class.
 Module* modules[] = {&test_module_1, &test_module_2};
@@ -132,18 +138,23 @@ Module* modules[] = {&test_module_1, &test_module_2};
 // Instantiates the Kernel class. The Kernel has to be instantiated last.
 Kernel axmc_kernel(kControllerID, axmc_communication, modules, kKeepaliveInterval);
 
-// This function is only executed once. Since Kernel manages the setup for each module, there is no need to set up each
-// module's hardware individually.
+/// Runs once at controller startup. Since the Kernel manages the setup for each module, there is no need to set up
+/// each module's hardware individually.
 void setup()
 {
-    // Initializes the serial communication.
-    Serial.begin(115200);
+    Serial.begin(kSerialBaudRate);
+
+    // AVR boards (for example, Arduino Mega) have a fixed 10-bit ADC and do not provide analogReadResolution(), so the
+    // resolution is configured only for architectures that support an adjustable ADC.
+#if !defined(__AVR__)
+    analogReadResolution(kAnalogReadResolution);
+#endif
 
     // Sets up the hardware and software for the Kernel and all managed modules.
     axmc_kernel.Setup();
 }
 
-// This function is executed repeatedly while the microcontroller is powered.
+/// Runs repeatedly while the microcontroller is powered.
 void loop()
 {
     // Since the Kernel instance manages the runtime of all modules, the only method that needs to be called
@@ -157,7 +168,8 @@ void loop()
 with approximately 2-second periodicity, the Kernel failed the setup sequence due to a module setup error.
 
 ### User-Defined Variables
-This library is designed to flexibly support many different use patterns. To do so, it intentionally avoids hardcoding
+
+This library supports many different use patterns. To do so, it intentionally avoids hardcoding
 certain metadata variables that allow the PC interface to individuate and address the managed microcontroller and 
 specific hardware module instances. **Each end user has to manually define these values both for the microcontroller 
 and the PC.**
@@ -179,7 +191,8 @@ and the PC.**
    time, the first voltage sensor should use ID code '1,' while the second sensor should use ID code '2.'
 
 ### Keepalive
-A major runtime safety feature of this library is the support for keepalive messaging. When enabled, the Kernel instance
+
+When enabled, the Kernel instance
 expects the PC to send a 'keepalive' command at regular intervals, specified by the `keepalive_interval` Kernel 
 constructor argument. If the Kernel does not receive the keepalive message for **two consecutive interval windows**, 
 it aborts the runtime by resetting the microcontroller's hardware and software to the default state and sends an error 
@@ -196,9 +209,10 @@ a UART communication interface using the baudrate of 115200, the appropriate kee
 in seconds (2 to 5).
 
 ### Custom Hardware Modules
-For this library, any external hardware that communicates with Arduino or Teensy microcontroller pins is a hardware 
-module. For example, a 3d-party voltage sensor that emits an analog signal detected by an Arduino microcontroller is a 
-module. A rotary encoder that sends digital interrupt signals to 3 digital pins of a Teensy microcontroller is a 
+
+For this library, any external hardware that communicates with Arduino or Teensy microcontroller pins is a hardware
+module. For example, a third-party voltage sensor that emits an analog signal detected by an Arduino microcontroller
+is a module. A rotary encoder that sends digital interrupt signals to 3 digital pins of a Teensy microcontroller is a
 module. A solenoid valve gated by HIGH signal sent from an Arduino microcontroller's digital pin is a module.
 
 The library expects that the logic that governs how the microcontroller interacts with these modules is 
@@ -210,6 +224,7 @@ hardware modules in a standardized fashion. To achieve this, all custom hardware
 compatible hardware modules.
 
 ### Implementing Custom Hardware Modules
+
 All modules intended to be accessible through this library have to follow the implementation guidelines described in the
 [example module header file](./examples/example_module.h). Specifically, **all custom modules have to subclass the 
 Module class from this library and overload all pure virtual methods**. Additionally, it is highly advised to implement 
@@ -231,12 +246,13 @@ mismatches. For example: `} PACKED_STRUCT parameters;`. See the
 ***Note,*** custom event and state codes used by modules when communicating with the PC must use values between 51 and
 250 to avoid clashing with system-reserved codes. Each code must be unique within the module class.
 
-***Warning!*** Do not directly access the Kernel or Communication classes when implementing custom hardware modules. The base 
-Module class allows accessing all necessary library assets through the inherited utility methods. See the 
-'protected member functions' section of the Module class [API documentation](#api-documentation) for more details about 
-the available utility methods.
+***Warning!*** Do not directly access the Kernel or Communication classes when implementing custom hardware modules.
+The base Module class allows accessing all necessary library assets through the inherited utility methods. See the
+'protected member functions' section of the Module class [API documentation](#api-documentation) for more details
+about the available utility methods.
 
 #### Concurrent (Non-Blocking) Execution
+
 A major feature of the library is that it allows maximizing the microcontroller's throughput by partially overlapping 
 the execution of multiple commands under certain conditions. Specifically, it allows executing other commands while 
 waiting for a time-based delay in the currently executed command. This feature is especially relevant for higher-end 
@@ -259,11 +275,13 @@ for all use cases.
 follow the same design principles to implement non-blocking sensor-based delays when implementing custom command logic.
 
 #### Virtual Methods
+
 These methods provide the inherited API that integrates any custom hardware module with the centralized control 
 interface running on the companion host-computer (PC). Specifically, the Kernel calls these methods during runtime to 
 interface with each managed module instance.
 
 #### SetCustomParameters
+
 This method enables the Kernel to unpack and save the module's runtime parameters, when updated parameter values are 
 received from the PC. The primary purpose of this virtual method is to tell the Kernel where to unpack the module's
 parameter data.
@@ -278,10 +296,11 @@ bool SetCustomParameters() override
 ```
 
 The `parameters` object is typically a structure that stores the instance's PC-addressable runtime parameters. 
-The `ExtractParameters()` utility method, reads the data received from the PC and uses it to overwrite the memory of 
+The `ExtractParameters()` utility method reads the data received from the PC and uses it to overwrite the memory of 
 the provided object.
 
 #### RunActiveCommand
+
 This method enables the Kernel to execute the managed module's logic in response to receiving module-addressed commands 
 from the PC. Specifically, the Kernel receives and queues the commands to be executed and then calls this method for 
 each managed module to run the queued command's logic. The primary purpose of this method is to translate the active 
@@ -313,6 +332,7 @@ returned value of this method ***only*** communicates whether the command was re
 to track the runtime status (success / failure) of the called command's method.
 
 #### SetupModule
+
 This method enables the Kernel to set up the hardware and software assets for each managed module instance. This is 
 done from the global `setup()` function, which is executed by the Arduino and Teensy microcontrollers after firmware 
 reupload. This is also done in response to the PC requesting the controller to be reset to the default state. The 
@@ -343,14 +363,15 @@ failed. If this method returns `false`, the Kernel deadlocks the microcontroller
 microcontroller firmware is reuploaded to fix the setup error.
 
 #### Utility Methods
+
 To further simplify implementing custom hardware modules, the base Module class exposes a collection of utility methods.
-These methods provide an easy-to-use API for safely accessing internal attributes and properties of the superclass, 
+These methods expose the superclass attributes and properties that custom module logic reads and writes, 
 simplifying the interaction between the superclass (Module) and the custom logic of each hardware module that inherits 
 from the base class.
 
 See the [API Documentation of the base Module class](#api-documentation) for the list of available (protected) Utility
 methods. Also, see the [TestModule](./examples/example_module.h) for the demonstration on how to use some of these 
-methods when implementing custom hardware module, most notably those relating to sending the data to the PC and using
+methods when implementing a custom hardware module, most notably those relating to sending the data to the PC and using
 the stage-based command design pattern.
 
 #### Supported SendData Types
@@ -379,26 +400,6 @@ The maximum data payload is 248 bytes on Teensy (8192-byte serial buffer), 244 b
 52 bytes on Mega (64-byte buffer). The `SendDataMessage` static_assert catches oversized objects at compile time for 
 each platform.
 
-### AI-Assisted Module Implementation
-
-This library supports AI-assisted implementation of custom hardware modules through Claude Code skills distributed
-via the [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The **microcontroller** plugin provides
-the `firmware-module` skill, which guides the creation of Module subclasses covering:
-
-- Module base class inheritance and constructor pattern.
-- SetupModule, SetCustomParameters, and RunActiveCommand implementation.
-- Command handler patterns: immediate, multi-stage with non-blocking delay, and sensor polling.
-- Runtime parameter structures with `PACKED_STRUCT` macro.
-- Event and status code conventions.
-- Sending data to the PC via `SendData()` overloads.
-- main.cpp integration with Communication, Module, and Kernel wiring.
-
-#### Plugin Installation
-
-Claude Code skill assets for implementing custom hardware modules are distributed through the
-[ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace as part of the **microcontroller** plugin. Install the
-plugin from the marketplace to make module implementation skills available to compatible AI coding agents.
-
 ___
 
 ## API Documentation
@@ -423,7 +424,7 @@ the source code of this library.
    [Platformio API documentation](https://docs.platformio.org/en/latest/core/userguide/project/cmd_init.html) for
    more details on initializing and configuring projects with platformio.
 6. If using an IDE that does not natively support platformio integration, call the `pio project metadata` command
-   to generate the metadata to integrate the project with the IDE. Note; most mainstream IDEs do not require or benefit
+   to generate the metadata to integrate the project with the IDE. Note, most mainstream IDEs do not require or benefit
    from this step.
 
 ***Warning!*** To build this library for a platform or architecture that is not explicitly supported, edit the
@@ -435,7 +436,7 @@ with support for `teensy 4.1`, `arduino due`, and `arduino mega (R3)` platforms.
 In addition to installing Platformio and main project dependencies, install the following dependencies:
 
 - [Tox](https://tox.wiki/en/4.15.0/user_guide.html) and [Doxygen](https://www.doxygen.nl/manual/install.html) to build
-  the API documentation for the project. Note; both dependencies have to be available on the local system's path.
+  the API documentation for the project. Note, both dependencies have to be available on the local system's path.
 
 ### Development Automation
 
@@ -447,16 +448,22 @@ about the available pipelines and their implementation. Alternatively, call `tox
 the project to see the list of available tasks.
 
 ***Note,*** all pull requests for this project have to successfully complete the `tox`, `pio check`, and `pio test`
-tasks before being submitted.
+tasks before being merged.
 
 ### AI-Assisted Development
 
 Claude Code skills and AI development assets for this project are distributed through the
 [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace across two plugins:
 
-- **microcontroller** plugin: Provides microcontroller-specific skills for firmware module implementation, including
-  Module subclass scaffolding, stage-based command patterns, and parameter structure guidance. Install this plugin to
-  make all module implementation skills available.
+- **microcontroller** plugin: Provides the `/firmware-module` skill, which guides the creation of Module subclasses.
+  It covers the following topics:
+  - Module base class inheritance and the constructor pattern.
+  - `SetupModule()`, `SetCustomParameters()`, and `RunActiveCommand()` implementation.
+  - Command handler patterns: immediate, multi-stage with non-blocking delay, and sensor polling.
+  - Runtime parameter structures using the `PACKED_STRUCT` macro.
+  - Event and status code conventions.
+  - Sending data to the PC via the `SendData()` overloads.
+  - main.cpp integration wiring the Communication, Module, and Kernel instances together.
 - **automation** plugin: Provides shared development skills that enforce Ataraxis framework coding conventions
   (C++ style, README style, commit messages, API documentation) and general-purpose codebase exploration tools.
 

@@ -20,6 +20,14 @@
 #include <transport_layer.h>
 #include "axmc_shared_assets.h"
 
+// The digitalWriteFast library aliases digitalWriteFast and digitalReadFast to the standard Arduino functions on every
+// non-AVR target. Teensy boards ship always-inline register-level implementations of both, so removing the aliases
+// exposes them. The pinModeFast alias is kept, as Teensy provides no fast counterpart for it.
+#if defined(CORE_TEENSY)
+#undef digitalWriteFast
+#undef digitalReadFast
+#endif
+
 using namespace axmc_shared_assets;
 using namespace axtlmc_shared_assets;
 using namespace axmc_communication_assets;
@@ -45,10 +53,10 @@ class Communication
          */
         explicit Communication(Stream& communication_port) :
             _transport_layer(
-                communication_port,  // Stream
-                0x1021,              // 16-bit CRC Polynomial
-                0xFFFF,              // Initial CRC value
-                0x0000,              // Final CRC XOR value
+                communication_port,  // communication_port
+                kCRCPolynomial,      // crc_polynomial
+                kCRCInitialValue,    // crc_initial_value
+                kCRCFinalXORValue,   // crc_final_xor_value
                 false                // crc_reflected
             )
         {}
@@ -165,7 +173,6 @@ class Communication
                 static_cast<uint8_t>(ResolvePrototype<ObjectType>())
             };
 
-            // Writes the message to the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(message)) success = false;
             if (success && !_transport_layer.WriteData(object)) success = false;
@@ -219,7 +226,6 @@ class Communication
                 static_cast<uint8_t>(ResolvePrototype<ObjectType>())
             };
 
-            // Writes the message to the transmission buffer.
             bool success = true;
             if (!_transport_layer.WriteData(message)) success = false;
             if (success && !_transport_layer.WriteData(object)) success = false;
@@ -261,7 +267,6 @@ class Communication
             const uint8_t event_code
         )
         {
-            // Constructs the message header.
             const ModuleState
                 message {static_cast<uint8_t>(kProtocols::kModuleState), module_type, module_id, command, event_code};
 
@@ -293,7 +298,6 @@ class Communication
          */
         bool SendStateMessage(const uint8_t command, const uint8_t event_code)
         {
-            // Constructs the message header.
             const KernelState message {static_cast<uint8_t>(kProtocols::kKernelState), command, event_code};
 
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
@@ -399,13 +403,17 @@ class Communication
                 "uint32_t service codes are supported."
             );
 
-            // Packages the input protocol code and the service code into the transmission buffer.
-            bool success = true;
-            if (!_transport_layer.WriteData(static_cast<uint8_t>(kProtocol))) success = false;
-            if (success && !_transport_layer.WriteData(service_code)) success = false;
+            // Ensures the packed structure carries no padding, so it serializes to the protocol byte followed by the
+            // service code bytes.
+            static_assert(
+                sizeof(ServiceMessage<ObjectType>) == sizeof(uint8_t) + sizeof(ObjectType),
+                "The ServiceMessage structure must be packed to match the service message wire layout."
+            );
 
-            // If serializing the message and the data payload fails, breaks the runtime with an error status.
-            if (!success)
+            const ServiceMessage<ObjectType> message {static_cast<uint8_t>(kProtocol), service_code};
+
+            // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
+            if (!_transport_layer.WriteData(message))
             {
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
@@ -438,7 +446,6 @@ class Communication
          */
         bool ReceiveMessage()
         {
-            // Attempts to receive the next available message.
             if (!_transport_layer.ReceiveData())
             {
                 // The reception protocol can 'fail' gracefully if the reception buffer does not have enough bytes to
@@ -515,7 +522,7 @@ class Communication
         template <typename ObjectType, const size_t kObjectSize = sizeof(ObjectType)>
         bool ExtractModuleParameters(ObjectType& destination)
         {
-            // Ensures that the prototype compiles with the limitations of the transport layer. The '-1' accounts for
+            // Ensures that the prototype complies with the limitations of the transport layer. The '-1' accounts for
             // the protocol code that precedes the ModuleParameters header inside the message payload.
             static_assert(
                 kObjectSize > 0 && kObjectSize <= kMaximumPayloadSize - sizeof(ModuleParameters) - 1,
@@ -523,6 +530,11 @@ class Communication
                 "'destination' input. A valid destination object must fit inside the message payload buffer "
                 "alongside the ModuleParameters header and the protocol code."
             );
+
+            // Stores the number of payload bytes a valid parameters message for this destination carries. The '+1'
+            // accounts for the protocol code that precedes the ModuleParameters header inside the message payload.
+            static constexpr auto kExpectedPayloadSize =
+                static_cast<uint8_t>(kObjectSize + sizeof(ModuleParameters) + 1);
 
             // Ensures this method cannot be called (successfully) unless the message currently stored in the reception
             // buffer is a ModuleParameters message.
@@ -532,11 +544,9 @@ class Communication
                 return false;
             }
 
-            // Verifies that the size of the prototype structure exactly matches the number of object bytes received
-            // with the message. The '-1' accounts for the protocol code (first variable of each message) that precedes
-            // the message structure.
-            if (static_cast<uint8_t>(kObjectSize) !=
-                _transport_layer.get_bytes_in_reception_buffer() - sizeof(ModuleParameters) - 1)
+            // Verifies that the number of payload bytes received with the message matches the size expected for the
+            // destination object.
+            if (_transport_layer.get_bytes_in_reception_buffer() != kExpectedPayloadSize)
             {
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParameterMismatch);
                 return false;
@@ -550,21 +560,30 @@ class Communication
                 return false;
             }
 
-            // Returns with success code.
             _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kParametersExtracted);
             return true;
         }
 
     private:
+        /// Stores the polynomial of the CRC-16 checksum algorithm that verifies the integrity of exchanged messages.
+        /// The PC interface library has to use the same CRC parameters to communicate with this microcontroller.
+        static constexpr uint16_t kCRCPolynomial = 0x1021;
+
+        /// Stores the value to which the CRC-16 checksum is initialized before calculation.
+        static constexpr uint16_t kCRCInitialValue = 0xFFFF;
+
+        /// Stores the value with which the CRC-16 checksum is XORed after calculation.
+        static constexpr uint16_t kCRCFinalXORValue = 0x0000;
+
         /// Stores the number of bytes each transmitted packet reserves for the framing metadata and the 16-bit CRC
         /// checksum postamble.
-        static constexpr uint8_t kPacketMetadataSize = 6;
+        static constexpr uint16_t kPacketMetadataSize = 6;
 
         /// Defines the maximum possible size for the received and transmitted payloads. Reuses the
         /// kSerialBufferSize constant defined inside transport_layer.h to determine the serial buffer size of the
         /// host microcontroller.
         static constexpr uint8_t kMaximumPayloadSize =
-            min(kSerialBufferSize - kPacketMetadataSize, kBufferLayout::kMaximumPayloadSize);
+            static_cast<uint8_t>(min(kSerialBufferSize - kPacketMetadataSize, kBufferLayout::kMaximumPayloadSize));
 
         /// Stores the runtime status of the most recently called method.
         uint8_t _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kStandby);
@@ -591,4 +610,4 @@ class Communication
         TransportLayer<uint16_t, kMaximumPayloadSize, kMaximumPayloadSize> _transport_layer;
 };
 
-#endif  //AXMC_COMMUNICATION_H
+#endif  // AXMC_COMMUNICATION_H

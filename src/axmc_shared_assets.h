@@ -8,7 +8,7 @@
 #define AXMC_SHARED_ASSETS_H
 
 #include <Arduino.h>
-#include "axtlmc_shared_assets.h"
+#include <axtlmc_shared_assets.h>
 
 /**
  * @namespace axmc_shared_assets
@@ -49,6 +49,303 @@ namespace axmc_shared_assets
  */
 namespace axmc_communication_assets
 {
+    /// Stores the maximum number of elements a data object can contain to be resolvable to a prototype code.
+    static constexpr uint8_t kMaximumPrototypeElementCount = 248;
+
+    /// Stores the number of scalar element types that resolve to prototype codes.
+    static constexpr uint8_t kPrototypeTypeCount = 11;
+
+    /// Stores the kPrototypeLookup column index of bool elements.
+    static constexpr uint8_t kPrototypeBoolColumnIndex = 0;
+
+    /// Stores the kPrototypeLookup column index of uint8_t elements.
+    static constexpr uint8_t kPrototypeUint8ColumnIndex = 1;
+
+    /// Stores the kPrototypeLookup column index of int8_t elements.
+    static constexpr uint8_t kPrototypeInt8ColumnIndex = 2;
+
+    /// Stores the kPrototypeLookup column index of uint16_t elements.
+    static constexpr uint8_t kPrototypeUint16ColumnIndex = 3;
+
+    /// Stores the kPrototypeLookup column index of int16_t elements.
+    static constexpr uint8_t kPrototypeInt16ColumnIndex = 4;
+
+    /// Stores the kPrototypeLookup column index of uint32_t elements.
+    static constexpr uint8_t kPrototypeUint32ColumnIndex = 5;
+
+    /// Stores the kPrototypeLookup column index of int32_t elements.
+    static constexpr uint8_t kPrototypeInt32ColumnIndex = 6;
+
+    /// Stores the kPrototypeLookup column index of float elements.
+    static constexpr uint8_t kPrototypeFloatColumnIndex = 7;
+
+    /// Stores the kPrototypeLookup column index of uint64_t elements.
+    static constexpr uint8_t kPrototypeUint64ColumnIndex = 8;
+
+    /// Stores the kPrototypeLookup column index of int64_t elements.
+    static constexpr uint8_t kPrototypeInt64ColumnIndex = 9;
+
+    /// Stores the kPrototypeLookup column index of double elements.
+    static constexpr uint8_t kPrototypeDoubleColumnIndex = 10;
+
+    /**
+     * @brief Maps (element count, element type) pairs to kPrototypes enum codes at compile time.
+     *
+     * Rows correspond to element counts 1 through kMaximumPrototypeElementCount, with the row index equal to the count
+     * minus one. Columns correspond to the element types, each at the index resolved by PrototypeTypeIndex. A value of
+     * 0 indicates that the (type, count) pair has no assigned prototype code.
+     */
+    static constexpr uint8_t kPrototypeLookup[kMaximumPrototypeElementCount][kPrototypeTypeCount] = {
+        {1,   2,   3,   7,   8,   17,  18,  19,  39,  40,  41 }, // count = 1
+        {4,   5,   6,   15,  16,  36,  37,  38,  77,  78,  79 }, // count = 2
+        {9,   10,  11,  26,  27,  58,  59,  60,  94,  95,  96 }, // count = 3
+        {12,  13,  14,  34,  35,  74,  75,  76,  109, 110, 111}, // count = 4
+        {20,  21,  22,  48,  49,  84,  85,  86,  118, 119, 120}, // count = 5
+        {23,  24,  25,  56,  57,  91,  92,  93,  127, 128, 129}, // count = 6
+        {28,  29,  30,  67,  68,  101, 102, 103, 136, 137, 138}, // count = 7
+        {31,  32,  33,  72,  73,  106, 107, 108, 142, 143, 144}, // count = 8
+        {42,  43,  44,  80,  81,  112, 113, 114, 145, 146, 147}, // count = 9
+        {45,  46,  47,  82,  83,  115, 116, 117, 148, 149, 150}, // count = 10
+        {50,  51,  52,  87,  88,  121, 122, 123, 151, 152, 153}, // count = 11
+        {53,  54,  55,  89,  90,  124, 125, 126, 154, 155, 156}, // count = 12
+        {61,  62,  63,  97,  98,  130, 131, 132, 157, 158, 159}, // count = 13
+        {64,  65,  66,  99,  100, 133, 134, 135, 160, 161, 162}, // count = 14
+        {69,  70,  71,  104, 105, 139, 140, 141, 163, 164, 165}, // count = 15
+        {166, 173, 191, 203, 213, 223, 229, 235, 241, 245, 249}, // count = 16
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   174, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 18
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   175, 0,   204, 214, 224, 230, 236, 242, 246, 250}, // count = 20
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   176, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 22
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {167, 177, 192, 205, 215, 225, 231, 237, 243, 247, 251}, // count = 24
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   206, 216, 0,   0,   0,   0,   0,   0  }, // count = 26
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   178, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 28
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   244, 248, 252}, // count = 31
+        {168, 179, 193, 207, 217, 226, 232, 238, 0,   0,   0  }, // count = 32
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   180, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 36
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {169, 181, 194, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 40
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   182, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 44
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {170, 183, 195, 208, 218, 227, 233, 239, 0,   0,   0  }, // count = 48
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {171, 184, 196, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 52
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   228, 234, 240, 0,   0,   0  }, // count = 62
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   185, 0,   209, 219, 0,   0,   0,   0,   0,   0  }, // count = 64
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   197, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 92
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   186, 0,   210, 220, 0,   0,   0,   0,   0,   0  }, // count = 96
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   211, 221, 0,   0,   0,   0,   0,   0  }, // count = 122
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   212, 222, 0,   0,   0,   0,   0,   0  }, // count = 124
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   187, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 128
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   198, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 132
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   199, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 172
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   188, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 192
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   200, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 212
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   189, 201, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 244
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
+        {172, 190, 202, 0,   0,   0,   0,   0,   0,   0,   0  }  // count = 248
+    };
+
     /**
      * @enum kProtocols
      * @brief Defines the protocol codes used by the Communication class to specify incoming and outgoing message
@@ -438,356 +735,95 @@ namespace axmc_communication_assets
     // AVR-compatible type traits for compile-time array introspection. Mirrors std:: counterparts to serve as drop-in
     // replacements on platforms that lack <type_traits>.
 
-    ///Determines whether a type is a C-style array. False by default.
+    /// Determines whether a type is a C-style array. False by default.
     template <typename T>
     struct is_array
     {
             static constexpr bool value = false;
     };
 
-    ///Partial specialization that activates for bounded C-style arrays.
+    /// Partial specialization that activates for bounded C-style arrays.
     template <typename T, size_t N>
     struct is_array<T[N]>
     {
             static constexpr bool value = true;
     };
 
-    ///Convenient variable template for is_array.
+    /// Convenient variable template for is_array.
     template <typename T>
-    constexpr bool is_array_v = is_array<T>::value;  // NOLINT(*-dynamic-static-initializers)
+    constexpr bool is_array_v = is_array<T>::value;
 
-    ///Retrieves the number of elements in a C-style array. Zero for non-array types.
+    /// Retrieves the number of elements in a C-style array. Zero for non-array types.
     template <typename T>
     struct array_extent
     {
             static constexpr size_t value = 0;
     };
 
-    ///Partial specialization that retrieves the element count of a bounded C-style array.
+    /// Partial specialization that retrieves the element count of a bounded C-style array.
     template <typename T, size_t N>
     struct array_extent<T[N]>
     {
             static constexpr size_t value = N;
     };
 
-    ///Convenient variable template for array_extent.
+    /// Convenient variable template for array_extent.
     template <typename T>
-    constexpr size_t array_extent_v = array_extent<T>::value;  // NOLINT(*-dynamic-static-initializers)
+    constexpr size_t array_extent_v = array_extent<T>::value;
 
-    ///Retrieves the element type of C-style array. Identity for non-array types.
+    /// Retrieves the element type of a C-style array. Identity for non-array types.
     template <typename T>
     struct remove_extent
     {
             using type = T;
     };
 
-    ///Partial specialization that strips the array extent to yield the element type.
+    /// Partial specialization that strips the array extent to yield the element type.
     template <typename T, size_t N>
     struct remove_extent<T[N]>
     {
             using type = T;
     };
 
-    ///Convenient alias template for remove_extent.
+    /// Convenient alias template for remove_extent.
     template <typename T>
     using remove_extent_t = typename remove_extent<T>::type;
 
     /**
      * @brief Maps a scalar element type to a column index in the prototype lookup table.
      *
-     * @tparam T The scalar type to resolve. Must be one of: bool, uint8_t, int8_t, uint16_t, int16_t, uint32_t,
-     * int32_t, float, uint64_t, int64_t, or double.
-     * @returns The column index (0-10) corresponding to the element type.
+     * @tparam ElementType The scalar type to resolve. Must be one of: bool, uint8_t, int8_t, uint16_t, int16_t,
+     * uint32_t, int32_t, float, uint64_t, int64_t, or double.
+     * @returns The kPrototypeLookup column index corresponding to the element type.
      */
-    template <typename T>
+    template <typename ElementType>
     constexpr uint8_t PrototypeTypeIndex()
     {
         using axtlmc_shared_assets::is_same_v;
 
         // Validates the type to produce a clear compile error for unsupported types.
         static_assert(
-            is_same_v<T, bool> || is_same_v<T, uint8_t> || is_same_v<T, int8_t> || is_same_v<T, uint16_t> ||
-                is_same_v<T, int16_t> || is_same_v<T, uint32_t> || is_same_v<T, int32_t> || is_same_v<T, float> ||
-                is_same_v<T, uint64_t> || is_same_v<T, int64_t> || is_same_v<T, double>,
+            is_same_v<ElementType, bool> || is_same_v<ElementType, uint8_t> || is_same_v<ElementType, int8_t> ||
+                is_same_v<ElementType, uint16_t> || is_same_v<ElementType, int16_t> ||
+                is_same_v<ElementType, uint32_t> || is_same_v<ElementType, int32_t> || is_same_v<ElementType, float> ||
+                is_same_v<ElementType, uint64_t> || is_same_v<ElementType, int64_t> || is_same_v<ElementType, double>,
             "Unsupported element type for prototype resolution. Supported types: bool, uint8_t, int8_t, uint16_t, "
             "int16_t, uint32_t, int32_t, float, uint64_t, int64_t, double."
         );
 
         // Uses a ternary chain instead of if-constexpr for compatibility with older constexpr implementations.
-        return is_same_v<T, bool>     ? 0
-             : is_same_v<T, uint8_t>  ? 1
-             : is_same_v<T, int8_t>   ? 2
-             : is_same_v<T, uint16_t> ? 3
-             : is_same_v<T, int16_t>  ? 4
-             : is_same_v<T, uint32_t> ? 5
-             : is_same_v<T, int32_t>  ? 6
-             : is_same_v<T, float>    ? 7
-             : is_same_v<T, uint64_t> ? 8
-             : is_same_v<T, int64_t>  ? 9
-                                      : 10;  // double (guaranteed by static_assert above)
+        return is_same_v<ElementType, bool>     ? kPrototypeBoolColumnIndex
+             : is_same_v<ElementType, uint8_t>  ? kPrototypeUint8ColumnIndex
+             : is_same_v<ElementType, int8_t>   ? kPrototypeInt8ColumnIndex
+             : is_same_v<ElementType, uint16_t> ? kPrototypeUint16ColumnIndex
+             : is_same_v<ElementType, int16_t>  ? kPrototypeInt16ColumnIndex
+             : is_same_v<ElementType, uint32_t> ? kPrototypeUint32ColumnIndex
+             : is_same_v<ElementType, int32_t>  ? kPrototypeInt32ColumnIndex
+             : is_same_v<ElementType, float>    ? kPrototypeFloatColumnIndex
+             : is_same_v<ElementType, uint64_t> ? kPrototypeUint64ColumnIndex
+             : is_same_v<ElementType, int64_t>  ? kPrototypeInt64ColumnIndex
+                                                : kPrototypeDoubleColumnIndex;  // Only double remains.
     }
-
-    /**
-     * @brief Compile-time lookup table that maps (element count, element type) to kPrototypes enum codes.
-     *
-     * Rows correspond to element counts 1 through 248 (index = count - 1).
-     * Columns correspond to element types (see PrototypeTypeIndex): bool(0), uint8_t(1), int8_t(2),
-     * uint16_t(3), int16_t(4), uint32_t(5), int32_t(6), float(7), uint64_t(8), int64_t(9), double(10).
-     * A value of 0 indicates that the (type, count) pair has no assigned prototype code.
-     */
-    // NOLINTBEGIN(*-avoid-c-arrays, *-magic-numbers)
-    constexpr uint8_t kPrototypeLookup[248][11] = {
-        {1,   2,   3,   7,   8,   17,  18,  19,  39,  40,  41 }, // count = 1
-        {4,   5,   6,   15,  16,  36,  37,  38,  77,  78,  79 }, // count = 2
-        {9,   10,  11,  26,  27,  58,  59,  60,  94,  95,  96 }, // count = 3
-        {12,  13,  14,  34,  35,  74,  75,  76,  109, 110, 111}, // count = 4
-        {20,  21,  22,  48,  49,  84,  85,  86,  118, 119, 120}, // count = 5
-        {23,  24,  25,  56,  57,  91,  92,  93,  127, 128, 129}, // count = 6
-        {28,  29,  30,  67,  68,  101, 102, 103, 136, 137, 138}, // count = 7
-        {31,  32,  33,  72,  73,  106, 107, 108, 142, 143, 144}, // count = 8
-        {42,  43,  44,  80,  81,  112, 113, 114, 145, 146, 147}, // count = 9
-        {45,  46,  47,  82,  83,  115, 116, 117, 148, 149, 150}, // count = 10
-        {50,  51,  52,  87,  88,  121, 122, 123, 151, 152, 153}, // count = 11
-        {53,  54,  55,  89,  90,  124, 125, 126, 154, 155, 156}, // count = 12
-        {61,  62,  63,  97,  98,  130, 131, 132, 157, 158, 159}, // count = 13
-        {64,  65,  66,  99,  100, 133, 134, 135, 160, 161, 162}, // count = 14
-        {69,  70,  71,  104, 105, 139, 140, 141, 163, 164, 165}, // count = 15
-        {166, 173, 191, 203, 213, 223, 229, 235, 241, 245, 249}, // count = 16
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   174, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 18
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   175, 0,   204, 214, 224, 230, 236, 242, 246, 250}, // count = 20
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   176, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 22
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {167, 177, 192, 205, 215, 225, 231, 237, 243, 247, 251}, // count = 24
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   206, 216, 0,   0,   0,   0,   0,   0  }, // count = 26
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   178, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 28
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   244, 248, 252}, // count = 31
-        {168, 179, 193, 207, 217, 226, 232, 238, 0,   0,   0  }, // count = 32
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   180, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 36
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {169, 181, 194, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 40
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   182, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 44
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {170, 183, 195, 208, 218, 227, 233, 239, 0,   0,   0  }, // count = 48
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {171, 184, 196, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 52
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   228, 234, 240, 0,   0,   0  }, // count = 62
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   185, 0,   209, 219, 0,   0,   0,   0,   0,   0  }, // count = 64
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   197, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 92
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   186, 0,   210, 220, 0,   0,   0,   0,   0,   0  }, // count = 96
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   211, 221, 0,   0,   0,   0,   0,   0  }, // count = 122
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   212, 222, 0,   0,   0,   0,   0,   0  }, // count = 124
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   187, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 128
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   198, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 132
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   199, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 172
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   188, 0,   0,   0,   0,   0,   0,   0,   0,   0  }, // count = 192
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   200, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 212
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   189, 201, 0,   0,   0,   0,   0,   0,   0,   0  }, // count = 244
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0  },
-        {172, 190, 202, 0,   0,   0,   0,   0,   0,   0,   0  }  // count = 248
-    };
-
-    // NOLINTEND(*-avoid-c-arrays, *-magic-numbers)
 
     /**
      * @brief Resolves the kPrototypes enum value for the given C++ type at compile time.
@@ -807,7 +843,7 @@ namespace axmc_communication_assets
         // Validates that the (element type, count) pair has a registered prototype code.
         static_assert(
             !is_array_v<ObjectType> ||
-                (array_extent_v<ObjectType> >= 1 && array_extent_v<ObjectType> <= 248 &&
+                (array_extent_v<ObjectType> >= 1 && array_extent_v<ObjectType> <= kMaximumPrototypeElementCount &&
                  kPrototypeLookup[array_extent_v<ObjectType> - 1][PrototypeTypeIndex<remove_extent_t<ObjectType>>()] !=
                      0),
             "Unsupported array element count for this type. "
@@ -820,10 +856,7 @@ namespace axmc_communication_assets
                                                         [PrototypeTypeIndex<remove_extent_t<ObjectType>>()]);
     }
 
-    /**
-     * @struct RepeatedModuleCommand
-     * @brief Instructs the addressed Module instance to run the specified command repeatedly (recurrently).
-     */
+    /// Instructs the addressed Module instance to run the specified command repeatedly (recurrently).
     struct RepeatedModuleCommand
     {
             uint8_t module_type  = 0;      ///< The type (family) code of the module to which the command is addressed.
@@ -834,10 +867,7 @@ namespace axmc_communication_assets
             uint32_t cycle_delay = 0;      ///< The delay, in microseconds, before repeating (cycling) the command.
     } PACKED_STRUCT;
 
-    /**
-     * @struct OneOffModuleCommand
-     * @brief Instructs the addressed Module instance to run the specified command exactly once (non-recurrently).
-     */
+    /// Instructs the addressed Module instance to run the specified command exactly once (non-recurrently).
     struct OneOffModuleCommand
     {
             uint8_t module_type = 0;      ///< The type (family) code of the module to which the command is addressed.
@@ -847,10 +877,7 @@ namespace axmc_communication_assets
             bool noblock        = false;  ///< Determines whether to allow concurrent execution of other commands.
     } PACKED_STRUCT;
 
-    /**
-     * @struct DequeueModuleCommand
-     * @brief Instructs the addressed Module instance to clear (empty) its command queue.
-     */
+    /// Instructs the addressed Module instance to clear (empty) its command queue.
     struct DequeueModuleCommand
     {
             uint8_t module_type = 0;  ///< The type (family) code of the module to which the command is addressed.
@@ -858,20 +885,14 @@ namespace axmc_communication_assets
             uint8_t return_code = 0;  ///< The acknowledgment code for the message, if set to a non-zero value.
     } PACKED_STRUCT;
 
-    /**
-     * @struct KernelCommand
-     * @brief Instructs the Kernel to run the specified command exactly once.
-     */
+    /// Instructs the Kernel to run the specified command exactly once.
     struct KernelCommand
     {
             uint8_t return_code = 0;  ///< The acknowledgment code for the message, if set to a non-zero value.
             uint8_t command     = 0;  ///< The code of the command to execute.
     } PACKED_STRUCT;
 
-    /**
-     * @struct ModuleParameters
-     * @brief Instructs the addressed Module instance to update its parameters with the included data.
-     */
+    /// Instructs the addressed Module instance to update its parameters with the included data.
     struct ModuleParameters
     {
             uint8_t module_type = 0;  ///< The type (family) code of the module to which parameters are addressed.
@@ -939,6 +960,20 @@ namespace axmc_communication_assets
             uint8_t event    = 0;  ///< The event that prompted the data transmission.
     } PACKED_STRUCT;
 
+    /**
+     * @struct ServiceMessage
+     * @brief Communicates a service code to the PC using one of the service message protocols.
+     *
+     * @tparam ObjectType The type of the transmitted service code. The Communication class restricts this to uint8_t,
+     * uint16_t, and uint32_t.
+     */
+    template <typename ObjectType>
+    struct ServiceMessage
+    {
+            uint8_t protocol = 0;  ///< The message protocol used by this structure.
+            ObjectType code  = 0;  ///< The service code communicated to the PC.
+    } PACKED_STRUCT;
+
 }  // namespace axmc_communication_assets
 
-#endif  //AXMC_SHARED_ASSETS_H
+#endif  // AXMC_SHARED_ASSETS_H

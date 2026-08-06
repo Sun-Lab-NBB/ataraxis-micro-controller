@@ -5,34 +5,27 @@
 At the beginning of each coding session, before making any code changes, you should build a comprehensive
 understanding of the codebase by invoking the `/explore-codebase` skill.
 
-This ensures you:
-- Understand the project architecture before modifying code
-- Follow existing patterns and conventions
-- Do not introduce inconsistencies or break integrations
-
 ## Style guide compliance
 
 You MUST invoke the appropriate style skill before performing ANY of the following tasks:
 
-| Task                                   | Skill to invoke    |
-|----------------------------------------|--------------------|
-| Writing or modifying C++ code          | `/cpp-style`       |
-| Writing or modifying README files      | `/readme-style`    |
-| Writing or modifying Sphinx docs files | `/api-docs`        |
-| Writing or modifying `tox.ini`         | `/tox-config`      |
-| Writing git commit messages            | `/commit`          |
-| Writing or modifying skill files       | `/skill-design`    |
+| Task                                                   | Skill to invoke      |
+|--------------------------------------------------------|----------------------|
+| Writing or modifying C++ code                          | `/cpp-style`         |
+| Writing or modifying README files                      | `/readme-style`      |
+| Writing or modifying Sphinx docs files                 | `/api-docs`          |
+| Writing or modifying `tox.ini`                         | `/tox-config`        |
+| Writing or modifying `platformio.ini` / `library.json` | `/platformio-config` |
+| Writing git commit messages                            | `/commit`            |
+| Writing or modifying skill files                       | `/skill-design`      |
 
-Each skill contains a verification checklist that you MUST complete before submitting any work. Failure to invoke the
-appropriate skill results in style violations.
+Each skill contains a verification checklist that you MUST complete before submitting any work.
 
 ## Cross-referenced library verification
 
-This project depends on the following Ataraxis framework library:
-
-| Library                     | Import header            | Role                                                 |
-|-----------------------------|--------------------------|------------------------------------------------------|
-| ataraxis-transport-layer-mc | `axtlmc_shared_assets.h` | Bidirectional serial communication with CRC and COBS |
+| Library                       | Import header            | Role                                                 |
+|-------------------------------|--------------------------|------------------------------------------------------|
+| `ataraxis-transport-layer-mc` | `axtlmc_shared_assets.h` | Bidirectional serial communication with CRC and COBS |
 
 **Before writing code that interacts with a cross-referenced library, you MUST:**
 
@@ -51,32 +44,31 @@ This project depends on the following Ataraxis framework library:
 4. **Proceed with correct source**: Use whichever version the user selects as the authoritative reference for API
    usage, patterns, and documentation.
 
-**Why this matters**: Skills and documentation may reference outdated APIs. Always verify against the actual library
-state to prevent integration errors.
-
 ## Available skills
 
-All skills are distributed through the [ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The skills
-below are the ones relevant to this C++ PlatformIO firmware library (the `automation` plugin plus the `microcontroller`
-plugin's `firmware-module`). The Python/C# style skills (`/python-style`, `/pyproject-style`, `/csharp-style`) and the
-`communication`/`video` plugin skills target other repositories and are omitted here.
+The Python/C# style skills (`/python-style`, `/pyproject-style`, `/csharp-style`) and the `communication`/`video`
+plugin skills target other repositories and are omitted here.
 
-| Skill                    | Description                                                                    |
-|--------------------------|--------------------------------------------------------------------------------|
-| `/explore-codebase`      | Perform in-depth codebase exploration at session start                         |
-| `/explore-dependencies`  | Build a live API snapshot of installed ataraxis dependencies                   |
-| `/firmware-module`       | Guide creation of custom hardware Module subclasses                            |
-| `/cpp-style`             | Apply Ataraxis framework C++ coding conventions (REQUIRED for all C++ changes) |
-| `/readme-style`          | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
-| `/api-docs`              | Apply Ataraxis framework Sphinx documentation conventions (REQUIRED for docs)  |
-| `/tox-config`            | Apply Ataraxis framework tox.ini conventions (REQUIRED for tox.ini changes)    |
-| `/project-layout`        | Apply Ataraxis framework project directory structure conventions               |
-| `/commit`                | Draft Ataraxis framework style-compliant git commit messages                   |
-| `/pr`                    | Draft a style-compliant pull request summary for the active branch             |
-| `/release`               | Draft style-compliant release notes from merged pull requests                  |
-| `/skill-design`          | Generate and verify skill files and CLAUDE.md project instructions             |
-| `/audit-facts`           | Audit documentation for factual accuracy against the source code               |
-| `/audit-style`           | Audit files for style and convention compliance                                |
+| Skill                   | Description                                                                    |
+|-------------------------|--------------------------------------------------------------------------------|
+| `/explore-codebase`     | Perform in-depth codebase exploration at session start                         |
+| `/explore-dependencies` | Build a live API snapshot of installed ataraxis dependencies                   |
+| `/firmware-module`      | Guide creation of custom hardware Module subclasses                            |
+| `/cpp-style`            | Apply Ataraxis framework C++ coding conventions (REQUIRED for all C++ changes) |
+| `/readme-style`         | Apply Ataraxis framework README conventions (REQUIRED for README changes)      |
+| `/api-docs`             | Apply Ataraxis framework Sphinx documentation conventions (REQUIRED for docs)  |
+| `/tox-config`           | Apply Ataraxis framework tox.ini conventions (REQUIRED for tox.ini changes)    |
+| `/platformio-config`    | Apply Ataraxis framework platformio.ini and library.json conventions           |
+| `/project-layout`       | Apply Ataraxis framework project directory structure conventions               |
+| `/commit`               | Draft Ataraxis framework style-compliant git commit messages                   |
+| `/pr`                   | Draft a style-compliant pull request summary for the active branch             |
+| `/release`              | Draft style-compliant release notes from merged pull requests                  |
+| `/skill-design`         | Generate and verify skill files and CLAUDE.md project instructions             |
+| `/audit-project`        | Orchestrate the four audits and merge their findings into one report           |
+| `/audit-facts`          | Audit documentation for factual accuracy against the source code               |
+| `/audit-correctness`    | Audit source code for bugs, edge cases, races, and leaks                       |
+| `/audit-performance`    | Audit source code for speed, memory use, and dtype predictability              |
+| `/audit-style`          | Audit files for style and convention compliance                                |
 
 ## Companion library synchronization
 
@@ -117,6 +109,13 @@ the corresponding change in `ataraxis-communication-interface`, and vice versa.
 - Test infrastructure, build system, and PlatformIO configuration
 - Arduino/Teensy-specific timing and `elapsedMicros` usage
 
+## Distribution model
+
+This project's agent assets ship separately from the library. All skills are distributed through the
+[ataraxis](https://github.com/Sun-Lab-NBB/ataraxis) marketplace. The `automation` plugin carries the style, audit, and
+workflow skills, and the `microcontroller` plugin carries `/firmware-module`. Report a skill defect against the
+ataraxis repository rather than against this one.
+
 ## Project context
 
 This is **ataraxis-micro-controller**, a C++17 PlatformIO library that provides a framework for integrating custom
@@ -127,63 +126,42 @@ logic. The library targets Arduino and Teensy microcontrollers within the
 
 ### Key areas
 
-| Directory    | Purpose                                                          |
-|--------------|------------------------------------------------------------------|
-| `src/`       | Library source code (4 headers + main.cpp development entry)     |
-| `test/`      | Unity test suite for Communication class                         |
-| `examples/`  | TestModule implementation and main.cpp integration example       |
-| `docs/`      | Sphinx + Breathe documentation source (consumes Doxygen XML)     |
+| Directory   | Purpose                                                      |
+|-------------|--------------------------------------------------------------|
+| `src/`      | Library source code (4 headers + main.cpp development entry) |
+| `test/`     | Unity test suite for Communication class                     |
+| `examples/` | TestModule implementation and main.cpp integration example   |
+| `docs/`     | Sphinx + Breathe documentation source (consumes Doxygen XML) |
 
 ### Architecture
 
 - **Kernel** (`kernel.h`): Main runtime manager that integrates custom module instances with the PC interface.
   Constructor takes `controller_id` (1-255), `Communication` reference, `Module` pointer array, and optional
-  `keepalive_interval` (milliseconds, 0 = disabled). `Setup()` initializes hardware and all modules; `RuntimeCycle()`
+  `keepalive_interval` (milliseconds, 0 = disabled). `Setup()` initializes hardware and all modules. `RuntimeCycle()`
   runs one iteration of the main loop. Internally routes received messages by protocol code: kernel commands are
   handled directly, module commands and parameters are dispatched to the target module via `(module_type, module_id)`
   lookup. Implements keepalive monitoring (two consecutive missed windows trigger emergency reset) and LED-based error
   indication (constant HIGH = transmission error, 2-second blink = setup error).
 - **Communication** (`communication.h`): Bidirectional message interface built on `TransportLayer` from
   `ataraxis-transport-layer-mc` with CRC-16 (polynomial 0x1021, initial 0xFFFF). Handles 13 message protocols
-  (`kProtocols` enum) and 252 data prototypes (`kPrototypes` enum). Provides `SendDataMessage()` (event code + typed
-  data payload), `SendStateMessage()` (event code only), `SendCommunicationErrorMessage()`, `SendServiceMessage()`
-  (reception codes, controller/module identification), and `ReceiveMessage()` (parses incoming protocol-specific
-  structures). `ExtractModuleParameters()` unpacks parameter payloads into user-defined structures.
+  (`kProtocols` enum) and 252 data prototypes (`kPrototypes` enum). Read `src/communication.h` for the send, receive,
+  and parameter extraction methods it exposes.
 - **Module** (`module.h`): Abstract base class for custom hardware modules. Constructor takes `module_type`,
-  `module_id`, and `Communication` reference. Three pure virtual methods: `SetupModule()` (hardware initialization),
-  `SetCustomParameters()` (unpack PC parameters), and `RunActiveCommand()` (execute active command). Manages command
-  execution state via `ExecutionControlParameters` struct tracking active command, stage, non-blocking mode, queued
-  command, and recurrent execution with configurable cycle delay. Public methods used by Kernel:
-  `QueueCommand()`, `ResolveActiveCommand()`, `ResetCommandQueue()`, `ResetExecutionParameters()`,
-  `SendCommandActivationError()`. Protected utility methods for subclass use: `get_active_command()`,
-  `get_command_stage()`, `CompleteCommand()`, `AbortCommand()`, `AdvanceCommandStage()`, `WaitForMicros()`,
-  `SendData()`, `ExtractParameters()`, `AnalogRead()`, `DigitalRead()`.
-- **Shared assets** (`axmc_shared_assets.h`): Two namespaces. `axmc_shared_assets` contains
-  `kCommunicationStatusCodes` enum. `axmc_communication_assets` contains `kProtocols` enum (13 message types),
-  `kPrototypes` enum (252 prototype codes), all `PACKED_STRUCT` message structures, the `kPrototypeLookup`
-  compile-time 2D lookup table, `ResolvePrototype<T>()` template function, and reimplemented type traits for
-  Arduino Mega compatibility (`is_array`, `array_extent`, `remove_extent`, `PrototypeTypeIndex`). Both namespaces
-  are brought into scope via `using namespace` in the library's source files.
-
-### Core components
-
-| Component                    | File                   | Purpose                                                     |
-|------------------------------|------------------------|-------------------------------------------------------------|
-| `Kernel`                     | `kernel.h`             | Runtime management, command routing, keepalive monitoring   |
-| `Communication`              | `communication.h`      | Bidirectional PC-microcontroller message handling           |
-| `Module`                     | `module.h`             | Abstract base class for custom hardware modules             |
-| `kProtocols`                 | `axmc_shared_assets.h` | 13 message protocol codes for PC-microcontroller exchange   |
-| `kPrototypes`                | `axmc_shared_assets.h` | 252 data prototype codes for type-safe serialization        |
-| `kPrototypeLookup`           | `axmc_shared_assets.h` | Compile-time 2D table mapping (count, type) to prototypes   |
-| `ResolvePrototype<T>()`      | `axmc_shared_assets.h` | Compile-time prototype resolution from C++ types            |
-| `ExecutionControlParameters` | `module.h`             | Command execution state tracking (stage, queue, recurrence) |
+  `module_id`, and `Communication` reference. Three pure virtual methods must be overridden by every subclass.
+  Manages command execution state via the `ExecutionControlParameters` struct, tracking active command, stage,
+  non-blocking mode, queued command, and recurrent execution with a configurable cycle delay. Read `src/module.h` for
+  the Kernel-facing methods and the protected utilities available to subclasses.
+- **Shared assets** (`axmc_shared_assets.h`): Two namespaces. `axmc_shared_assets` holds the communication status
+  codes, and `axmc_communication_assets` holds the protocol and prototype enums, the packed message structures, the
+  compile-time prototype lookup, and type traits reimplemented for Arduino Mega. Both namespaces are brought into
+  scope via `using namespace` in the library's source files. Read `src/axmc_shared_assets.h` for the full set.
 
 ### Key patterns
 
 - **Header-only library**: All source lives in `.h` files under `src/`. The `main.cpp` is excluded from library
   export and serves as a development entry point.
 - **Stage-based command execution**: Commands execute across multiple `RuntimeCycle()` iterations in discrete stages.
-  `AdvanceCommandStage()` transitions between stages; `WaitForMicros()` provides non-blocking delays. This enables
+  `AdvanceCommandStage()` transitions between stages. `WaitForMicros()` provides non-blocking delays. This enables
   cooperative multitasking across modules without threads or interrupts.
 - **Command queue priority**: Active command runs to completion first, then newly queued commands, then recurrent
   commands (if cycle delay has elapsed). `ResolveActiveCommand()` implements this priority chain.
@@ -192,11 +170,11 @@ logic. The library targets Arduino and Teensy microcontrollers within the
   assertions catch unsupported type/count combinations during compilation.
 - **PACKED_STRUCT serialization**: All message structures use `PACKED_STRUCT` for byte-level serialization with no
   compiler padding, ensuring binary compatibility with the companion Python library.
-- **Status code returns**: All operations return enum status codes rather than throwing exceptions, consistent with
-  embedded C++ patterns.
-- **Platform-conditional compilation**: `elapsedMillis` dependency is included only for non-Teensy boards; Teensy
+- **Status code returns**: Operations signal outcome through boolean returns and stored status codes rather than
+  throwing exceptions, consistent with embedded C++ patterns.
+- **Platform-conditional compilation**: `elapsedMillis` dependency is included only for non-Teensy boards. Teensy
   provides native `elapsedMicros`. Maximum data payload sizes vary by platform (Teensy: 248 bytes, Due: 244 bytes,
-  Mega: 52 bytes); the underlying serial buffers are larger (8192/256/64 bytes on Teensy/Due/Mega).
+  Mega: 52 bytes). The underlying serial buffers are larger (8192/256/64 bytes on Teensy/Due/Mega).
 - **`using namespace axmc_shared_assets;`** in source files is intentional for readability in the embedded context.
 - **LED error indication**: `LED_BUILTIN` is used as a fallback error channel when serial communication has failed.
 - **Module core status codes 0-3 are reserved** by the base `Module` class. Custom module status codes must use the
@@ -204,22 +182,22 @@ logic. The library targets Arduino and Teensy microcontrollers within the
 
 ### Dependencies
 
-| Library                      | Purpose                                              | Platforms                |
-|------------------------------|------------------------------------------------------|--------------------------|
-| Arduino.h                    | Core Arduino framework (Serial, Stream, types)       | All                      |
-| elapsedMillis                | Non-blocking timers on non-Teensy boards             | atmelsam, atmelavr       |
-| digitalWriteFast             | Fast GPIO read/write operations                      | All                      |
-| ataraxis-transport-layer-mc  | CRC-16 checksummed serial communication with COBS    | All                      |
+| Library                       | Purpose                                           | Platforms          |
+|-------------------------------|---------------------------------------------------|--------------------|
+| `Arduino.h`                   | Core Arduino framework (Serial, Stream, types)    | All                |
+| `elapsedMillis`               | Non-blocking timers on non-Teensy boards          | atmelsam, atmelavr |
+| `digitalWriteFast`            | Fast GPIO read/write operations                   | All                |
+| `ataraxis-transport-layer-mc` | CRC-16 checksummed serial communication with COBS | All                |
 
 ### Build system
 
-This is a PlatformIO library project. The `platformio.ini` defines three board environments:
+The `platformio.ini` defines three board environments:
 
-| Environment | Board          | Platform   | Monitor speed |
-|-------------|----------------|------------|---------------|
-| `teensy41`  | Teensy 4.1     | teensy     | 115200        |
-| `due`       | Arduino Due    | atmelsam   | 5250000       |
-| `mega`      | Arduino Mega   | atmelavr   | 1000000       |
+| Environment | Board        | Platform   | Monitor speed |
+|-------------|--------------|------------|---------------|
+| `teensy41`  | Teensy 4.1   | `teensy`   | 115200        |
+| `due`       | Arduino Due  | `atmelsam` | 5250000       |
+| `mega`      | Arduino Mega | `atmelavr` | 1000000       |
 
 All environments use the Arduino framework, Unity test framework, and `-std=c++17` build flag.
 
@@ -240,25 +218,25 @@ tox -e docs                      # Build Sphinx API documentation (Doxygen + Bre
 
 1. Review `src/kernel.h` for the current implementation
 2. Understand the message routing architecture: `ReceiveMessage()` parses protocol, `RunKernelCommand()` handles
-   kernel commands, `RunModuleCommands()` dispatches to modules via `ResolveTargetModule()`
-3. All status codes return via `SendServiceMessage()` or `SendDataMessage()` — do not introduce exception handling
-4. Keepalive logic uses a two-window miss threshold; modifying this affects safety guarantees
-5. LED error indication is a fallback — it must remain functional even when serial communication has failed
+   kernel commands, `ResolveTargetModule()` addresses module messages, `RunModuleCommands()` executes active commands
+3. All status codes return via `SendServiceMessage()` or `SendDataMessage()`. Do not introduce exception handling
+4. Keepalive logic uses a two-window miss threshold. Modifying this affects safety guarantees
+5. LED error indication is a fallback, so it must remain functional even when serial communication has failed
 
 **Modifying Communication:**
 
 1. Review `src/communication.h` for the current implementation
-2. Message structures are defined in `src/axmc_shared_assets.h` — changes to structure layout require companion
+2. Message structures are defined in `src/axmc_shared_assets.h`, and changes to structure layout require companion
    library synchronization
-3. `TransportLayer` from `ataraxis-transport-layer-mc` handles CRC and COBS — do not reimplement these
+3. `TransportLayer` from `ataraxis-transport-layer-mc` handles CRC and COBS. Do not reimplement these
 4. All 13 protocol codes must remain synchronized with `ataraxis-communication-interface`
-5. `ExtractModuleParameters()` uses template parameter deduction — the storage object type determines extraction
+5. `ExtractModuleParameters()` uses template parameter deduction, so the storage object type determines extraction
 
 **Implementing custom Module subclasses:**
 
 1. Invoke the `/firmware-module` skill for guided module creation
 2. Review `examples/example_module.h` for the TestModule reference implementation
-3. Override `SetupModule()`, `SetCustomParameters()`, and `RunActiveCommand()` — all three are required
+3. Override `SetupModule()`, `SetCustomParameters()`, and `RunActiveCommand()`. All three are required
 4. Use stage-based execution with `AdvanceCommandStage()` and `WaitForMicros()` for non-blocking operations
 5. Custom parameters must use `PACKED_STRUCT` for serialization and match the PC-side parameter structure exactly
 6. Custom status codes must be in the range 51-250 and unique within the module class
@@ -266,9 +244,9 @@ tox -e docs                      # Build Sphinx API documentation (Doxygen + Bre
 **Modifying prototype resolution:**
 
 1. Review the `kPrototypes` enum and `kPrototypeLookup` table in `src/axmc_shared_assets.h`
-2. `PrototypeTypeIndex<T>()` maps scalar types to row indices (11 types: bool through double)
+2. `PrototypeTypeIndex<T>()` maps scalar types to column indices (11 types: bool through double)
 3. `ResolvePrototype<T>()` handles both scalar types and C-style arrays via `is_array` trait detection
-4. Adding new prototype entries requires updating both the enum, the lookup table, and the companion Python library
+4. Adding new prototype entries requires updating the enum, the lookup table, and the companion Python library
 5. Maximum payload size is constrained by `TransportLayer` buffer sizes (platform-dependent)
 
 **Important considerations:**
@@ -276,7 +254,7 @@ tox -e docs                      # Build Sphinx API documentation (Doxygen + Bre
 - Maximum data payload size varies by platform: Teensy (248 bytes), Due (244 bytes), Mega (52 bytes). These are the
   data-object limits (`kMaximumPayloadSize - sizeof(ModuleData)`), not the raw serial buffer sizes (8192/256/64 bytes)
 - The reimplemented type traits in `axmc_shared_assets.h` exist because Arduino Mega lacks `<type_traits>`
-- `library.json` controls what gets exported to the PlatformIO registry — `main.cpp` is explicitly excluded
-- Controller ID 0 is reserved; valid range is 1-255
-- Module type and module ID are both `uint8_t` — the `(type, id)` pair must be unique across all modules managed by
+- `library.json` controls what gets exported to the PlatformIO registry, and `main.cpp` is explicitly excluded
+- Controller ID 0 is reserved, and the valid range is 1-255
+- Module type and module ID are both `uint8_t`, and the `(type, id)` pair must be unique across all modules managed by
   a single Kernel instance

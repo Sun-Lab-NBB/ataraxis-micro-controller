@@ -13,6 +13,7 @@ INPUT                  = src/axmc_shared_assets.h \
                          src/communication.h
 GENERATE_XML           = YES
 XML_OUTPUT             = xml
+GENERATE_LATEX         = NO
 ENABLE_PREPROCESSING   = YES
 MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = NO

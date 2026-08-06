@@ -21,19 +21,27 @@
 #include <elapsedMillis.h>
 #include "communication.h"
 
+// The digitalWriteFast library aliases digitalWriteFast and digitalReadFast to the standard Arduino functions on every
+// non-AVR target. Teensy boards ship always-inline register-level implementations of both, so removing the aliases
+// exposes them. The pinModeFast alias is kept, as Teensy provides no fast counterpart for it.
+#if defined(CORE_TEENSY)
+#undef digitalWriteFast
+#undef digitalReadFast
+#endif
+
 /**
  * @brief Provides the API used by other library components to integrate any custom hardware module class with
  * the interface running on the companion host-computer (PC).
  *
  * Any class that inherits from this base class gains the API used by the Kernel and Communication classes to enable
- * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC)
+ * bidirectionally interfacing with the module via the interface running on the companion host-computer (PC).
  *
  * @warning Every custom module class @b has to inherit from this base class. Follow this instantiation order when
  * writing the main .cpp / .ino file for the controller: Communication → Module(s) → Kernel. See the /examples folder
  * for details.
  *
  * @note Use the utility methods inherited from the base Module class and stage-based command design pattern to ensure
- * that the custom module implementation is compatible with non-blocking runtime mode. See the ReadMe for more
+ * that the custom module implementation is compatible with non-blocking runtime mode. See the README for more
  * information about non-blocking runtime support.
  */
 class Module
@@ -97,161 +105,7 @@ class Module
             _module_type(module_type), _module_id(module_id), _communication(communication)
         {}
 
-        // These methods are used by the Kernel class to manage the runtime of the custom hardware module instances that
-        // inherit from this base class.
-
-        /**
-         * @brief Queues the input command to be executed by the Module during the next runtime cycle iteration.
-         *
-         * @warning If the module already has a queued command, this method replaces that command with the input
-         * command data.
-         *
-         * @param command The command to execute.
-         * @param noblock Determines whether the queued command should run in blocking or non-blocking mode.
-         * @param cycle_delay The delay, in microseconds, before repeating (cycling) the command. Only provide this
-         * argument when queueing a recurrent command.
-         */
-        void QueueCommand(const uint8_t command, const bool noblock, const uint32_t cycle_delay)
-        {
-            _execution_parameters.next_command    = command;
-            _execution_parameters.next_noblock    = noblock;
-            _execution_parameters.run_recurrently = true;
-            _execution_parameters.recurrent_delay = cycle_delay;
-            _execution_parameters.new_command     = true;
-        }
-
-        /// Overloads the QueueCommand() method for queueing non-cyclic commands.
-        void QueueCommand(const uint8_t command, const bool noblock)
-        {
-            _execution_parameters.next_command    = command;
-            _execution_parameters.next_noblock    = noblock;
-            _execution_parameters.run_recurrently = false;
-            _execution_parameters.recurrent_delay = 0;
-            _execution_parameters.new_command     = true;
-        }
-
-        /**
-         * @brief Resets the module's command queue.
-         *
-         * @note Calling this method does not abort already running commands: they are allowed to finish gracefully.
-         */
-        void ResetCommandQueue()
-        {
-            _execution_parameters.next_command    = 0;
-            _execution_parameters.next_noblock    = false;
-            _execution_parameters.run_recurrently = false;
-            _execution_parameters.recurrent_delay = 0;
-            _execution_parameters.new_command     = false;
-        }
-
-        /**
-         * @brief If possible, ensures that the module has an active command to execute.
-         *
-         * @note Uses the following order of preference to activate (execute) a command:
-         * finish already running commands > run new commands > repeat a previously executed recurrent command.
-         * When repeating recurrent commands, the method ensures the recurrent timeout has expired before reactivating
-         * the command.
-         *
-         * @returns true if the module has a command to execute, false otherwise.
-         */
-        bool ResolveActiveCommand()
-        {
-            // If the command field is not 0, this means there is already an active command being executed and no
-            // further action is necessary.
-            if (_execution_parameters.command != 0) return true;
-
-            // If there is no active command and the next_command field is set to 0, this means that the module does
-            // not have any new or recurrent commands to execute.
-            if (_execution_parameters.next_command == 0) return false;
-
-            // If there is a next command in the queue and the new_command flag is set to true, activates the queued
-            // command without any further condition.
-            if (_execution_parameters.new_command)
-            {
-                // Transfers the command and the noblock flag from buffer fields to active fields
-                _execution_parameters.command = _execution_parameters.next_command;
-                _execution_parameters.noblock = _execution_parameters.next_noblock;
-
-                // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
-                // should start with stage 1, as stage 0 is reserved for communicating no active commands sate.
-                _execution_parameters.stage = 1;
-
-                // Removes the new_command flag to indicate that the new command has been consumed.
-                _execution_parameters.new_command = false;
-
-                return true;  // Returns true to indicate there is a command to run.
-            }
-
-            // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
-            // number of microseconds has passed, re-activates the previously executed command. Note, the
-            // next_command != 0 check is here to support correct behavior in response to Dequeue command, which sets
-            // the next_command field to 0 and should be able to abort cyclic and non-cyclic command execution.
-            if (_execution_parameters.run_recurrently &&
-                _execution_parameters.recurrent_timer > _execution_parameters.recurrent_delay &&
-                _execution_parameters.next_command != 0)
-            {
-                // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
-                _execution_parameters.command = _execution_parameters.next_command;
-                _execution_parameters.noblock = _execution_parameters.next_noblock;
-                _execution_parameters.stage   = 1;
-                return true;  // Indicates there is a command to run.
-            }
-
-            // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
-            // Returns false to indicate that no command was activated.
-            return false;
-        }
-
-        /**
-         * @brief Resets the module's command queue and aborts any currently running commands.
-         */
-        void ResetExecutionParameters()
-        {
-            // Resets the _execution_parameters structure back to default values
-            _execution_parameters.command         = 0;
-            _execution_parameters.stage           = 0;
-            _execution_parameters.noblock         = false;
-            _execution_parameters.next_command    = 0;
-            _execution_parameters.next_noblock    = false;
-            _execution_parameters.new_command     = false;
-            _execution_parameters.run_recurrently = false;
-            _execution_parameters.recurrent_delay = 0;
-            _execution_parameters.recurrent_timer = 0;
-            _execution_parameters.delay_timer     = 0;
-        }
-
-        /// Returns the ID of the instance.
-        [[nodiscard]]
-        uint8_t get_module_id() const
-        {
-            return _module_id;
-        }
-
-        /// Returns the type (family ID) of the instance.
-        [[nodiscard]]
-        uint8_t get_module_type() const
-        {
-            return _module_type;
-        }
-
-        /// Returns the combined type and id value of the instance.
-        [[nodiscard]]
-        uint16_t get_module_type_id() const
-        {
-            return _module_type_id;
-        }
-
-        /**
-         * @brief Sends an error message to notify the PC that the instance did not recognize the active command.
-         */
-        void SendCommandActivationError() const
-        {
-            // Sends an error message that uses the unrecognized command code as 'command' and a 'not recognized' error
-            // code as the event.
-            SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
-        }
-
-        // These methods allow the Kernel class to interface with the custom logic of each custom hardware module
+        // Interfaces the Kernel class with the custom logic of each custom hardware module
         // instance, integrating them with the rest of the library components. The implementation of these methods
         // relies on the end user as it has to be specific to each custom hardware module.
 
@@ -296,15 +150,207 @@ class Module
          */
         virtual bool SetupModule() = 0;
 
+        // Manages the runtime of the custom hardware module instances that inherit from this base class. The Kernel
+        // class calls these methods.
+
+        /**
+         * @brief Queues the input command to be executed by the Module during the next runtime cycle iteration.
+         *
+         * @warning If the module already has a queued command, this method replaces that command with the input
+         * command data.
+         *
+         * @note When the replaced command is a recurrent command that is idle between repetitions, this method sends
+         * a completion message for that command to the PC.
+         *
+         * @param command The command to execute.
+         * @param noblock Determines whether the queued command should run in blocking or non-blocking mode.
+         * @param cycle_delay The delay, in microseconds, before repeating (cycling) the command. Only provide this
+         * argument when queueing a recurrent command.
+         */
+        void QueueCommand(const uint8_t command, const bool noblock, const uint32_t cycle_delay)
+        {
+            // Retires the recurrent command this one replaces, if it is waiting between repetitions.
+            ReportRetiredRecurrentCommand();
+
+            _execution_parameters.next_command    = command;
+            _execution_parameters.next_noblock    = noblock;
+            _execution_parameters.run_recurrently = true;
+            _execution_parameters.recurrent_delay = cycle_delay;
+            _execution_parameters.new_command     = true;
+        }
+
+        /// Overloads the QueueCommand() method for queueing non-cyclic commands.
+        void QueueCommand(const uint8_t command, const bool noblock)
+        {
+            // Retires the recurrent command this one replaces, if it is waiting between repetitions.
+            ReportRetiredRecurrentCommand();
+
+            _execution_parameters.next_command    = command;
+            _execution_parameters.next_noblock    = noblock;
+            _execution_parameters.run_recurrently = false;
+            _execution_parameters.recurrent_delay = 0;
+            _execution_parameters.new_command     = true;
+        }
+
+        /**
+         * @brief Resets the module's command queue.
+         *
+         * @note Calling this method does not abort already running commands: they are allowed to finish gracefully.
+         *
+         * @note When the queue holds a recurrent command that is idle between repetitions, this method sends a
+         * completion message for that command to the PC.
+         */
+        void ResetCommandQueue()
+        {
+            // Retires the recurrent command this reset cancels, if it is waiting between repetitions.
+            ReportRetiredRecurrentCommand();
+
+            _execution_parameters.next_command    = 0;
+            _execution_parameters.next_noblock    = false;
+            _execution_parameters.run_recurrently = false;
+            _execution_parameters.recurrent_delay = 0;
+            _execution_parameters.new_command     = false;
+        }
+
+        /**
+         * @brief If possible, ensures that the module has an active command to execute.
+         *
+         * @note Uses the following order of preference to activate (execute) a command:
+         * finish already running commands > run new commands > repeat a previously executed recurrent command.
+         * When repeating recurrent commands, the method ensures the recurrent timeout has expired before reactivating
+         * the command.
+         *
+         * @returns true if the module has a command to execute, false otherwise.
+         */
+        bool ResolveActiveCommand()
+        {
+            // If the command field is not 0, this means there is already an active command being executed and no
+            // further action is necessary.
+            if (_execution_parameters.command != 0) return true;
+
+            // If there is no active command and the next_command field is set to 0, this means that the module does
+            // not have any new or recurrent commands to execute.
+            if (_execution_parameters.next_command == 0) return false;
+
+            // If there is a next command in the queue and the new_command flag is set to true, activates the queued
+            // command without any further condition.
+            if (_execution_parameters.new_command)
+            {
+                // Transfers the command and the noblock flag from buffer fields to active fields
+                _execution_parameters.command = _execution_parameters.next_command;
+                _execution_parameters.noblock = _execution_parameters.next_noblock;
+
+                // Sets active command stage to 1, which is a secondary activation mechanism. All multi-stage commands
+                // should start with stage 1, as stage 0 is reserved for communicating no active commands state.
+                _execution_parameters.stage = 1;
+
+                // Removes the new_command flag to indicate that the new command has been consumed.
+                _execution_parameters.new_command = false;
+
+                return true;
+            }
+
+            // If no new command is available, recurrent activation is enabled, and the requested recurrent_delay
+            // number of microseconds has passed, re-activates the previously executed command. Note, the
+            // next_command != 0 check is here to support correct behavior in response to Dequeue command, which sets
+            // the next_command field to 0 and should be able to abort cyclic and non-cyclic command execution. The
+            // elapsed-time check is inclusive, as the timer and the delay share the same 32-bit width, so a strict
+            // comparison would make the largest representable delay unreachable and stop the command from repeating.
+            if (_execution_parameters.run_recurrently &&
+                _execution_parameters.recurrent_timer >= _execution_parameters.recurrent_delay &&
+                _execution_parameters.next_command != 0)
+            {
+                // Repeats the activation steps from above, minus the new_command flag modification (command is not new)
+                _execution_parameters.command = _execution_parameters.next_command;
+                _execution_parameters.noblock = _execution_parameters.next_noblock;
+                _execution_parameters.stage   = 1;
+                return true;
+            }
+
+            // The only way to reach this point is to have a recurrent command with an unexpired recurrent delay timer.
+            // Returns false to indicate that no command was activated.
+            return false;
+        }
+
+        /// Resets the module's command queue and aborts any currently running commands.
+        void ResetExecutionParameters()
+        {
+            _execution_parameters.command         = 0;
+            _execution_parameters.stage           = 0;
+            _execution_parameters.noblock         = false;
+            _execution_parameters.next_command    = 0;
+            _execution_parameters.next_noblock    = false;
+            _execution_parameters.new_command     = false;
+            _execution_parameters.run_recurrently = false;
+            _execution_parameters.recurrent_delay = 0;
+            _execution_parameters.recurrent_timer = 0;
+            _execution_parameters.delay_timer     = 0;
+        }
+
+        /// Returns the ID of the instance.
+        [[nodiscard]]
+        uint8_t get_module_id() const
+        {
+            return _module_id;
+        }
+
+        /// Returns the type (family ID) of the instance.
+        [[nodiscard]]
+        uint8_t get_module_type() const
+        {
+            return _module_type;
+        }
+
+        /// Returns the combined type and id value of the instance.
+        [[nodiscard]]
+        uint16_t get_module_type_id() const
+        {
+            return _module_type_id;
+        }
+
+        /// Sends an error message to notify the PC that the instance did not recognize the active command.
+        void SendCommandActivationError() const
+        {
+            // Sends an error message that uses the unrecognized command code as 'command' and a 'not recognized' error
+            // code as the event.
+            SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
+        }
+
+        /**
+         * @brief Sends an error message to notify the PC that the instance cannot execute the command with the input
+         * code.
+         *
+         * Attributes the message to the input command code rather than to the active command, leaving the command the
+         * instance is currently executing undisturbed.
+         *
+         * @param command The code of the rejected command.
+         */
+        void SendCommandRejection(const uint8_t command) const
+        {
+            SendEvent(command, static_cast<uint8_t>(kCoreStatusCodes::kCommandNotRecognized));
+        }
+
+        /**
+         * @brief Terminates the active command without notifying the PC that it has been completed.
+         *
+         * @warning The active command is cleared without a completion message, so the caller reports the command's
+         * outcome to the PC.
+         */
+        void DiscardActiveCommand()
+        {
+            _execution_parameters.command = 0;
+            // Stage 0 is not a valid command stage, so it doubles as the deactivation marker.
+            _execution_parameters.stage = 0;
+        }
+
         /// Destroys the instance during cleanup.
         virtual ~Module() = default;
 
     protected:
-        // These methods are designed to help end users with writing custom module classes. They are not accessed by
-        // the Kernel class and are not required for integrating the custom module with the rest of the library. It is
-        // highly recommended to use these utility methods where appropriate, as they are required for the custom
-        // modules to support the full range of features provided by the library, such as non-blocking module command
-        // execution.
+        // Helps end users write custom module classes. The Kernel class does not access these methods, and they are
+        // not required for integrating the custom module with the rest of the library. Use them where appropriate, as
+        // they are required for custom modules to support the full range of features the library provides, such as
+        // non-blocking module command execution.
 
         /// Returns the active (running) command's code or 0, if there are no active commands.
         [[nodiscard]]
@@ -343,10 +389,8 @@ class Module
         [[nodiscard]]
         uint8_t get_command_stage() const
         {
-            // If there is an actively executed command, returns its stage
             if (_execution_parameters.command != 0) return _execution_parameters.stage;
 
-            // Otherwise returns 0 to indicate there is no actively running command
             return 0;
         }
 
@@ -373,8 +417,9 @@ class Module
                 SendData(static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
             }
 
-            _execution_parameters.command = 0;  // Removes active command code
-            _execution_parameters.stage   = 0;  // Secondary deactivation step, stage 0 is not a valid command stage
+            _execution_parameters.command = 0;
+            // Stage 0 is not a valid command stage, so it doubles as the deactivation marker.
+            _execution_parameters.stage = 0;
             _execution_parameters.recurrent_timer =
                 0;  // Resets the recurrent command timer when the command is completed
 
@@ -386,60 +431,64 @@ class Module
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified analog pin.
          *
-         * @param pin The analog pin to read.
+         * @tparam kPin The analog pin to read.
          * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
          * @returns The read analog value.
          */
+        template <const uint8_t kPin>
         [[nodiscard]]
-        static uint16_t AnalogRead(const uint8_t pin, const uint16_t pool_size = 0)
+        static uint16_t AnalogRead(const uint16_t pool_size = 0)
         {
-            uint16_t average_readout;  // Pre-declares the final output readout
+            uint16_t average_readout;
 
             // Pool size 0 and 1 essentially mean the same: no averaging
             if (pool_size < 2)
             {
-                // If averaging is disabled, reads and outputs the acquired value.
-                average_readout = analogRead(pin);
+                average_readout = analogRead(kPin);
             }
             else
             {
                 uint32_t accumulated_readouts = 0;  // Aggregates polled values by self-addition
 
                 // If averaging is enabled, repeatedly polls the pin the requested number of times.
-                for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
+                for (auto index = decltype(pool_size) {0}; index < pool_size; index++)
                 {
-                    accumulated_readouts += analogRead(pin);  // Aggregates readouts
+                    accumulated_readouts += analogRead(kPin);
                 }
 
                 // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
-                // boards without an FP module, Teensies technically can handle floating point arithmetic just as
+                // boards without an FP module. Teensies technically can handle floating point arithmetic just as
                 // efficiently. Adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
                 average_readout = static_cast<uint16_t>((accumulated_readouts + pool_size / 2) / pool_size);
             }
 
-            return average_readout;  // Returns the final averaged or raw readout
+            return average_readout;
         }
 
         /**
          * @brief Polls and (optionally) averages the value(s) of the specified digital pin.
          *
-         * @param pin The digital pin to read.
+         * The pin is a template parameter, so the compile-time constant it carries resolves the register-level read
+         * path that AVR and Teensy boards expose. Arduino Due exposes no such path, so it reads through digitalRead.
+         *
+         * @tparam kPin The digital pin to read.
          * @param pool_size The number of pin readout values to average into the returned value. Set to 0 or 1 to
          * disable averaging.
          *
          * @returns The read digital value as true (HIGH) or false (LOW).
          */
+        template <const uint8_t kPin>
         [[nodiscard]]
-        static bool DigitalRead(const uint8_t pin, const uint16_t pool_size = 0)
+        static bool DigitalRead(const uint16_t pool_size = 0)
         {
-            bool digital_readout;  // Pre-declares the final output readout
+            bool digital_readout;
 
             // Reads the physical sensor value.
             if (pool_size < 2)
             {
-                digital_readout = digitalReadFast(pin);
+                digital_readout = digitalReadFast(kPin);
             }
             else
             {
@@ -447,13 +496,13 @@ class Module
 
                 // If averaging is enabled, repeatedly polls the pin the requested number of times. 'i' always uses
                 // the same type as pool_size.
-                for (auto i = decltype(pool_size) {0}; i < pool_size; i++)
+                for (auto index = decltype(pool_size) {0}; index < pool_size; index++)
                 {
-                    accumulated_readouts += digitalReadFast(pin);  // Aggregates readouts via self-addition
+                    accumulated_readouts += digitalReadFast(kPin);
                 }
 
                 // Averages and rounds the final readout to avoid dealing with floating point math. This favors Arduino
-                // boards without an FP module, Teensies technically can handle floating point arithmetic just as
+                // boards without an FP module. Teensies technically can handle floating point arithmetic just as
                 // efficiently. Adding pool_size/2 before dividing by pool_size forces half-up ('standard') rounding.
                 digital_readout = static_cast<bool>((accumulated_readouts + pool_size / 2) / pool_size);
             }
@@ -470,27 +519,31 @@ class Module
          * delay has passed or function as a non-blocking check for whether the required duration of microseconds has
          * passed.
          *
-         * @param delay_duration The delay duration, in microseconds.
+         * @param delay_duration The delay duration, in microseconds. Durations at or above kMaximumDelayDuration are
+         * clamped to that value, as the stage delay timer has to exceed the duration for the blocking wait to end.
          */
         [[nodiscard]]
         bool WaitForMicros(const uint32_t delay_duration) const
         {
+            // Clamps the requested duration to the largest interval the 32-bit stage timer can exceed. Without this
+            // step, a duration equal to the timer's maximum representable value would make the blocking loop below a
+            // tautology, hanging the controller until it is power-cycled.
+            const uint32_t bounded_duration = min(delay_duration, kMaximumDelayDuration);
+
             // If the caller command is executed in blocking mode, blocks in-place until the requested duration has
             // passed
             if (!_execution_parameters.noblock)
             {
-                // Blocks until delay_duration has passed
-                while (_execution_parameters.delay_timer <= delay_duration);
+                while (_execution_parameters.delay_timer <= bounded_duration);
             }
 
             // Evaluates whether the requested number of microseconds has passed. If the duration was enforced above,
             // this check will always be true.
-            if (_execution_parameters.delay_timer >= delay_duration)
+            if (_execution_parameters.delay_timer >= bounded_duration)
             {
                 return true;
             }
 
-            // If the requested duration has not passed, returns false
             return false;
         }
 
@@ -544,19 +597,7 @@ class Module
          */
         void SendData(const uint8_t event_code) const
         {
-            // Packages and sends the data to the connected system via the Communication class. If the message was
-            // sent, ends the runtime
-            if (_communication.SendStateMessage(_module_type, _module_id, _execution_parameters.command, event_code))
-                return;
-
-            // If the message was not sent, calls a method that attempts to send a communication error message to the
-            // PC and turns on the built-in LED to visually indicate the error.
-            _communication.SendCommunicationErrorMessage(
-                _module_type,
-                _module_id,
-                _execution_parameters.command,
-                static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
-            );
+            SendEvent(_execution_parameters.command, event_code);
         }
 
         /**
@@ -574,6 +615,11 @@ class Module
         }
 
     private:
+        /// Stores the largest stage delay, in microseconds, that WaitForMicros() accepts. The stage delay timer is a
+        /// 32-bit microsecond counter, so this is one below its maximum representable value, which keeps every
+        /// accepted duration one the timer can exceed.
+        static constexpr uint32_t kMaximumDelayDuration = UINT32_MAX - 1;
+
         /// Stores the instance's type (family) identifier code.
         const uint8_t _module_type;
 
@@ -582,13 +628,63 @@ class Module
 
         /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance
         /// active at the same time.
-        const uint16_t _module_type_id = _module_type << 8 | _module_id;
+        const uint16_t _module_type_id =
+            static_cast<uint16_t>(static_cast<uint16_t>(_module_type) << 8U | static_cast<uint16_t>(_module_id));
 
         /// Stores the Communication instance used to send module runtime data to the PC.
         Communication& _communication;
 
         /// Stores instance-specific runtime flow control parameters.
         ExecutionControlParameters _execution_parameters;
+
+        /**
+         * @brief Packages and sends the provided event code to the PC, attributing it to the provided command code.
+         *
+         * Backs SendData(), SendCommandRejection(), and ReportRetiredRecurrentCommand(), which differ in the command
+         * and event codes they report.
+         *
+         * @param command The command code to report as the source of the event.
+         * @param event_code The code of the event that triggered the data transmission.
+         */
+        void SendEvent(const uint8_t command, const uint8_t event_code) const
+        {
+            // Packages and sends the data to the connected system via the Communication class. If the message was
+            // sent, ends the runtime
+            if (_communication.SendStateMessage(_module_type, _module_id, command, event_code)) return;
+
+            // If the message was not sent, calls a method that attempts to send a communication error message to the
+            // PC and turns on the built-in LED to visually indicate the error.
+            _communication.SendCommunicationErrorMessage(
+                _module_type,
+                _module_id,
+                command,
+                static_cast<uint8_t>(kCoreStatusCodes::kTransmissionError)
+            );
+        }
+
+        /**
+         * @brief If the instance holds a recurrent command that is waiting between repetitions, notifies the PC that
+         * the command has been completed.
+         *
+         * CompleteCommand() reports the retirement of a recurrent command only when that command is mid-execution at
+         * the moment it is canceled or replaced. A recurrent command spends most of its life idle between
+         * repetitions, and a cancellation that lands in that window retires the command without any of its stages
+         * running. This method supplies the completion message CompleteCommand() has no opportunity to send.
+         */
+        void ReportRetiredRecurrentCommand() const
+        {
+            // Does nothing unless a recurrent command is queued and is not currently executing. A command that is
+            // executing reports its own completion through CompleteCommand().
+            if (_execution_parameters.command != 0 || !_execution_parameters.run_recurrently ||
+                _execution_parameters.next_command == 0)
+            {
+                return;
+            }
+
+            // Reports the queued command's code, as the active command field is empty while the command waits for its
+            // next repetition.
+            SendEvent(_execution_parameters.next_command, static_cast<uint8_t>(kCoreStatusCodes::kCommandCompleted));
+        }
 };
 
-#endif  //AXMC_MODULE_H
+#endif  // AXMC_MODULE_H

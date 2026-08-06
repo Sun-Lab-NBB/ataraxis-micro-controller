@@ -17,7 +17,10 @@
 #define AXMC_EXAMPLE_MODULE_H
 
 #include <Arduino.h>
-#include "module.h"
+#include <module.h>
+
+/// Specifies the default value for the digital pin template parameter of the TestModule class.
+static constexpr uint8_t kTestModuleDefaultPin = 5;
 
 /**
  * @brief Sends square digital pulses and echoes parameter values to the PC in response to commands received from the
@@ -25,7 +28,7 @@
  *
  * @tparam kPin The digital pin managed by this module instance.
  */
-template <const uint8_t kPin = 5>
+template <const uint8_t kPin = kTestModuleDefaultPin>
 class TestModule final : public Module
 {
     public:
@@ -73,9 +76,9 @@ class TestModule final : public Module
             pinMode(kPin, OUTPUT);
             digitalWrite(kPin, LOW);
 
-            _custom_parameters.on_duration  = 2000000;
-            _custom_parameters.off_duration = 2000000;
-            _custom_parameters.echo_value   = 123;
+            // Restores the parameter defaults, as the Kernel also runs this method when the PC requests a
+            // controller reset and when the keepalive monitor detects a lost PC connection.
+            _custom_parameters = {};
 
             return true;
         }
@@ -133,4 +136,4 @@ class TestModule final : public Module
         }
 };
 
-#endif  //AXMC_EXAMPLE_MODULE_H
+#endif  // AXMC_EXAMPLE_MODULE_H

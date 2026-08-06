@@ -13,6 +13,8 @@
 #include "crc_processor.h"
 #include "stream_mock.h"
 
+using namespace axmc_communication_assets;
+
 /// The byte capacity of the mock serial stream used to back the Communication instance in each test.
 static constexpr uint16_t kTestBufferSize = 60;
 
@@ -20,15 +22,15 @@ static constexpr uint16_t kTestBufferSize = 60;
 /// produces exceeds this capacity, which forces the stream to accept only a part of the packet.
 static constexpr uint16_t kTruncatingBufferSize = 4;
 
-// This function is called automatically before each test function. Currently not used.
+/// Called automatically before each test function. Currently unused.
 void setUp()
 {}
 
-// This function is called automatically after each test function. Currently not used.
+/// Called automatically after each test function. Currently unused.
 void tearDown()
 {}
 
-// Verifies the Communication's SendDataMessage() method.
+/// Verifies the Communication's SendDataMessage() method.
 void test_send_data_message()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -46,7 +48,7 @@ void test_send_data_message()
 
     // Kernel test
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelData);
-    communication_class.SendDataMessage(command, event_code, test_object);
+    TEST_ASSERT_TRUE(communication_class.SendDataMessage(command, event_code, test_object));
     constexpr uint16_t expected_kernel[6] = {kernel_protocol, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -61,7 +63,7 @@ void test_send_data_message()
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleData);
-    communication_class.SendDataMessage(module_type, module_id, command, event_code, test_object);
+    TEST_ASSERT_TRUE(communication_class.SendDataMessage(module_type, module_id, command, event_code, test_object));
     constexpr uint16_t expected_module[8] =
         {module_protocol, module_type, module_id, command, event_code, prototype_code, test_object, 0};
     TEST_ASSERT_EQUAL_UINT8(
@@ -74,7 +76,7 @@ void test_send_data_message()
     }
 }
 
-// Verifies the Communication's SendStateMessage() method.
+/// Verifies the Communication's SendStateMessage() method.
 void test_send_state_message()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -87,7 +89,7 @@ void test_send_state_message()
     constexpr uint8_t event_code  = 221;  // Example event code
 
     constexpr uint16_t kernel_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kKernelState);
-    communication_class.SendStateMessage(command, event_code);
+    TEST_ASSERT_TRUE(communication_class.SendStateMessage(command, event_code));
     constexpr uint16_t expected_kernel[4] = {kernel_protocol, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -102,7 +104,7 @@ void test_send_state_message()
 
     // Module test
     constexpr uint16_t module_protocol = static_cast<uint8_t>(axmc_communication_assets::kProtocols::kModuleState);
-    communication_class.SendStateMessage(module_type, module_id, command, event_code);
+    TEST_ASSERT_TRUE(communication_class.SendStateMessage(module_type, module_id, command, event_code));
     constexpr uint16_t expected_module[6] = {module_protocol, module_type, module_id, command, event_code, 0};
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -114,7 +116,7 @@ void test_send_state_message()
     }
 }
 
-// Verifies the Communication's SendCommunicationErrorMessage() method.
+/// Verifies the Communication's SendCommunicationErrorMessage() method.
 void test_send_communication_error_message()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -169,7 +171,7 @@ void test_send_communication_error_message()
     }
 }
 
-// Verifies the Communication's SendServiceMessage() method for all valid protocols.
+/// Verifies the Communication's SendServiceMessage() method for all valid protocols.
 void test_send_service_message()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -182,7 +184,9 @@ void test_send_service_message()
         static_cast<uint8_t>(axmc_communication_assets::kProtocols::kReceptionCode),
         service_code
     };
-    communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code);
+    TEST_ASSERT_TRUE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kReceptionCode>(service_code)
+    );
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
         communication_class.get_communication_status()
@@ -199,8 +203,10 @@ void test_send_service_message()
         static_cast<uint8_t>(axmc_communication_assets::kProtocols::kControllerIdentification),
         service_code
     };
-    communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(
-        service_code
+    TEST_ASSERT_TRUE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kControllerIdentification>(
+            service_code
+        )
     );
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -220,8 +226,10 @@ void test_send_service_message()
         44,
         1
     };
-    communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(
-        module_type_id
+    TEST_ASSERT_TRUE(
+        communication_class.SendServiceMessage<axmc_communication_assets::kProtocols::kModuleIdentification>(
+            module_type_id
+        )
     );
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kMessageSent),
@@ -233,7 +241,7 @@ void test_send_service_message()
     }
 }
 
-// Verifies that the Communication class reports a transmission error when the serial interface truncates the packet.
+/// Verifies that the Communication class reports a transmission error when the serial interface truncates the packet.
 void test_send_message_transmission_error()
 {
     StreamMock<kTruncatingBufferSize> mock_port;
@@ -278,7 +286,7 @@ void test_send_message_transmission_error()
     );
 }
 
-// Verifies the Communication's ReceiveMessage() method.
+/// Verifies the Communication's ReceiveMessage() method.
 void test_receive_message()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -416,7 +424,7 @@ void test_receive_message()
     mock_port.Reset();
 }
 
-// Verifies the error-handling behavior of the Communication's ReceiveMessage() method.
+/// Verifies the error-handling behavior of the Communication's ReceiveMessage() method.
 void test_receive_message_errors()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -485,7 +493,7 @@ void test_receive_message_errors()
     );
 }
 
-// Verifies the Communication's ExtractModuleParameters() method.
+/// Verifies the Communication's ExtractModuleParameters() method.
 void test_extract_module_parameters()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -509,7 +517,7 @@ void test_extract_module_parameters()
 
     // Receives the message, extracts and verifies parameter data.
     communication_class.ReceiveMessage();
-    communication_class.ExtractModuleParameters(extract_data);
+    TEST_ASSERT_TRUE(communication_class.ExtractModuleParameters(extract_data));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
         communication_class.get_communication_status()
@@ -544,9 +552,9 @@ void test_extract_module_parameters()
             uint8_t data[5] = {};
     } PACKED_STRUCT test_structure;  // Has to be packed to properly align the data
 
-    // Call the ExtractParameters function, expecting a successful extraction
+    // Calls ExtractModuleParameters(), expecting a successful extraction.
     communication_class.ReceiveMessage();
-    communication_class.ExtractModuleParameters(test_structure);
+    TEST_ASSERT_TRUE(communication_class.ExtractModuleParameters(test_structure));
     TEST_ASSERT_EQUAL_UINT8(
         static_cast<uint8_t>(axmc_shared_assets::kCommunicationStatusCodes::kParametersExtracted),
         communication_class.get_communication_status()
@@ -562,7 +570,7 @@ void test_extract_module_parameters()
     TEST_ASSERT_EQUAL_UINT8_ARRAY(expected_data_2, test_structure.data, sizeof(expected_data_2));
 }
 
-// Verifies the error-handling behavior of the Communication's ExtractModuleParameters() method.
+/// Verifies the error-handling behavior of the Communication's ExtractModuleParameters() method.
 void test_extract_module_parameters_errors()
 {
     StreamMock<kTestBufferSize> mock_port;
@@ -598,7 +606,7 @@ void test_extract_module_parameters_errors()
     // block inside the serial buffer raises a kParameterMismatch error.
     communication_class.set_protocol_code(5);  // Manually sets the protocol code to kModuleParameters
 
-    // Prototype is larger than stored data size
+    // The prototype is larger than the stored data size
     uint8_t invalid_prototype_2[12] = {};
     TEST_ASSERT_FALSE(communication_class.ExtractModuleParameters(invalid_prototype_2));
     TEST_ASSERT_EQUAL_UINT8(
@@ -607,58 +615,158 @@ void test_extract_module_parameters_errors()
     );
 }
 
-// Verifies compile-time prototype resolution for representative type/count combinations.
+/// Verifies compile-time prototype resolution for representative type/count combinations.
 void test_resolve_prototype()
 {
-    using namespace axmc_communication_assets;
-
     // Scalar types
-    static_assert(ResolvePrototype<bool>() == kPrototypes::kOneBool, "bool -> kOneBool");
-    static_assert(ResolvePrototype<uint8_t>() == kPrototypes::kOneUint8, "uint8_t -> kOneUint8");
-    static_assert(ResolvePrototype<int8_t>() == kPrototypes::kOneInt8, "int8_t -> kOneInt8");
-    static_assert(ResolvePrototype<uint16_t>() == kPrototypes::kOneUint16, "uint16_t -> kOneUint16");
-    static_assert(ResolvePrototype<int16_t>() == kPrototypes::kOneInt16, "int16_t -> kOneInt16");
-    static_assert(ResolvePrototype<uint32_t>() == kPrototypes::kOneUint32, "uint32_t -> kOneUint32");
-    static_assert(ResolvePrototype<int32_t>() == kPrototypes::kOneInt32, "int32_t -> kOneInt32");
-    static_assert(ResolvePrototype<float>() == kPrototypes::kOneFloat32, "float -> kOneFloat32");
-    static_assert(ResolvePrototype<uint64_t>() == kPrototypes::kOneUint64, "uint64_t -> kOneUint64");
-    static_assert(ResolvePrototype<int64_t>() == kPrototypes::kOneInt64, "int64_t -> kOneInt64");
-    static_assert(ResolvePrototype<double>() == kPrototypes::kOneFloat64, "double -> kOneFloat64");
+    static_assert(
+        ResolvePrototype<bool>() == kPrototypes::kOneBool,
+        "ResolvePrototype must map bool to kPrototypes::kOneBool."
+    );
+    static_assert(
+        ResolvePrototype<uint8_t>() == kPrototypes::kOneUint8,
+        "ResolvePrototype must map uint8_t to kPrototypes::kOneUint8."
+    );
+    static_assert(
+        ResolvePrototype<int8_t>() == kPrototypes::kOneInt8,
+        "ResolvePrototype must map int8_t to kPrototypes::kOneInt8."
+    );
+    static_assert(
+        ResolvePrototype<uint16_t>() == kPrototypes::kOneUint16,
+        "ResolvePrototype must map uint16_t to kPrototypes::kOneUint16."
+    );
+    static_assert(
+        ResolvePrototype<int16_t>() == kPrototypes::kOneInt16,
+        "ResolvePrototype must map int16_t to kPrototypes::kOneInt16."
+    );
+    static_assert(
+        ResolvePrototype<uint32_t>() == kPrototypes::kOneUint32,
+        "ResolvePrototype must map uint32_t to kPrototypes::kOneUint32."
+    );
+    static_assert(
+        ResolvePrototype<int32_t>() == kPrototypes::kOneInt32,
+        "ResolvePrototype must map int32_t to kPrototypes::kOneInt32."
+    );
+    static_assert(
+        ResolvePrototype<float>() == kPrototypes::kOneFloat32,
+        "ResolvePrototype must map float to kPrototypes::kOneFloat32."
+    );
+    static_assert(
+        ResolvePrototype<uint64_t>() == kPrototypes::kOneUint64,
+        "ResolvePrototype must map uint64_t to kPrototypes::kOneUint64."
+    );
+    static_assert(
+        ResolvePrototype<int64_t>() == kPrototypes::kOneInt64,
+        "ResolvePrototype must map int64_t to kPrototypes::kOneInt64."
+    );
+    static_assert(
+        ResolvePrototype<double>() == kPrototypes::kOneFloat64,
+        "ResolvePrototype must map double to kPrototypes::kOneFloat64."
+    );
 
     // Array types (representative samples)
-    static_assert(ResolvePrototype<uint8_t[2]>() == kPrototypes::kTwoUint8s, "uint8_t[2] -> kTwoUint8s");
-    static_assert(ResolvePrototype<uint16_t[3]>() == kPrototypes::kThreeUint16s, "uint16_t[3] -> kThreeUint16s");
-    static_assert(ResolvePrototype<float[4]>() == kPrototypes::kFourFloat32s, "float[4] -> kFourFloat32s");
-    static_assert(ResolvePrototype<double[15]>() == kPrototypes::kFifteenFloat64s, "double[15] -> kFifteenFloat64s");
-    static_assert(ResolvePrototype<bool[8]>() == kPrototypes::kEightBools, "bool[8] -> kEightBools");
+    static_assert(
+        ResolvePrototype<uint8_t[2]>() == kPrototypes::kTwoUint8s,
+        "ResolvePrototype must map uint8_t[2] to kPrototypes::kTwoUint8s."
+    );
+    static_assert(
+        ResolvePrototype<uint16_t[3]>() == kPrototypes::kThreeUint16s,
+        "ResolvePrototype must map uint16_t[3] to kPrototypes::kThreeUint16s."
+    );
+    static_assert(
+        ResolvePrototype<float[4]>() == kPrototypes::kFourFloat32s,
+        "ResolvePrototype must map float[4] to kPrototypes::kFourFloat32s."
+    );
+    static_assert(
+        ResolvePrototype<double[15]>() == kPrototypes::kFifteenFloat64s,
+        "ResolvePrototype must map double[15] to kPrototypes::kFifteenFloat64s."
+    );
+    static_assert(
+        ResolvePrototype<bool[8]>() == kPrototypes::kEightBools,
+        "ResolvePrototype must map bool[8] to kPrototypes::kEightBools."
+    );
 
-    // Extended prototypes — platform cap counts
-    static_assert(ResolvePrototype<bool[52]>() == kPrototypes::kFiftyTwoBools, "bool[52]");
-    static_assert(ResolvePrototype<bool[248]>() == kPrototypes::kTwoHundredFortyEightBools, "bool[248]");
-    static_assert(ResolvePrototype<uint8_t[52]>() == kPrototypes::kFiftyTwoUint8s, "uint8_t[52]");
-    static_assert(ResolvePrototype<uint8_t[128]>() == kPrototypes::kOneHundredTwentyEightUint8s, "uint8_t[128]");
-    static_assert(ResolvePrototype<uint8_t[248]>() == kPrototypes::kTwoHundredFortyEightUint8s, "uint8_t[248]");
-    static_assert(ResolvePrototype<int8_t[52]>() == kPrototypes::kFiftyTwoInt8s, "int8_t[52]");
-    static_assert(ResolvePrototype<int8_t[248]>() == kPrototypes::kTwoHundredFortyEightInt8s, "int8_t[248]");
-    static_assert(ResolvePrototype<uint16_t[26]>() == kPrototypes::kTwentySixUint16s, "uint16_t[26]");
-    static_assert(ResolvePrototype<uint16_t[124]>() == kPrototypes::kOneHundredTwentyFourUint16s, "uint16_t[124]");
-    static_assert(ResolvePrototype<uint32_t[62]>() == kPrototypes::kSixtyTwoUint32s, "uint32_t[62]");
-    static_assert(ResolvePrototype<float[62]>() == kPrototypes::kSixtyTwoFloat32s, "float[62]");
-    static_assert(ResolvePrototype<uint64_t[31]>() == kPrototypes::kThirtyOneUint64s, "uint64_t[31]");
-    static_assert(ResolvePrototype<double[31]>() == kPrototypes::kThirtyOneFloat64s, "double[31]");
+    // Extended prototypes: platform cap counts
+    static_assert(
+        ResolvePrototype<bool[52]>() == kPrototypes::kFiftyTwoBools,
+        "ResolvePrototype must map bool[52] to kPrototypes::kFiftyTwoBools."
+    );
+    static_assert(
+        ResolvePrototype<bool[248]>() == kPrototypes::kTwoHundredFortyEightBools,
+        "ResolvePrototype must map bool[248] to kPrototypes::kTwoHundredFortyEightBools."
+    );
+    static_assert(
+        ResolvePrototype<uint8_t[52]>() == kPrototypes::kFiftyTwoUint8s,
+        "ResolvePrototype must map uint8_t[52] to kPrototypes::kFiftyTwoUint8s."
+    );
+    static_assert(
+        ResolvePrototype<uint8_t[128]>() == kPrototypes::kOneHundredTwentyEightUint8s,
+        "ResolvePrototype must map uint8_t[128] to kPrototypes::kOneHundredTwentyEightUint8s."
+    );
+    static_assert(
+        ResolvePrototype<uint8_t[248]>() == kPrototypes::kTwoHundredFortyEightUint8s,
+        "ResolvePrototype must map uint8_t[248] to kPrototypes::kTwoHundredFortyEightUint8s."
+    );
+    static_assert(
+        ResolvePrototype<int8_t[52]>() == kPrototypes::kFiftyTwoInt8s,
+        "ResolvePrototype must map int8_t[52] to kPrototypes::kFiftyTwoInt8s."
+    );
+    static_assert(
+        ResolvePrototype<int8_t[248]>() == kPrototypes::kTwoHundredFortyEightInt8s,
+        "ResolvePrototype must map int8_t[248] to kPrototypes::kTwoHundredFortyEightInt8s."
+    );
+    static_assert(
+        ResolvePrototype<uint16_t[26]>() == kPrototypes::kTwentySixUint16s,
+        "ResolvePrototype must map uint16_t[26] to kPrototypes::kTwentySixUint16s."
+    );
+    static_assert(
+        ResolvePrototype<uint16_t[124]>() == kPrototypes::kOneHundredTwentyFourUint16s,
+        "ResolvePrototype must map uint16_t[124] to kPrototypes::kOneHundredTwentyFourUint16s."
+    );
+    static_assert(
+        ResolvePrototype<uint32_t[62]>() == kPrototypes::kSixtyTwoUint32s,
+        "ResolvePrototype must map uint32_t[62] to kPrototypes::kSixtyTwoUint32s."
+    );
+    static_assert(
+        ResolvePrototype<float[62]>() == kPrototypes::kSixtyTwoFloat32s,
+        "ResolvePrototype must map float[62] to kPrototypes::kSixtyTwoFloat32s."
+    );
+    static_assert(
+        ResolvePrototype<uint64_t[31]>() == kPrototypes::kThirtyOneUint64s,
+        "ResolvePrototype must map uint64_t[31] to kPrototypes::kThirtyOneUint64s."
+    );
+    static_assert(
+        ResolvePrototype<double[31]>() == kPrototypes::kThirtyOneFloat64s,
+        "ResolvePrototype must map double[31] to kPrototypes::kThirtyOneFloat64s."
+    );
 
-    // Extended prototypes — intermediate counts
-    static_assert(ResolvePrototype<uint8_t[36]>() == kPrototypes::kThirtySixUint8s, "uint8_t[36]");
-    static_assert(ResolvePrototype<int8_t[132]>() == kPrototypes::kOneHundredThirtyTwoInt8s, "int8_t[132]");
-    static_assert(ResolvePrototype<int16_t[48]>() == kPrototypes::kFortyEightInt16s, "int16_t[48]");
-    static_assert(ResolvePrototype<int32_t[48]>() == kPrototypes::kFortyEightInt32s, "int32_t[48]");
-    static_assert(ResolvePrototype<int64_t[24]>() == kPrototypes::kTwentyFourInt64s, "int64_t[24]");
+    // Extended prototypes: intermediate counts
+    static_assert(
+        ResolvePrototype<uint8_t[36]>() == kPrototypes::kThirtySixUint8s,
+        "ResolvePrototype must map uint8_t[36] to kPrototypes::kThirtySixUint8s."
+    );
+    static_assert(
+        ResolvePrototype<int8_t[132]>() == kPrototypes::kOneHundredThirtyTwoInt8s,
+        "ResolvePrototype must map int8_t[132] to kPrototypes::kOneHundredThirtyTwoInt8s."
+    );
+    static_assert(
+        ResolvePrototype<int16_t[48]>() == kPrototypes::kFortyEightInt16s,
+        "ResolvePrototype must map int16_t[48] to kPrototypes::kFortyEightInt16s."
+    );
+    static_assert(
+        ResolvePrototype<int32_t[48]>() == kPrototypes::kFortyEightInt32s,
+        "ResolvePrototype must map int32_t[48] to kPrototypes::kFortyEightInt32s."
+    );
+    static_assert(
+        ResolvePrototype<int64_t[24]>() == kPrototypes::kTwentyFourInt64s,
+        "ResolvePrototype must map int64_t[24] to kPrototypes::kTwentyFourInt64s."
+    );
 
     // If all static_asserts pass, the test trivially succeeds at runtime.
     TEST_ASSERT_TRUE(true);
 }
 
-// Specifies the test functions executed at runtime.
+/// Specifies the test functions executed at runtime.
 int RunUnityTests()
 {
     UNITY_BEGIN();
@@ -709,8 +817,8 @@ static constexpr uint32_t kSerialBaudRate = 1000000;
 static constexpr uint32_t kSerialBaudRate = 9600;
 #endif
 
-// This is necessary for the Arduino framework testing to work as expected, which includes teensy. All tests are
-// run inside the setup function as they are intended to be one-shot tests.
+/// Runs all tests inside setup() as required by the Arduino framework for one-shot testing, which includes
+/// Teensy boards.
 void setup()
 {
     // Starts the serial connection.
@@ -727,6 +835,6 @@ void setup()
     Serial.end();
 }
 
-// Nothing here as all tests are done in a one-shot fashion using the 'setup' function above.
+/// Intentionally empty. All tests run in setup() as one-shot operations.
 void loop()
 {}
