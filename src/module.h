@@ -333,14 +333,30 @@ class Module
         /**
          * @brief Terminates the active command without notifying the PC that it has been completed.
          *
+         * Also removes the command from the queue when the queue still holds it, as a command the instance does not
+         * recognize cannot become recognized on a later repetition. Without this step, a recurrent command reactivates
+         * on every runtime cycle and floods the PC with the same error.
+         *
          * @warning The active command is cleared without a completion message, so the caller reports the command's
          * outcome to the PC.
          */
         void DiscardActiveCommand()
         {
+            // Runs before the active command field is cleared, for two reasons. The comparison needs the code of the
+            // command being discarded, and ReportRetiredRecurrentCommand() stays silent only while a command is still
+            // active, which keeps the rejected command from reaching the PC as a completed one. A newly queued command
+            // is left alone, as it is unrelated to this failure.
+            if (!_execution_parameters.new_command &&
+                _execution_parameters.next_command == _execution_parameters.command)
+            {
+                ResetCommandQueue();
+            }
+
             _execution_parameters.command = 0;
             // Stage 0 is not a valid command stage, so it doubles as the deactivation marker.
             _execution_parameters.stage = 0;
+            // Times the next recurrent command's repetitions from this point, matching what CompleteCommand() does.
+            _execution_parameters.recurrent_timer = 0;
         }
 
         /// Destroys the instance during cleanup.
