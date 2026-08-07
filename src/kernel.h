@@ -132,6 +132,12 @@ class Kernel
          * sending data to the PC. Seeing the LED blink on and off at ~2-second intervals indicates that the Kernel
          * failed the setup sequence.
          *
+         * @warning The first managed module whose SetupModule() method returns false aborts this method, which
+         * suspends the runtime of the whole controller until the firmware is reset. The controller cannot receive the
+         * PC-sent reset command in that state, and it stops executing module commands, so every managed module holds
+         * the pin levels it has at the moment of the failure. Every SetupModule() implementation therefore has to
+         * leave its module in the idle state, ideally without any logic that can fail at runtime.
+         *
          * @note This method has to be called as part of the main setup() function.
          */
         void Setup()

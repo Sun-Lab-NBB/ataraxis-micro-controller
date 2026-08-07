@@ -141,7 +141,7 @@ logic. The library targets Arduino and Teensy microcontrollers within the
   runs one iteration of the main loop. Internally routes received messages by protocol code: kernel commands are
   handled directly, module commands and parameters are dispatched to the target module via `(module_type, module_id)`
   lookup. Implements keepalive monitoring (two consecutive missed windows trigger emergency reset) and LED-based error
-  indication (constant HIGH = transmission error, 2-second blink = setup error).
+  indication (constant HIGH = transmission error, LED toggling at 2-second intervals = setup error).
 - **Communication** (`communication.h`): Bidirectional message interface built on `TransportLayer` from
   `ataraxis-transport-layer-mc` with CRC-16 (polynomial 0x1021, initial 0xFFFF). Handles 13 message protocols
   (`kProtocols` enum) and 252 data prototypes (`kPrototypes` enum). Read `src/communication.h` for the send, receive,
@@ -177,6 +177,15 @@ logic. The library targets Arduino and Teensy microcontrollers within the
   Mega: 52 bytes). The underlying serial buffers are larger (8192/256/64 bytes on Teensy/Due/Mega).
 - **`using namespace axmc_shared_assets;`** in source files is intentional for readability in the embedded context.
 - **LED error indication**: `LED_BUILTIN` is used as a fallback error channel when serial communication has failed.
+- **`SetupModule()` must be unfailable and end idle**: `Kernel::Setup()` aborts on the first module that returns
+  `false`, after which `RuntimeCycle()` only blinks the LED, never parsing PC messages nor running module commands. The
+  controller is then frozen in its current physical state until a firmware reset, so a module driving an output stays
+  driving it. Every `SetupModule()` implementation therefore must be written so it cannot fail, and must push any
+  unavoidable failure to compile time via `static_assert` rather than a runtime `false`. It must also deactivate all
+  managed hardware as its first step, before any logic that can return `false`. This applies to all modules, not just
+  the failing one. Earlier modules stay in the state their own setup left them in, and later modules never run
+  `SetupModule()` at all. That matters because `Setup()` also re-runs mid-experiment on a PC reset command and on a
+  keepalive timeout.
 - **Module core status codes 0-3 are reserved** by the base `Module` class. Custom module status codes must use the
   range 51-250, unique within each module class.
 

@@ -70,9 +70,13 @@ class TestModule final : public Module
             }
         }
 
-        /// Sets up the instance's hardware and software assets to default values.
+        /// Sets up the instance's hardware and software assets to default values, leaving the module idle.
         bool SetupModule() override
         {
+            // Deactivates the managed hardware first, which leaves the module idle. A module that returns false from
+            // this method suspends the runtime of the whole controller until the firmware is reset. That strands every
+            // managed module at its current pin levels, so this method reaches the idle state before running anything
+            // else and then avoids any logic that can fail.
             pinMode(kPin, OUTPUT);
             digitalWrite(kPin, LOW);
 
