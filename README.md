@@ -163,9 +163,9 @@ void loop()
 }
 ```
 
-***Note,*** the Kernel uses the microcontroller's built-in LED for error indication. If the LED is constantly ON after
-`Setup()` completes, the controller experienced a communication error when sending data to the PC. If the LED blinks
-with approximately 2-second periodicity, the Kernel failed the setup sequence due to a module setup error.
+***Note,*** the Kernel uses the microcontroller's built-in LED for error indication. If the LED is constantly ON after 
+`Setup()` completes, the controller experienced a communication error when sending data to the PC. If the LED toggles 
+at approximately 2-second intervals, the Kernel failed the setup sequence due to a module setup error.
 
 ### User-Defined Variables
 
@@ -335,15 +335,16 @@ to track the runtime status (success / failure) of the called command's method.
 
 This method enables the Kernel to set up the hardware and software assets for each managed module instance. This is 
 done from the global `setup()` function, which is executed by the Arduino and Teensy microcontrollers after firmware 
-reupload. This is also done in response to the PC requesting the controller to be reset to the default state. The 
-primary purpose of this method is to initialize the hardware and software of each module instance to the state that 
-supports the runtime.
+reupload. This is also done in response to the PC requesting the controller to be reset to the default state and when 
+the keepalive monitor detects a lost PC connection. The primary purpose of this method is to initialize the hardware 
+and software of each module instance to the idle state that supports the runtime, which makes the method safe to call 
+repeatedly and at any point during runtime.
 
 The implementation of this method should follow the same guidelines as the general microcontroller `setup()` function:
 ```
 bool SetupModule() override
 {
-    // Configures class hardware
+    // Configures class hardware and, critically, deactivates it before running anything else
     pinMode(kPin, OUTPUT);
     digitalWrite(kPin, LOW);
 
@@ -357,10 +358,57 @@ bool SetupModule() override
 }
 ```
 
-It is recommended to implement the method in a way that always returns `true` and does not fail. However, to support 
-the runtimes that need to be able to fail, the method supports returning `false` to notify the Kernel that the setup has
-failed. If this method returns `false`, the Kernel deadlocks the microcontroller in the error state until the 
-microcontroller firmware is reuploaded to fix the setup error.
+Since a setup failure is unrecoverable at runtime, this method carries three design requirements that go beyond those 
+of the other two virtual methods. Follow them in order:
+
+1. **The method should be designed so that it cannot fail.** Implement it to always return `true`. Restrict its body to 
+   the operations that cannot fail: configuring pin modes, writing pin states, and assigning parameter defaults. Do not 
+   put connection handshakes, calibration routines, homing sweeps, or sensor readiness polling into this method. Move 
+   any such logic into a command, where a failure is reported to the PC and leaves the controller able to respond.
+
+2. **When a failure mode cannot be designed away, move it to compile time.** Validate pin assignments, template 
+   arguments, parameter struct sizes, and any other statically known configuration with `static_assert`, so that an 
+   invalid configuration fails the build instead of bricking the controller in the field. A compilation error is always 
+   recoverable, while a runtime setup failure requires physical access to the microcontroller.
+
+3. **The method must leave the module in the idle state, and must reach that state before anything that can fail.** 
+   Deactivate every hardware asset the module manages, such as by driving its output pins to the level that turns the 
+   attached device off, as the first step of the method body. Place any step that can return `false` after that point.
+
+The third requirement is the load-bearing one, because of how the Kernel handles a setup failure. `Setup()` calls 
+`SetupModule()` on each managed module in array order and returns immediately when one of them returns `false`. From 
+that point on, `RuntimeCycle()` only blinks the built-in LED: it stops parsing PC messages and stops executing module 
+commands. The controller therefore cannot receive the PC-sent `reset` command.
+
+***Critical!*** Nothing changes the state of the hardware again until the firmware is reset. Whatever each module 
+drives at the instant of the failure, it keeps driving indefinitely. A solenoid left open stays open, a valve keeps 
+dispensing, and a motor keeps turning.
+
+This affects every managed module, not only the one that failed:
+
+| Module position           | State after a setup failure                                                              |
+|---------------------------|------------------------------------------------------------------------------------------|
+| Before the failing module | Already ran `SetupModule()` and is frozen in the state that method left it in.           |
+| The failing module        | Frozen part-way through its own `SetupModule()`, at whatever step returned `false`.      |
+| After the failing module  | Never ran `SetupModule()` at all and retains the hardware state it had before `Setup()`. |
+
+The last row matters most during runtime resets. `Setup()` is not only called at startup, as it also re-runs when the 
+PC sends the `reset` command and when the keepalive monitor detects a lost PC connection. Both of those happen while 
+modules can be mid-command and actively driving their hardware. The Kernel clears the software command state of every 
+module before the setup pass, and that clearing step never touches the hardware, so only each module's own 
+`SetupModule()` can return its pins to a safe level. A module that never gets its turn keeps driving whatever the 
+aborted command left active.
+
+Note that "idle" is defined by the attached hardware, not by the pin level. Active-low devices idle at `HIGH`, so 
+express the inactive level as a named `constexpr` rather than hardcoding `LOW`, and verify it against the device's 
+wiring.
+
+To support the runtimes that genuinely need to be able to fail, the method still supports returning `false` to notify 
+the Kernel that the setup has failed. In that case, the Kernel reports kernel status code 2 (`kModuleSetupError`) to 
+the PC and toggles the built-in LED at ~2-second intervals. It then deadlocks the microcontroller in the error state 
+until the microcontroller firmware is reuploaded to fix the setup error. Because the method runs before the 
+communication interface is fully initialized, even that error report may not reach the PC, leaving the blinking LED as 
+the only indication of the failure.
 
 #### Utility Methods
 

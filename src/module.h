@@ -137,14 +137,24 @@ class Module
         virtual bool RunActiveCommand() = 0;
 
         /**
-         * @brief Sets up the instance's hardware and software assets.
+         * @brief Sets up the instance's hardware and software assets and leaves the instance in the idle state.
          *
          * @note This method should set the initial (default) state of the instance's custom parameter structures and
-         * hardware (pins, timers, etc.).
+         * hardware (pins, timers, etc.). The Kernel calls this method at controller startup, when the PC requests a
+         * controller reset, and when the keepalive monitor detects a lost PC connection. The implementation therefore
+         * has to be safe to call repeatedly and at any point during runtime.
          *
          * @attention Ideally, this method should not contain any logic that can fail or block, as this method is called
          * as part of the initial library runtime setup procedure, before the communication interface is fully
-         * initialized.
+         * initialized. When a failure mode cannot be designed away, prefer detecting it at compile time with a
+         * static_assert over returning false at runtime, as a compilation error is always recoverable and a setup
+         * failure is not.
+         *
+         * @attention The method must deactivate every hardware asset it manages before it evaluates any condition that
+         * can make it return false. Returning false suspends the runtime of the whole controller until the firmware is
+         * reset, freezing all managed modules in whatever physical state they occupy at that moment. Modules set up
+         * before the failing one stay in the state their own setup left them in, and modules after it are never set up
+         * at all, so any output left active keeps driving its hardware indefinitely.
          *
          * @returns true if the setup method ran successfully, false otherwise.
          */
