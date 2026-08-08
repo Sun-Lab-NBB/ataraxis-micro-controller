@@ -180,6 +180,10 @@ class Communication
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
             if (!success)
             {
+                // Discards the header the first write stages before the second one fails. SendData() clears the
+                // transmission buffer on every send, and this path returns before reaching it, so the staged bytes
+                // would otherwise shrink the payload region available to every later message.
+                _transport_layer.ResetTransmissionBuffer();
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
@@ -233,6 +237,10 @@ class Communication
             // If serializing the message and the data payload fails, breaks the runtime with an error status.
             if (!success)
             {
+                // Discards the header the first write stages before the second one fails. SendData() clears the
+                // transmission buffer on every send, and this path returns before reaching it, so the staged bytes
+                // would otherwise shrink the payload region available to every later message.
+                _transport_layer.ResetTransmissionBuffer();
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
@@ -273,6 +281,9 @@ class Communication
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
+                // Restores the empty transmission buffer that SendData() maintains, as this path returns before
+                // reaching it.
+                _transport_layer.ResetTransmissionBuffer();
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
@@ -303,6 +314,9 @@ class Communication
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
+                // Restores the empty transmission buffer that SendData() maintains, as this path returns before
+                // reaching it.
+                _transport_layer.ResetTransmissionBuffer();
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
@@ -415,6 +429,9 @@ class Communication
             // Writes the message into the payload buffer. If writing fails, breaks the runtime with an error status.
             if (!_transport_layer.WriteData(message))
             {
+                // Restores the empty transmission buffer that SendData() maintains, as this path returns before
+                // reaching it.
+                _transport_layer.ResetTransmissionBuffer();
                 _communication_status = static_cast<uint8_t>(kCommunicationStatusCodes::kPackingError);
                 return false;
             }
