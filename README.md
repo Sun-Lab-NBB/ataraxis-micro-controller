@@ -448,6 +448,10 @@ The maximum data payload is 248 bytes on Teensy (8192-byte serial buffer), 244 b
 52 bytes on Mega (64-byte buffer). The `SendDataMessage` static_assert catches oversized objects at compile time for 
 each platform.
 
+The `double` type occupies 8 bytes on Teensy and Due. avr-gcc compiles it to 4 bytes unless the build passes
+`-mdouble=64`, so `ResolvePrototype()` rejects `double` at compile time on Mega. Transmit such values as `float`, or
+add the flag to the `mega` environment.
+
 ___
 
 ## API Documentation

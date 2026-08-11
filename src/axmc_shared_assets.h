@@ -811,6 +811,21 @@ namespace axmc_communication_assets
             "int16_t, uint32_t, int32_t, float, uint64_t, int64_t, double."
         );
 
+        // The fixed-width integer types carry the same width on every supported platform, but the floating-point
+        // widths do not. avr-gcc compiles 'double' to 4 bytes unless the build passes -mdouble=64, which would tag a
+        // 4-byte payload with a prototype code the PC decodes as an 8-byte object.
+        static_assert(
+            !is_same_v<ElementType, double> || sizeof(double) == 8,
+            "Unable to resolve a prototype code for the 'double' type. The double prototype codes declare 8-byte "
+            "elements, but this platform compiles 'double' to a narrower width. Build with -mdouble=64, or transmit "
+            "such values as 'float'."
+        );
+        static_assert(
+            !is_same_v<ElementType, float> || sizeof(float) == 4,
+            "Unable to resolve a prototype code for the 'float' type. The float prototype codes declare 4-byte "
+            "elements, but this platform compiles 'float' to a different width."
+        );
+
         // Uses a ternary chain instead of if-constexpr for compatibility with older constexpr implementations.
         return is_same_v<ElementType, bool>     ? kPrototypeBoolColumnIndex
              : is_same_v<ElementType, uint8_t>  ? kPrototypeUint8ColumnIndex
