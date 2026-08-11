@@ -129,7 +129,7 @@ logic. The library targets Arduino and Teensy microcontrollers within the
 | Directory   | Purpose                                                      |
 |-------------|--------------------------------------------------------------|
 | `src/`      | Library source code (4 headers + main.cpp development entry) |
-| `test/`     | Unity test suite for Communication class                     |
+| `test/`     | Unity test suite for Communication, Module, and Kernel       |
 | `examples/` | TestModule implementation and main.cpp integration example   |
 | `docs/`     | Sphinx + Breathe documentation source (consumes Doxygen XML) |
 
