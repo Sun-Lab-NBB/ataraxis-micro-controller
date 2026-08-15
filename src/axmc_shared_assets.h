@@ -815,7 +815,7 @@ namespace axmc_communication_assets
         // widths do not. avr-gcc compiles 'double' to 4 bytes unless the build passes -mdouble=64, which would tag a
         // 4-byte payload with a prototype code the PC decodes as an 8-byte object.
         static_assert(
-            !is_same_v<ElementType, double> || sizeof(double) == 8,
+            !is_same_v<ElementType, double> || sizeof(double) == 8,  // NOLINT(*-magic-numbers)
             "Unable to resolve a prototype code for the 'double' type. The double prototype codes declare 8-byte "
             "elements, but this platform compiles 'double' to a narrower width. Build with -mdouble=64, or transmit "
             "such values as 'float'."
