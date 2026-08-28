@@ -181,14 +181,23 @@ and the PC.**
    identify themselves during communication and logging and **clash** with microcontroller IDs if both are used at the
    same time.
 
-- `Module Type` for each hardware module instance. This is a unique code from 1 to 255 that identifies the family 
-   (class) of each module instance. For example, all solenoid valves may use the type-code '1,' while all voltage 
-   sensors may use the type-code '2.' The type-codes do not have any inherent meaning. Their interpretation depends 
-   entirely on the end-user's preference when implementing the hardware module and its PC interface.
+- `Module Type` for each hardware module instance. This is a code from 1 to 255 that identifies the family (class) of
+   each module instance. For example, all solenoid valves may use the type-code '1,' while all voltage sensors may use
+   the type-code '2.' The type-codes do not have any inherent meaning. Their interpretation depends entirely on the
+   end-user's preference when implementing the hardware module and its PC interface. All instances of the same module
+   class share this code, so the combination of the type-code and the ID code addresses a specific module instance.
 
-- `Module ID` for each hardware module instance. This code has to be unique within the module type (family) and is used 
-   to identify specific module instances. For example, if two voltage sensors (type code '2') are used at the same 
+- `Module ID` for each hardware module instance. This code has to be unique within the module type (family) and is used
+   to identify specific module instances. For example, if two voltage sensors (type code '2') are used at the same
    time, the first voltage sensor should use ID code '1,' while the second sensor should use ID code '2.'
+
+***Note,*** the library receives both codes as constructor arguments at runtime, so the firmware accepts a combination
+already used by another module. The companion PC interface catches the repeat during the connection handshake, where it
+asks the controller to identify every managed module and refuses to start when two modules report the same combination.
+That handshake follows the controller's first `Setup()` runtime, so both modules configure their hardware before the PC
+reports the repeat, and the controller idles through that window. The Kernel routes every message addressed to a shared
+combination to the module that comes first in the module array. Firmware run without the PC interface receives no
+report, so verify the combinations by hand when testing a controller in isolation.
 
 ### Keepalive
 
