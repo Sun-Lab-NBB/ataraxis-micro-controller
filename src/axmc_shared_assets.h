@@ -812,13 +812,14 @@ namespace axmc_communication_assets
         );
 
         // The fixed-width integer types carry the same width on every supported platform, but the floating-point
-        // widths do not. avr-gcc compiles 'double' to 4 bytes unless the build passes -mdouble=64, which would tag a
-        // 4-byte payload with a prototype code the PC decodes as an 8-byte object.
+        // widths do not. avr-gcc compiles 'double' to 4 bytes, which would tag a 4-byte payload with a prototype code
+        // the PC decodes as an 8-byte object. The -mdouble=64 flag that widens the type arrives in avr-gcc 10, and the
+        // PlatformIO atmelavr toolchain currently ships avr-gcc 7.3.0.
         static_assert(
             !is_same_v<ElementType, double> || sizeof(double) == 8,  // NOLINT(*-magic-numbers)
             "Unable to resolve a prototype code for the 'double' type. The double prototype codes declare 8-byte "
-            "elements, but this platform compiles 'double' to a narrower width. Build with -mdouble=64, or transmit "
-            "such values as 'float'."
+            "elements, and this platform compiles 'double' to a narrower width. Transmit such values as 'float', "
+            "which every supported platform compiles to 4 bytes."
         );
         static_assert(
             !is_same_v<ElementType, float> || sizeof(float) == 4,

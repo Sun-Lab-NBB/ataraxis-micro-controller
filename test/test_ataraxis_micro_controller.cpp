@@ -1104,10 +1104,15 @@ void test_resolve_prototype()
         ResolvePrototype<int64_t>() == kPrototypes::kOneInt64,
         "ResolvePrototype must map int64_t to kPrototypes::kOneInt64."
     );
+    // ResolvePrototype() rejects 'double' on any platform that compiles it to fewer than 8 bytes, which is what
+    // avr-gcc does for the mega environment. The double assertions therefore run only where the type matches the
+    // width its prototype codes declare.
+#if __SIZEOF_DOUBLE__ == 8
     static_assert(
         ResolvePrototype<double>() == kPrototypes::kOneFloat64,
         "ResolvePrototype must map double to kPrototypes::kOneFloat64."
     );
+#endif
 
     // Array types (representative samples)
     static_assert(
@@ -1122,10 +1127,12 @@ void test_resolve_prototype()
         ResolvePrototype<float[4]>() == kPrototypes::kFourFloat32s,
         "ResolvePrototype must map float[4] to kPrototypes::kFourFloat32s."
     );
+#if __SIZEOF_DOUBLE__ == 8
     static_assert(
         ResolvePrototype<double[15]>() == kPrototypes::kFifteenFloat64s,
         "ResolvePrototype must map double[15] to kPrototypes::kFifteenFloat64s."
     );
+#endif
     static_assert(
         ResolvePrototype<bool[8]>() == kPrototypes::kEightBools,
         "ResolvePrototype must map bool[8] to kPrototypes::kEightBools."
@@ -1180,10 +1187,12 @@ void test_resolve_prototype()
         ResolvePrototype<uint64_t[31]>() == kPrototypes::kThirtyOneUint64s,
         "ResolvePrototype must map uint64_t[31] to kPrototypes::kThirtyOneUint64s."
     );
+#if __SIZEOF_DOUBLE__ == 8
     static_assert(
         ResolvePrototype<double[31]>() == kPrototypes::kThirtyOneFloat64s,
         "ResolvePrototype must map double[31] to kPrototypes::kThirtyOneFloat64s."
     );
+#endif
 
     // Extended prototypes: intermediate counts
     static_assert(
