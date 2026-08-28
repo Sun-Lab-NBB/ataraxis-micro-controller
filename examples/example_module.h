@@ -92,12 +92,17 @@ class TestModule final : public Module
 
     private:
         /// Stores the instance's PC-addressable runtime parameters.
+        // The parameter defaults below stay as inline literals, so that each default reads next to the field it
+        // initializes. A module written for production should name them as static constexpr constants instead.
+        // NOLINTBEGIN(*-magic-numbers)
         struct CustomRuntimeParameters
         {
                 uint32_t on_duration  = 2000000;  ///< The time, in microseconds, to keep the pin HIGH when pulsing.
                 uint32_t off_duration = 2000000;  ///< The time, in microseconds, to keep the pin LOW when pulsing.
                 uint16_t echo_value   = 123;      ///< The value sent to the PC as part of the Echo() command's runtime.
         } PACKED_STRUCT _custom_parameters;
+
+        // NOLINTEND(*-magic-numbers)
 
         /// Emits a square digital pulse using the managed pin.
         void Pulse()
