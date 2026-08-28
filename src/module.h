@@ -94,10 +94,15 @@ class Module
          * @warning This initializer must be called as part of the custom module's initialization sequence for each
          * module that subclasses this base class.
          *
+         * @note The type and id codes are supplied as constructor arguments at runtime, so the library accepts a
+         * combination already used by another module. The companion PC-side library reports the repeated combination
+         * when it identifies the managed modules during the connection handshake, which follows the first
+         * Kernel::Setup() runtime.
+         *
          * @param module_type The code that identifies the type (family) of the module. All instances of the same
          * custom module class should share this ID code.
-         * @param module_id The code that identifies the specific module instance. This code must be unique for
-         * each instance of the same module family (class) used as part of the same runtime.
+         * @param module_id The code that identifies the specific module instance. The combination of the type and id
+         * codes must be unique for each module instance managed by the same Kernel instance.
          * @param communication The shared Communication instance used to bidirectionally communicate with the PC
          * during runtime.
          */
@@ -649,7 +654,7 @@ class Module
         /// Stores the instance's type (family) identifier code.
         const uint8_t _module_type;
 
-        /// Stores the instance's unique identifier code.
+        /// Stores the instance's identifier code, which is unique among the instances that share its type code.
         const uint8_t _module_id;
 
         /// Stores the instance's combined type and id uint16 code expected to be unique for each module instance

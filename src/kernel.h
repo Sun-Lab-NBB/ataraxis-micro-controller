@@ -84,7 +84,9 @@ class Kernel
          * @param communication The shared Communication instance used to bidirectionally communicate with the PC
          * during runtime.
          * @param module_array The array of pointers to custom hardware module instances. Each instance must inherit
-         * from the base Module class, and the array must contain at least one instance.
+         * from the base Module class, and the array must contain at least one instance. Each instance must also carry
+         * a type and id code combination that no other instance in the array uses, which the Kernel expects rather
+         * than verifies.
          * @param keepalive_interval The interval, in milliseconds, used to derive the keepalive timeout. The Kernel
          * doubles this value to tolerate brief communication lapses, saturating at the largest representable
          * millisecond value, so emergency shutdown occurs after about twice the supplied interval without a keepalive
@@ -667,8 +669,12 @@ class Kernel
          * @note If this method is unable to resolve the target module, it automatically sends an error message to the
          * PC in addition to returning the '-1' error code.
          *
+         * @note This method returns the first managed module whose codes match the input codes. When two modules share
+         * the same type and id combination, every message addressed to that combination reaches the earlier module,
+         * and the later module receives no commands.
+         *
          * @param target_type The type (family) identifier of the addressed module.
-         * @param target_id The unique identifier of the addressed module.
+         * @param target_id The identifier of the addressed module instance.
          *
          * @returns A non-negative integer representing the index of the module in the array of managed modules if the
          * addressed module is found. A '-1' value if the target module was not found.
